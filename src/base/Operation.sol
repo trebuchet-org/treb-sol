@@ -16,11 +16,8 @@ abstract contract Operation is Script {
     /// @notice Version or label for this deployment
     string public label;
     
-    /// @notice Path to the deployments file
-    string public deploymentFile;
-    
-    /// @notice JSON object containing all deployments for the current chain
-    string public chainDeployments;
+    /// @notice Directory for deployments on this chain
+    string public deploymentDir;
     
     /// @notice Private key for deployment (from environment)
     uint256 public deployerPrivateKey;
@@ -29,16 +26,9 @@ abstract contract Operation is Script {
         contractName = _contractName;
         label = _label;
         
-        // Set up deployment file path
+        // Set up deployment directory path
         string memory chainId = vm.toString(block.chainid);
-        deploymentFile = string.concat("deployments/", chainId, ".json");
-        
-        // Load existing deployments or create empty object
-        try vm.readFile(deploymentFile) returns (string memory existing) {
-            chainDeployments = existing;
-        } catch {
-            chainDeployments = "{}";
-        }
+        deploymentDir = string.concat("deployments/", chainId);
         
         // Load deployer private key
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -52,8 +42,14 @@ abstract contract Operation is Script {
     /// @notice Check if contract is already deployed
     function getDeployed() public view returns (address) {
         string memory key = getLabel();
-        try vm.parseJsonAddress(chainDeployments, string.concat(".", key, ".address")) returns (address addr) {
-            return addr;
+        string memory artifactFile = string.concat(deploymentDir, "/", key, ".json");
+        
+        try vm.readFile(artifactFile) returns (string memory deploymentJson) {
+            try vm.parseJsonAddress(deploymentJson, ".address") returns (address addr) {
+                return addr;
+            } catch {
+                return address(0);
+            }
         } catch {
             return address(0);
         }

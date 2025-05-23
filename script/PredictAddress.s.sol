@@ -32,32 +32,33 @@ contract PredictAddress is Script {
         console2.log("Generated salt:");
         console2.logBytes32(salt);
         
-        // For prediction, we need to simulate the init code
-        // This is a placeholder - real implementation would need contract-specific logic
-        bytes memory mockInitCode = abi.encodePacked(
-            keccak256(abi.encodePacked(contractName)), // Mock creation code hash
-            abi.encode("mock", "constructor", "args")    // Mock constructor args
+        // Predict address using CREATE3 (only depends on salt and deployer)
+        // Use CreateX's computeCreate3Address function for accurate prediction
+        (bool success, bytes memory result) = CREATEX.staticcall(
+            abi.encodeWithSignature("computeCreate3Address(bytes32,address)", salt, address(this))
         );
         
-        // Predict address using CREATE2
-        bytes32 initCodeHash = keccak256(mockInitCode);
-        address predicted = address(uint160(uint(keccak256(abi.encodePacked(
-            bytes1(0xff),
-            CREATEX,
-            salt,
-            initCodeHash
-        )))));
+        address predicted;
+        if (success) {
+            predicted = abi.decode(result, (address));
+        } else {
+            // Fallback to standard CREATE3 calculation
+            bytes32 proxyCodeHash = keccak256(hex"67363d3d37363d34f03d5260086018f3");
+            predicted = address(uint160(uint(keccak256(abi.encodePacked(
+                bytes1(0xff),
+                address(this),
+                salt,
+                proxyCodeHash
+            )))));
+        }
         
         console2.log("Predicted address:", predicted);
-        console2.log("Init code hash:");
-        console2.logBytes32(initCodeHash);
         console2.log("Chain ID:", block.chainid);
         
         // Output structured data for CLI parsing
         console2.log("=== PREDICTION_RESULT ===");
         console2.log("ADDRESS:", vm.toString(predicted));
         console2.log("SALT:", vm.toString(salt));
-        console2.log("INIT_CODE_HASH:", vm.toString(initCodeHash));
         console2.log("SALT_STRING:", saltString);
         console2.log("=== END_PREDICTION ===");
     }
