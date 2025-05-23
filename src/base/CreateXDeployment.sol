@@ -39,8 +39,10 @@ abstract contract CreateXDeployment is Operation {
         
         // Use CreateX's computeCreate3Address function for accurate prediction
         // CREATE3 only depends on salt and deployer, not init code
+        // Use the actual wallet address that will call CreateX during broadcast
+        address actualDeployer = vm.addr(deployerPrivateKey);
         (bool success, bytes memory result) = CREATEX.staticcall(
-            abi.encodeWithSignature("computeCreate3Address(bytes32,address)", salt, address(this))
+            abi.encodeWithSignature("computeCreate3Address(bytes32,address)", salt, actualDeployer)
         );
         
         if (success) {
@@ -52,7 +54,7 @@ abstract contract CreateXDeployment is Operation {
         bytes32 proxyCodeHash = keccak256(hex"67363d3d37363d34f03d5260086018f3");
         return address(uint160(uint(keccak256(abi.encodePacked(
             bytes1(0xff),
-            address(this),
+            actualDeployer,
             salt,
             proxyCodeHash
         )))));

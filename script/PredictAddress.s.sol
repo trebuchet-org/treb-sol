@@ -32,10 +32,15 @@ contract PredictAddress is Script {
         console2.log("Generated salt:");
         console2.logBytes32(salt);
         
+        // Get the actual deployer address (wallet that calls the script)
+        address actualDeployer = vm.addr(vm.envUint("DEPLOYER_PRIVATE_KEY"));
+        
+        console2.log("Using deployer address:", actualDeployer);
+        
         // Predict address using CREATE3 (only depends on salt and deployer)
         // Use CreateX's computeCreate3Address function for accurate prediction
         (bool success, bytes memory result) = CREATEX.staticcall(
-            abi.encodeWithSignature("computeCreate3Address(bytes32,address)", salt, address(this))
+            abi.encodeWithSignature("computeCreate3Address(bytes32,address)", salt, actualDeployer)
         );
         
         address predicted;
@@ -46,7 +51,7 @@ contract PredictAddress is Script {
             bytes32 proxyCodeHash = keccak256(hex"67363d3d37363d34f03d5260086018f3");
             predicted = address(uint160(uint(keccak256(abi.encodePacked(
                 bytes1(0xff),
-                address(this),
+                actualDeployer,
                 salt,
                 proxyCodeHash
             )))));
