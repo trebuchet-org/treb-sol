@@ -21,19 +21,21 @@ contract PredictAddress is Script {
         console2.log("Contract:", contractName);
         console2.log("Environment:", environment);
         
-        // Get version from environment or default
-        string memory version = vm.envOr("CONTRACT_VERSION", string("v0.1.0"));
+        // Note: Version is now just metadata, not used in salt generation
         
-        // Build salt components
-        string memory saltString = string.concat(contractName, ".", version, ".", environment);
-        bytes32 salt = keccak256(bytes(saltString));
+        // Get the actual deployer address (wallet that calls the script)
+        address actualDeployer = vm.addr(vm.envUint("DEPLOYER_PRIVATE_KEY"));
+        
+        // Build salt components (for implementation deployments)
+        string memory saltString = string.concat(contractName, ".", environment, ".", "PLACEHOLDER_HASH");
+        bytes32 baseSalt = keccak256(bytes(saltString));
+        
+        // Create guarded salt
+        bytes32 salt = keccak256(abi.encodePacked(actualDeployer, baseSalt));
         
         console2.log("Salt components:", saltString);
         console2.log("Generated salt:");
         console2.logBytes32(salt);
-        
-        // Get the actual deployer address (wallet that calls the script)
-        address actualDeployer = vm.addr(vm.envUint("DEPLOYER_PRIVATE_KEY"));
         
         console2.log("Using deployer address:", actualDeployer);
         
@@ -69,7 +71,7 @@ contract PredictAddress is Script {
     }
     
     /// @notice Main script entry point
-    function run() public {
+    function run() public view {
         // Default prediction with environment variables
         string memory contractName = vm.envOr("CONTRACT_NAME", string("DefaultContract"));
         string memory environment = vm.envOr("DEPLOYMENT_ENV", string("staging"));

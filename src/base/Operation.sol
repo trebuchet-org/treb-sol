@@ -4,6 +4,16 @@ pragma solidity ^0.8.0;
 import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
+enum DeployStrategy {
+    CREATE2,
+    CREATE3
+}
+
+enum DeploymentType {
+    IMPLEMENTATION,
+    PROXY
+}
+
 /**
  * @title Operation
  * @notice Base contract for all deployment operations
