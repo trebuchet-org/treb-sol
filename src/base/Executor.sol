@@ -1,0 +1,265 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import {Script, console2} from "forge-std/Script.sol";
+import {Safe} from "safe-utils/Safe.sol";
+
+/**
+ * @title Executor
+ * @notice Base contract for executing transactions via private key or Safe
+ * @dev Provides abstraction for different execution methods
+ */
+abstract contract Executor is Script {
+    using Safe for Safe.Client;
+
+    error UnsupportedDeployer(string deployerType);
+    error TransactionFailed(string label);
+
+    enum DeployerType {
+        PRIVATE_KEY,
+        SAFE
+    }
+
+    struct Transaction {
+        string label;
+        address to;
+        bytes data;
+    }
+
+    struct DeployerConfig {
+        DeployerType deployerType;
+        address safeAddress;
+        uint256 privateKey;
+        address senderAddress;
+        string derivationPath;
+    }
+
+    DeployerConfig public deployerConfig;
+    Safe.Client private _safe;
+    Transaction[] public pendingTransactions;
+
+    /**
+     * @notice Configure the deployer based on environment
+     * @param environment The deployment environment
+     */
+    function configureDeployer(string memory environment) internal {
+        // Get deployer type from simplified environment variable
+        string memory deployerTypeStr = vm.envOr("DEPLOYER_TYPE", string("private_key"));
+        
+        if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("private_key"))) {
+            deployerConfig.deployerType = DeployerType.PRIVATE_KEY;
+            deployerConfig.privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+            deployerConfig.senderAddress = vm.addr(deployerConfig.privateKey);
+        } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("safe"))) {
+            deployerConfig.deployerType = DeployerType.SAFE;
+            deployerConfig.safeAddress = vm.envAddress("DEPLOYER_SAFE_ADDRESS");
+            
+            // Configure proposer based on type
+            string memory proposerType = vm.envOr("PROPOSER_TYPE", string("private_key"));
+            if (keccak256(bytes(proposerType)) == keccak256(bytes("private_key"))) {
+                uint256 proposerKey = vm.envUint("PROPOSER_PRIVATE_KEY");
+                deployerConfig.senderAddress = vm.addr(proposerKey);
+                deployerConfig.derivationPath = "";
+            } else if (keccak256(bytes(proposerType)) == keccak256(bytes("ledger"))) {
+                deployerConfig.senderAddress = vm.envAddress("PROPOSER_ADDRESS");
+                deployerConfig.derivationPath = vm.envString("PROPOSER_DERIVATION_PATH");
+            } else {
+                revert UnsupportedDeployer(string.concat("proposer type: ", proposerType));
+            }
+            
+            // Initialize Safe client
+            _safe.initialize(deployerConfig.safeAddress);
+        } else {
+            revert UnsupportedDeployer(deployerTypeStr);
+        }
+        
+        console2.log("Configured deployer for environment:", environment);
+        console2.log("Deployer type:", deployerConfig.deployerType == DeployerType.PRIVATE_KEY ? "PRIVATE_KEY" : "SAFE");
+        console2.log("Deployer address:", getDeployerAddress());
+    }
+
+    /**
+     * @notice Get the deployer address
+     * @return The address that will execute transactions
+     */
+    function getDeployerAddress() internal view returns (address) {
+        if (deployerConfig.deployerType == DeployerType.SAFE) {
+            return deployerConfig.safeAddress;
+        } else {
+            return deployerConfig.senderAddress;
+        }
+    }
+
+    /**
+     * @notice Execute a single transaction
+     * @param transaction The transaction to execute
+     * @return success Whether the transaction succeeded
+     * @return returnData The return data from the transaction
+     */
+    function execute(Transaction memory transaction) internal returns (bool success, bytes memory returnData) {
+        if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
+            return executeWithPrivateKey(transaction);
+        } else if (deployerConfig.deployerType == DeployerType.SAFE) {
+            return queueForSafe(transaction);
+        } else {
+            revert UnsupportedDeployer("Unknown deployer type");
+        }
+    }
+
+    /**
+     * @notice Execute multiple transactions
+     * @param transactions Array of transactions to execute
+     */
+    function execute(Transaction[] memory transactions) internal {
+        if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
+            executeWithPrivateKey(transactions);
+        } else if (deployerConfig.deployerType == DeployerType.SAFE) {
+            queueForSafe(transactions);
+        } else {
+            revert UnsupportedDeployer("Unknown deployer type");
+        }
+    }
+
+    /**
+     * @notice Execute a transaction with a private key
+     * @param transaction The transaction to execute
+     * @return success Whether the transaction succeeded
+     * @return returnData The return data from the transaction
+     */
+    function executeWithPrivateKey(
+        Transaction memory transaction
+    ) internal returns (bool success, bytes memory returnData) {
+        vm.startBroadcast(deployerConfig.privateKey);
+        (success, returnData) = transaction.to.call(transaction.data);
+        if (!success) {
+            console2.log("Transaction failed:", transaction.label);
+            revert TransactionFailed(transaction.label);
+        }
+        vm.stopBroadcast();
+    }
+
+    /**
+     * @notice Execute multiple transactions with a private key
+     * @param transactions Array of transactions to execute
+     */
+    function executeWithPrivateKey(Transaction[] memory transactions) internal {
+        vm.startBroadcast(deployerConfig.privateKey);
+        for (uint256 i = 0; i < transactions.length; i++) {
+            (bool success, ) = transactions[i].to.call(transactions[i].data);
+            if (!success) {
+                console2.log("Transaction failed:", transactions[i].label);
+                revert TransactionFailed(transactions[i].label);
+            }
+        }
+        vm.stopBroadcast();
+    }
+
+    /**
+     * @notice Queue a transaction for Safe execution
+     * @param transaction The transaction to queue
+     * @return success Always true for Safe (queued for later execution)
+     * @return returnData Empty bytes for Safe
+     */
+    function queueForSafe(
+        Transaction memory transaction
+    ) internal returns (bool, bytes memory) {
+        pendingTransactions.push(transaction);
+        console2.log("Queued transaction for Safe:", transaction.label);
+        return (true, "");
+    }
+
+    /**
+     * @notice Queue multiple transactions for Safe execution
+     * @param transactions Array of transactions to queue
+     */
+    function queueForSafe(Transaction[] memory transactions) internal {
+        for (uint256 i = 0; i < transactions.length; i++) {
+            pendingTransactions.push(transactions[i]);
+            console2.log("Queued transaction for Safe:", transactions[i].label);
+        }
+    }
+
+    /**
+     * @notice Submit all pending transactions to Safe
+     * @dev This should be called at the end of the script to submit all queued transactions
+     */
+    function submitPendingTransactions() internal {
+        require(deployerConfig.deployerType == DeployerType.SAFE, "Only for Safe deployments");
+        require(pendingTransactions.length > 0, "No pending transactions");
+        
+        console2.log("\n=== Submitting Safe Transactions ===");
+        console2.log("Safe address:", deployerConfig.safeAddress);
+        console2.log("Number of transactions:", pendingTransactions.length);
+        
+        if (pendingTransactions.length == 1) {
+            // Single transaction
+            _safe.proposeTransaction(
+                pendingTransactions[0].to,
+                pendingTransactions[0].data,
+                deployerConfig.senderAddress,
+                deployerConfig.derivationPath
+            );
+            console2.log("Proposed single transaction:", pendingTransactions[0].label);
+        } else {
+            // Batch transactions
+            address[] memory targets = new address[](pendingTransactions.length);
+            bytes[] memory datas = new bytes[](pendingTransactions.length);
+            
+            for (uint256 i = 0; i < pendingTransactions.length; i++) {
+                targets[i] = pendingTransactions[i].to;
+                datas[i] = pendingTransactions[i].data;
+                console2.log("  -", pendingTransactions[i].label);
+            }
+            
+            _safe.proposeTransactions(
+                targets,
+                datas,
+                deployerConfig.senderAddress,
+                deployerConfig.derivationPath
+            );
+            console2.log("Proposed batch of", pendingTransactions.length, "transactions");
+        }
+        
+        console2.log("\nTransactions submitted to Safe UI for signing");
+        console2.log("Visit the Safe UI to sign and execute the transactions");
+    }
+
+    /**
+     * @notice Convert string to uppercase
+     * @param str The string to convert
+     * @return The uppercase string
+     */
+    function toUpper(string memory str) internal pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        bytes memory result = new bytes(strBytes.length);
+        
+        for (uint256 i = 0; i < strBytes.length; i++) {
+            if (strBytes[i] >= 0x61 && strBytes[i] <= 0x7A) {
+                result[i] = bytes1(uint8(strBytes[i]) - 32);
+            } else {
+                result[i] = strBytes[i];
+            }
+        }
+        
+        return string(result);
+    }
+
+    /**
+     * @notice Helper to create a transaction
+     * @param label Description of the transaction
+     * @param to Target address
+     * @param data Transaction data
+     * @return Transaction struct
+     */
+    function createTransaction(
+        string memory label,
+        address to,
+        bytes memory data
+    ) internal pure returns (Transaction memory) {
+        return Transaction({
+            label: label,
+            to: to,
+            data: data
+        });
+    }
+}

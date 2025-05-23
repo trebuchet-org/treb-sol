@@ -2,13 +2,14 @@
 pragma solidity ^0.8.0;
 
 import "./Operation.sol";
+import "./Executor.sol";
 
 /**
  * @title CreateXDeployment  
  * @notice Base contract for deterministic deployments using CreateX
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
-abstract contract CreateXDeployment is Operation {
+abstract contract CreateXDeployment is Operation, Executor {
     /// @notice CreateX factory contract address
     address public constant CREATEX = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
     
@@ -54,7 +55,7 @@ abstract contract CreateXDeployment is Operation {
             // With label: contractName, env, label, initCodeHash
             string[] memory components = new string[](4);
             components[0] = contractName;
-            components[1] = vm.envOr("DEPLOYMENT_ENV", string("staging"));
+            components[1] = vm.envOr("DEPLOYMENT_ENV", string("default"));
             components[2] = label;
             components[3] = vm.toString(keccak256(getInitCode()));
             return components;
@@ -62,7 +63,7 @@ abstract contract CreateXDeployment is Operation {
             // Without label: contractName, env, initCodeHash
             string[] memory components = new string[](3);
             components[0] = contractName;
-            components[1] = vm.envOr("DEPLOYMENT_ENV", string("staging"));
+            components[1] = vm.envOr("DEPLOYMENT_ENV", string("default"));
             components[2] = vm.toString(keccak256(getInitCode()));
             return components;
         }
@@ -74,7 +75,7 @@ abstract contract CreateXDeployment is Operation {
         string[] memory components = new string[](3);
         components[0] = targetContract;
         components[1] = vm.envOr("PROXY_LABEL", string("main"));
-        components[2] = vm.envOr("DEPLOYMENT_ENV", string("staging"));
+        components[2] = vm.envOr("DEPLOYMENT_ENV", string("default"));
         return components;
     }
     
@@ -90,9 +91,16 @@ abstract contract CreateXDeployment is Operation {
     
     /// @notice Generate guarded salt for enhanced security with CreateX
     /// @dev Uses CreateX's guarded salt implementation to prevent front-running
-    function generateGuardedSalt() public view returns (bytes32) {
+    function generateGuardedSalt() public returns (bytes32) {
         bytes32 baseSalt = generateSalt();
-        address deployer = vm.addr(deployerPrivateKey);
+        
+        // Configure deployer if not already configured
+        if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY && deployerConfig.senderAddress == address(0)) {
+            string memory environment = vm.envOr("DEPLOYMENT_ENV", string("default"));
+            configureDeployer(environment);
+        }
+        
+        address deployer = getDeployerAddress();
         
         // Create guarded salt: keccak256(deployer + baseSalt)
         // This ensures only the intended deployer can use this salt
@@ -100,9 +108,9 @@ abstract contract CreateXDeployment is Operation {
     }
     
     /// @notice Predict deployment address based on strategy
-    function predictAddress(bytes memory initCode) public view returns (address) {
+    function predictAddress(bytes memory initCode) public returns (address) {
         bytes32 salt = generateGuardedSalt();
-        address actualDeployer = vm.addr(deployerPrivateKey);
+        address actualDeployer = getDeployerAddress();
         
         if (strategy == DeployStrategy.CREATE3) {
             return _predictCreate3Address(salt, actualDeployer);
@@ -181,6 +189,10 @@ abstract contract CreateXDeployment is Operation {
             console2.log("Target:", targetContract);
         }
         
+        // Configure deployer based on environment
+        string memory environment = vm.envOr("DEPLOYMENT_ENV", string("default"));
+        configureDeployer(environment);
+        
         // Get init code for address prediction
         bytes memory initCode = getInitCode();
         address predicted = predictAddress(initCode);
@@ -196,8 +208,6 @@ abstract contract CreateXDeployment is Operation {
         
         console2.log("Starting deployment...");
         
-        vm.startBroadcast(deployerPrivateKey);
-        
         // Deploy using strategy-specific method with guarded salt
         bytes32 salt = generateGuardedSalt();
         bytes memory deployData;
@@ -212,7 +222,14 @@ abstract contract CreateXDeployment is Operation {
                 salt, initCode);
         }
         
-        (bool success, bytes memory returnData) = CREATEX.call(deployData);
+        // Execute deployment through Executor
+        Transaction memory deployTx = createTransaction(
+            string.concat("Deploy ", contractName),
+            CREATEX,
+            deployData
+        );
+        
+        (bool success, bytes memory returnData) = execute(deployTx);
         
         require(success, "CreateXDeployment: Deployment failed");
         address deployed = abi.decode(returnData, (address));
@@ -224,15 +241,25 @@ abstract contract CreateXDeployment is Operation {
             console2.log("Actual:", deployed);
         }
         
-        vm.stopBroadcast();
-        
         console2.log("Deployed successfully at:", deployed);
         
         // Record deployment with enhanced metadata
         writeEnhancedDeployment(deployed, salt, initCode);
         
+        // Execute any post-deployment setup
+        postDeploy(deployed);
+        
+        // If using Safe, submit pending transactions
+        if (deployerConfig.deployerType == DeployerType.SAFE && pendingTransactions.length > 0) {
+            submitPendingTransactions();
+        }
+        
         console2.log("Deployment complete!");
     }
+    
+    /// @notice Post-deployment setup hook
+    /// @dev Override this to perform post-deployment configuration
+    function postDeploy(address deployed) internal virtual {}
     
     /// @notice Get contract init code (constructor + args)
     /// @dev Must be implemented by child contracts
