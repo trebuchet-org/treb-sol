@@ -62,11 +62,11 @@ abstract contract CreateXDeployment is Operation {
         // Check if already deployed
         address existingDeployment = getDeployed();
         if (existingDeployment != address(0)) {
-            console2.log("✅ Deployment already exists at:", existingDeployment);
+            console2.log("Deployment already exists at:", existingDeployment);
             return;
         }
         
-        console2.log("🚀 Starting deployment...");
+        console2.log("Starting deployment...");
         
         vm.startBroadcast(deployerPrivateKey);
         
@@ -86,12 +86,12 @@ abstract contract CreateXDeployment is Operation {
         
         vm.stopBroadcast();
         
-        console2.log("✅ Deployed successfully at:", deployed);
+        console2.log("Deployed successfully at:", deployed);
         
         // Record deployment with enhanced metadata
         writeEnhancedDeployment(deployed, salt, initCode);
         
-        console2.log("🎉 Deployment complete!");
+        console2.log("Deployment complete!");
     }
     
     /// @notice Get contract init code (constructor + args)
@@ -123,13 +123,14 @@ abstract contract CreateXDeployment is Operation {
         vm.serializeString(d, string.concat(key, ".contractName"), contractName);
         vm.serializeString(d, string.concat(key, ".version"), label);
         
-        // Finalize and write
-        string memory newDeploymentsJson = vm.serializeString(d, string.concat(key, ".deployer"), vm.addr(deployerPrivateKey));
+        // Add deployer info and finalize
+        vm.serializeAddress(d, string.concat(key, ".deployer"), vm.addr(deployerPrivateKey));
+        string memory newDeploymentsJson = vm.serializeString(d, "", "");
         
         // Ensure deployments directory exists
         vm.createDir("deployments", true);
         vm.writeJson(newDeploymentsJson, deploymentFile);
         
-        console2.log("📄 Deployment recorded in:", deploymentFile);
+        console2.log("Deployment recorded in:", deploymentFile);
     }
 }
