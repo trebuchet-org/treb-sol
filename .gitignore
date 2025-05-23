@@ -1,0 +1,15 @@
+# Foundry
+cache/
+out/
+broadcast/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS  
+.DS_Store
+Thumbs.db
