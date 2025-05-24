@@ -40,8 +40,8 @@ abstract contract CreateXDeployment is Executor, Registry {
     /// @notice Name of the contract being deployed
     string public contractName;
 
-    /// @notice Version or label for this deployment
-    string public label;
+    /// @notice Label for this deployment
+    string public deploymentLabel;
 
     constructor(string memory _contractName, DeploymentType _deploymentType, DeployStrategy _strategy)
         Registry()
@@ -49,7 +49,7 @@ abstract contract CreateXDeployment is Executor, Registry {
     {
         contractName = _contractName;
 
-        label = vm.envOr("LABEL", string(""));
+        deploymentLabel = vm.envOr("DEPLOYMENT_LABEL", string(""));
         deploymentType = _deploymentType;
         strategy = _strategy;
         saltComponents = buildSaltComponents();
@@ -61,8 +61,8 @@ abstract contract CreateXDeployment is Executor, Registry {
         if (deploymentType == DeploymentType.PROXY) {
             _identifier = string.concat(_identifier, "Proxy");
         }
-        if (bytes(label).length > 0) {
-            _identifier = string.concat(_identifier, ":", label);
+        if (bytes(deploymentLabel).length > 0) {
+            _identifier = string.concat(_identifier, ":", deploymentLabel);
         }
     }
 
@@ -101,43 +101,9 @@ abstract contract CreateXDeployment is Executor, Registry {
     /// @dev Override this function to customize salt generation
     /// @return Array of string components used to generate the salt
     function buildSaltComponents() internal virtual returns (string[] memory) {
-        if (deploymentType == DeploymentType.IMPLEMENTATION) {
-            return buildImplementationSaltComponents();
-        } else {
-            return buildProxySaltComponents();
-        }
-    }
-
-    /// @notice Build salt components for implementation deployments
-    /// @return Array with contractName, env, and initCodeHash
-    function buildImplementationSaltComponents() internal virtual returns (string[] memory) {
-        string memory deploymentLabel = vm.envOr("DEPLOYMENT_LABEL", string(""));
-
-        if (bytes(deploymentLabel).length > 0) {
-            // With label: contractName, env, label, initCodeHash
-            string[] memory components = new string[](4);
-            components[0] = contractName;
-            components[1] = vm.envOr("DEPLOYMENT_ENV", string("default"));
-            components[2] = deploymentLabel;
-            components[3] = vm.toString(keccak256(getInitCode()));
-            return components;
-        } else {
-            // Without label: contractName, env, initCodeHash
-            string[] memory components = new string[](3);
-            components[0] = contractName;
-            components[1] = vm.envOr("DEPLOYMENT_ENV", string("default"));
-            components[2] = vm.toString(keccak256(getInitCode()));
-            return components;
-        }
-    }
-
-    /// @notice Build salt components for proxy deployments
-    /// @return Array with targetContract, label, and env
-    function buildProxySaltComponents() internal view virtual returns (string[] memory) {
         string[] memory components = new string[](3);
-        components[0] = targetContract;
-        components[1] = vm.envOr("PROXY_LABEL", string("main"));
-        components[2] = vm.envOr("DEPLOYMENT_ENV", string("default"));
+        components[0] = getIdentifier();
+        components[1] = vm.envOr("DEPLOYMENT_ENV", string("default"));
         return components;
     }
 
@@ -146,18 +112,20 @@ abstract contract CreateXDeployment is Executor, Registry {
         string memory combined = "";
         for (uint256 i = 0; i < saltComponents.length; i++) {
             if (i > 0) combined = string.concat(combined, ".");
-            combined = string.concat(combined, ".", saltComponents[i]);
+            if (bytes(saltComponents[i]).length > 0) {
+                combined = string.concat(combined, ".", saltComponents[i]);
+            }
         }
         bytes32 entropy = keccak256(bytes(combined));
-        return entropy;
-        //return
-        //    bytes32(
-        //        abi.encodePacked(
-        //            getDeployerAddress(),
-        //            hex"00",
-        //            bytes11(uint88(uint256(entropy)))
-        //        )
-        //    );
+        // return entropy;
+        return
+            bytes32(
+                abi.encodePacked(
+                    getDeployerAddress(),
+                    hex"00",
+                    bytes11(uint88(uint256(entropy)))
+                )
+            );
     }
 
     /// @notice Predict deployment address
@@ -176,9 +144,22 @@ abstract contract CreateXDeployment is Executor, Registry {
         console2.log("Deployer address:", deployer);
 
         // Apply the same guard logic that CreateX will apply
-        // Since our salt doesn't have msg.sender or zero address in first 20 bytes,
-        // CreateX will hash it with keccak256(abi.encode(salt))
-        bytes32 guardedSalt = keccak256(abi.encode(salt));
+        // Check if salt starts with deployer address (msg.sender)
+        address saltAddress = address(bytes20(salt));
+        bytes1 saltFlag = salt[20];
+        
+        bytes32 guardedSalt;
+        if (saltAddress == deployer && saltFlag == hex"00") {
+            // CreateX will use _efficientHash(msg.sender, salt)
+            // which is keccak256(abi.encodePacked(msg.sender, salt))
+            guardedSalt = keccak256(abi.encodePacked(bytes32(uint256(uint160(deployer))), salt));
+        } else if (saltAddress == deployer && saltFlag == hex"01") {
+            // Permissioned + cross-chain protection
+            guardedSalt = keccak256(abi.encode(deployer, block.chainid, salt));
+        } else {
+            // For other patterns, CreateX hashes the salt
+            guardedSalt = keccak256(abi.encode(salt));
+        }
         console2.log("Guarded salt:", vm.toString(guardedSalt));
 
         if (strategy == DeployStrategy.CREATE3) {
@@ -249,10 +230,8 @@ abstract contract CreateXDeployment is Executor, Registry {
 
         // Check if already deployed or pending
         console2.log("Checking for existing deployment...");
-        console2.log("Environment:", deploymentEnv);
-        if (bytes(label).length > 0) {
-            console2.log("Label:", label);
-        }
+        console2.log("Environment:", environment);
+        console2.log("Label:", deploymentLabel);
 
         (address existingDeployment, bool isPending) = checkExistingDeployment();
         if (existingDeployment != address(0)) {
@@ -382,13 +361,11 @@ abstract contract CreateXDeployment is Executor, Registry {
 
         if (deploymentType == DeploymentType.PROXY) {
             console2.log(string.concat("TARGET_CONTRACT:", targetContract));
-            console2.log(string.concat("PROXY_LABEL:", vm.envOr("PROXY_LABEL", string("main"))));
         }
 
         // Output label if present (for both implementations and proxies)
-        string memory deploymentLabel = vm.envOr("DEPLOYMENT_LABEL", string(""));
         if (bytes(deploymentLabel).length > 0) {
-            console2.log(string.concat("LABEL:", deploymentLabel));
+            console2.log(string.concat("DEPLOYMENT_LABEL:", deploymentLabel));
         }
 
         if (deployerConfig.deployerType == DeployerType.SAFE && safeTxHash != bytes32(0)) {
