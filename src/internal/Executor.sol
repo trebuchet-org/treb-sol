@@ -85,7 +85,7 @@ abstract contract Executor is Script {
             revert UnsupportedDeployer(deployerTypeStr);
         }
 
-        console.log("Executor:", executor);
+        console.log("Executor:", _getExecutor());
         console.log("Executor type:", deployerConfig.deployerType == DeployerType.PRIVATE_KEY ? "PRIVATE_KEY" : "SAFE");
     }
 
