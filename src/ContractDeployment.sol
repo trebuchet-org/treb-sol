@@ -12,9 +12,6 @@ import {getInitCodeFromArtifacts} from "./internal/utils.sol";
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
 abstract contract ContractDeployment is Deployment {
-    /// @notice Target contract for proxy deployments
-    string public targetContract;
-
     /// @notice Name of the contract being deployed
     string public contractName;
 
@@ -31,11 +28,10 @@ abstract contract ContractDeployment is Deployment {
 
     /// @notice Get the deployment label (contract name + version)
     function _getIdentifier() internal override view returns (string memory _identifier) {
-        _identifier = contractName;
         if (bytes(label).length > 0) {
-            _identifier = string.concat(_identifier, ":", label);
+            string.concat(contractName, ":", label);
         }
-        return _identifier;
+        return contractName;
     }
 
     /// @notice Main deployment execution

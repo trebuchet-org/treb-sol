@@ -33,9 +33,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         bytes32 safeTxHash;
     }
 
-    /// @notice Salt components for deterministic deployment
-    string[] public saltComponents;
-
     /// @notice Deployment strategy (CREATE2 or CREATE3)
     DeployStrategy public strategy;
 
@@ -45,7 +42,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     constructor(DeployStrategy _strategy, DeploymentType _deploymentType) {
         strategy = _strategy;
         deploymentType = _deploymentType;
-        saltComponents = _buildSaltComponents();
     }
 
     /// @notice Get the contract bytecode
@@ -143,18 +139,20 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @notice Build salt components for deterministic deployment
     /// @dev Override this function to customize salt generation
     /// @return Array of string components used to generate the salt
-    function _buildSaltComponents() internal virtual returns (string[] memory) {
+    function _buildSaltComponents() internal view returns (string[] memory) {
         string[] memory components = new string[](3);
         components[0] = _getIdentifier();
-        components[1] = vm.envOr("DEPLOYMENT_ENV", string("default"));
+        components[1] = environment;
         return components;
     }
 
     /// @notice Generate deterministic salt from components, make it guarded.
     function _generateSalt() internal view returns (bytes32) {
+        string[] memory saltComponents = _buildSaltComponents();
         string memory combined = "";
         for (uint256 i = 0; i < saltComponents.length; i++) {
             if (i > 0) combined = string.concat(combined, ".");
+            console.log("saltComponents[%d] %s", i, saltComponents[i]);
             if (bytes(saltComponents[i]).length > 0) {
                 combined = string.concat(combined, ".", saltComponents[i]);
             }
