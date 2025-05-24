@@ -1,4 +1,4 @@
-# forge-deploy-lib
+# treb-sol
 
 Foundry library for deterministic smart contract deployments with enhanced tracking and verification.
 
@@ -17,7 +17,7 @@ This library provides base contracts and utilities for creating deterministic de
 ## Installation
 
 ```bash
-forge install your-org/forge-deploy-lib
+forge install trebuchet-org/treb-sol
 ```
 
 ## Usage
@@ -28,29 +28,24 @@ forge install your-org/forge-deploy-lib
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "forge-deploy-lib/base/CreateXDeployment.sol";
-import "../src/MyContract.sol";
+import "treb-sol/CreateXDeployment.sol";
+import "src/Counter.sol";
 
-contract DeployMyContract is CreateXDeployment {
+/**
+ * @title DeployCounter
+ * @notice Deployment script for Counter contract
+ * @dev Generated automatically by fdeploy
+ */
+contract DeployCounter is CreateXDeployment {
     constructor() CreateXDeployment(
-        "MyContract",
-        "v1.0.0",
-        _buildSaltComponents()
+        "Counter",
+        DeploymentType.IMPLEMENTATION,
+        DeployStrategy.CREATE3
     ) {}
-    
-    function _buildSaltComponents() private view returns (string[] memory) {
-        string[] memory components = new string[](3);
-        components[0] = "MyContract";
-        components[1] = "v1.0.0";
-        components[2] = vm.envString("DEPLOYMENT_ENV");
-        return components;
-    }
-    
-    function getInitCode() internal pure override returns (bytes memory) {
-        return abi.encodePacked(
-            type(MyContract).creationCode,
-            abi.encode("constructor", "args")
-        );
+
+    /// @notice Get contract bytecode using type().creationCode
+    function getContractBytecode() internal pure override returns (bytes memory) {
+        return type(Counter).creationCode;
     }
 }
 ```
@@ -59,18 +54,10 @@ contract DeployMyContract is CreateXDeployment {
 
 ```solidity
 // Use the PredictAddress script
-forge script script/PredictAddress.s.sol \
-    --sig "predict(string,string)" "MyContract" "staging"
+forge script script/deploy/DeployCounter.s.sol --sig "predictAddress()"
 ```
 
 ## Base Contracts
-
-### Operation
-
-Base contract providing common deployment functionality:
-- Environment setup
-- Deployment file management  
-- Private key handling
 
 ### CreateXDeployment
 
@@ -80,9 +67,14 @@ Enhanced deployment contract with CREATE2 support:
 - Deployment verification
 - Metadata recording
 
-## Integration with fdeploy
+### Executor
 
-This library is designed to work seamlessly with the `fdeploy` CLI tool for enhanced deployment orchestration and management.
+
+
+## Integration with `treb`
+
+This library is designed to work seamlessly with the `treb` CLI tool for enhanced deployment orchestration and management.
+See [treb-cli](https://github.com/trebuchet-org/treb-cli).
 
 ## License
 
