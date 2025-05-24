@@ -34,7 +34,7 @@ import "src/Counter.sol";
 /**
  * @title DeployCounter
  * @notice Deployment script for Counter contract
- * @dev Generated automatically by fdeploy
+ * @dev Generated automatically by treb
  */
 contract DeployCounter is CreateXDeployment {
     constructor() CreateXDeployment(
