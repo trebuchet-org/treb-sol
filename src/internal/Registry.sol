@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "forge-std/Script.sol";
-import "forge-std/console2.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 enum DeploymentStatus {
     PENDING_SAFE,
@@ -37,12 +36,12 @@ contract Registry is Script {
      */
     function getDeployment(string memory identifier) public view returns (address) {
         string memory fqId = _getFullyQualifiedId(identifier);
-        console2.log("Registry lookup for:", fqId);
+        console.log("Registry lookup for:", fqId);
         address result = deployments[fqId];
         if (result != address(0)) {
-            console2.log("Found deployment at:", result);
+            console.log("Found deployment at:", result);
         } else {
-            console2.log("No deployment found");
+            console.log("No deployment found");
         }
         return result;
     }
@@ -86,11 +85,11 @@ contract Registry is Script {
     function _loadDeployments() private {
         try vm.readFile(DEPLOYMENTS_FILE) returns (string memory json) {
             string memory deploymentsPath = string.concat(".networks.", vm.toString(chainId), ".deployments");
-            console2.log("Loading deployments from chain:", chainId);
+            console.log("Loading deployments from chain:", chainId);
 
             if (vm.keyExists(json, deploymentsPath)) {
                 string[] memory addresses = vm.parseJsonKeys(json, deploymentsPath);
-                console2.log("Found", addresses.length, "deployments");
+                console.log("Found", addresses.length, "deployments");
 
                 for (uint256 i = 0; i < addresses.length; i++) {
                     string memory addr = addresses[i];
@@ -129,25 +128,25 @@ contract Registry is Script {
                             } else if (statusHash == keccak256("deployed")) {
                                 deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
                             } else {
-                                console2.log("[WARN] Could not get deployment status, assuming DEPLOYED");
+                                console.log("[WARN] Could not get deployment status, assuming DEPLOYED");
                                 deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
                             }
                         } else {
-                            console2.log("[WARN] Could not get deployment status, assuming DEPLOYED");
+                            console.log("[WARN] Could not get deployment status, assuming DEPLOYED");
                             deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
                         }
 
                         string memory fqId = string.concat(vm.toString(chainId), "/", environment, "/", baseIdentifier);
 
-                        console2.log("Storing deployment:", fqId);
-                        console2.log("  Address:", addr);
+                        console.log("Storing deployment:", fqId);
+                        console.log("  Address:", addr);
 
                         deployments[fqId] = parsedAddr;
                     }
                 }
             }
         } catch {
-            console2.log("Warning: Could not load deployments from", DEPLOYMENTS_FILE);
+            console.log("Warning: Could not load deployments from", DEPLOYMENTS_FILE);
         }
     }
 

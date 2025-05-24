@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Script, console2} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {Safe} from "safe-utils/Safe.sol";
 
 /**
@@ -38,15 +38,22 @@ abstract contract Executor is Script {
     Safe.Client private _safe;
     Transaction[] public pendingTransactions;
 
+    /// @notice Deployment environment
+    string public environment;
+
+    /// @notice Executor address
+    address public executor;
+
     constructor() {
-        configureDeployer(vm.envString("DEPLOYMENT_ENV"));
+        environment = vm.envOr("DEPLOYMENT_ENV", string("default"));
+        _configureDeployer();
+        executor = _getExecutor();
     }
 
     /**
      * @notice Configure the deployer based on environment
-     * @param environment The deployment environment
      */
-    function configureDeployer(string memory environment) internal {
+    function _configureDeployer() internal {
         // Get deployer type from simplified environment variable
         string memory deployerTypeStr = vm.envOr("DEPLOYER_TYPE", string("private_key"));
 
@@ -78,16 +85,15 @@ abstract contract Executor is Script {
             revert UnsupportedDeployer(deployerTypeStr);
         }
 
-        console2.log("Configured deployer for environment:", environment);
-        console2.log("Deployer type:", deployerConfig.deployerType == DeployerType.PRIVATE_KEY ? "PRIVATE_KEY" : "SAFE");
-        console2.log("Deployer address:", getDeployerAddress());
+        console.log("Executor:", executor);
+        console.log("Executor type:", deployerConfig.deployerType == DeployerType.PRIVATE_KEY ? "PRIVATE_KEY" : "SAFE");
     }
 
     /**
      * @notice Get the deployer address
      * @return The address that will execute transactions
      */
-    function getDeployerAddress() internal view returns (address) {
+    function _getExecutor() internal view returns (address) {
         if (deployerConfig.deployerType == DeployerType.SAFE) {
             return deployerConfig.safeAddress;
         } else {
@@ -138,7 +144,7 @@ abstract contract Executor is Script {
         vm.startBroadcast(deployerConfig.privateKey);
         (success, returnData) = transaction.to.call(transaction.data);
         if (!success) {
-            console2.log("Transaction failed:", transaction.label);
+            console.log("Transaction failed:", transaction.label);
             revert TransactionFailed(transaction.label);
         }
         vm.stopBroadcast();
@@ -154,7 +160,7 @@ abstract contract Executor is Script {
         for (uint256 i = 0; i < transactions.length; i++) {
             (bool success, bytes memory data) = transactions[i].to.call(transactions[i].data);
             if (!success) {
-                console2.log("Transaction failed:", transactions[i].label);
+                console.log("Transaction failed:", transactions[i].label);
                 revert TransactionFailed(transactions[i].label);
             }
             returnData[i] = data;
@@ -171,7 +177,7 @@ abstract contract Executor is Script {
      */
     function queueForSafe(Transaction memory transaction) internal returns (bool, bytes memory) {
         pendingTransactions.push(transaction);
-        console2.log("Queued transaction for Safe:", transaction.label);
+        console.log("Queued transaction for Safe:", transaction.label);
 
         bytes32 safeTxHash = _safe.proposeTransaction(
             pendingTransactions[0].to,
@@ -194,7 +200,7 @@ abstract contract Executor is Script {
         for (uint256 i = 0; i < transactions.length; i++) {
             targets[i] = transactions[i].to;
             datas[i] = transactions[i].data;
-            console2.log("  -", transactions[i].label);
+            console.log("  -", transactions[i].label);
         }
 
         bytes32 safeTxHash =
