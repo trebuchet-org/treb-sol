@@ -29,7 +29,7 @@ abstract contract ContractDeployment is Deployment {
     /// @notice Get the deployment label (contract name + version)
     function _getIdentifier() internal override view returns (string memory _identifier) {
         if (bytes(label).length > 0) {
-            string.concat(contractName, ":", label);
+            return string.concat(contractName, ":", label);
         }
         return contractName;
     }

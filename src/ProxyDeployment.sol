@@ -47,11 +47,10 @@ abstract contract ProxyDeployment is Deployment {
     }
 
     function _getImplementationIdentifier() internal virtual view returns (string memory _identifier) {
-        _identifier = implementationName;
         if (bytes(implementationLabel).length > 0) {
-            _identifier = string.concat(_identifier, ":", implementationLabel);
+            return string.concat(implementationName, ":", implementationLabel);
         }
-        return _identifier;
+        return implementationName;
     }
 
     /// @notice Main deployment execution

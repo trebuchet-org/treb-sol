@@ -76,6 +76,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     function _deploy() internal virtual returns (DeploymentResult memory) {
         // Get init code for address prediction
+        console.log("Identifier:", _getIdentifier());
         bytes memory initCode = _getInitCode();
         address predicted = _predictAddress(initCode);
 
@@ -140,7 +141,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @dev Override this function to customize salt generation
     /// @return Array of string components used to generate the salt
     function _buildSaltComponents() internal view returns (string[] memory) {
-        string[] memory components = new string[](3);
+        string[] memory components = new string[](2);
         components[0] = _getIdentifier();
         components[1] = environment;
         return components;

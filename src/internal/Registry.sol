@@ -85,11 +85,9 @@ contract Registry is Script {
     function _loadDeployments() private {
         try vm.readFile(DEPLOYMENTS_FILE) returns (string memory json) {
             string memory deploymentsPath = string.concat(".networks.", vm.toString(chainId), ".deployments");
-            console.log("Loading deployments from chain:", chainId);
 
             if (vm.keyExists(json, deploymentsPath)) {
                 string[] memory addresses = vm.parseJsonKeys(json, deploymentsPath);
-                console.log("Found", addresses.length, "deployments");
 
                 for (uint256 i = 0; i < addresses.length; i++) {
                     string memory addr = addresses[i];
@@ -137,10 +135,6 @@ contract Registry is Script {
                         }
 
                         string memory fqId = string.concat(vm.toString(chainId), "/", environment, "/", baseIdentifier);
-
-                        console.log("Storing deployment:", fqId);
-                        console.log("  Address:", addr);
-
                         deployments[fqId] = parsedAddr;
                     }
                 }
