@@ -4,6 +4,11 @@ pragma solidity ^0.8.0;
 import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
+enum DeploymentStatus {
+    PENDING_SAFE,
+    DEPLOYED
+}
+
 /**
  * @title Registry
  * @notice Onchain registry for deployment addresses across environments
@@ -16,6 +21,7 @@ contract Registry is Script {
     uint256 public chainId;
 
     mapping(string => address) private deployments;
+    mapping(address => DeploymentStatus) private deploymentStatus;
 
     constructor() {
         deploymentEnv = vm.envOr("DEPLOYMENT_ENV", string("default"));
@@ -70,6 +76,10 @@ contract Registry is Script {
         return _getFullyQualifiedId(identifier);
     }
 
+    function getDeploymentStatus(address target) internal view returns (DeploymentStatus) {
+        return deploymentStatus[target];
+    }
+
     /**
      * @dev Load deployments from JSON file into memory
      */
@@ -85,6 +95,7 @@ contract Registry is Script {
                 for (uint256 i = 0; i < addresses.length; i++) {
                     string memory addr = addresses[i];
                     string memory path = string.concat(deploymentsPath, ".", addr);
+                    address parsedAddr = vm.parseAddress(addr);
 
                     if (
                         vm.keyExists(json, string.concat(path, ".contract_name"))
@@ -107,12 +118,31 @@ contract Registry is Script {
                             }
                         }
 
+                        if (
+                            vm.keyExists(json, string.concat(path, ".deployment"))
+                                && vm.keyExists(json, string.concat(path, ".deployment", ".status"))
+                        ) {
+                            string memory status = vm.parseJsonString(json, string.concat(path, ".deployment.status"));
+                            bytes32 statusHash = keccak256(bytes(status));
+                            if (statusHash == keccak256("pending_safe")) {
+                                deploymentStatus[parsedAddr] = DeploymentStatus.PENDING_SAFE;
+                            } else if (statusHash == keccak256("deployed")) {
+                                deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
+                            } else {
+                                console2.log("[WARN] Could not get deployment status, assuming DEPLOYED");
+                                deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
+                            }
+                        } else {
+                            console2.log("[WARN] Could not get deployment status, assuming DEPLOYED");
+                            deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
+                        }
+
                         string memory fqId = string.concat(vm.toString(chainId), "/", environment, "/", baseIdentifier);
-                        
+
                         console2.log("Storing deployment:", fqId);
                         console2.log("  Address:", addr);
-                        
-                        deployments[fqId] = vm.parseAddress(addr);
+
+                        deployments[fqId] = parsedAddr;
                     }
                 }
             }

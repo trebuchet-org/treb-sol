@@ -48,49 +48,28 @@ abstract contract Executor is Script {
      */
     function configureDeployer(string memory environment) internal {
         // Get deployer type from simplified environment variable
-        string memory deployerTypeStr = vm.envOr(
-            "DEPLOYER_TYPE",
-            string("private_key")
-        );
+        string memory deployerTypeStr = vm.envOr("DEPLOYER_TYPE", string("private_key"));
 
-        if (
-            keccak256(bytes(deployerTypeStr)) == keccak256(bytes("private_key"))
-        ) {
+        if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("private_key"))) {
             deployerConfig.deployerType = DeployerType.PRIVATE_KEY;
             deployerConfig.privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
             deployerConfig.senderAddress = vm.addr(deployerConfig.privateKey);
-        } else if (
-            keccak256(bytes(deployerTypeStr)) == keccak256(bytes("safe"))
-        ) {
+        } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("safe"))) {
             deployerConfig.deployerType = DeployerType.SAFE;
             deployerConfig.safeAddress = vm.envAddress("DEPLOYER_SAFE_ADDRESS");
 
             // Configure proposer based on type
-            string memory proposerType = vm.envOr(
-                "PROPOSER_TYPE",
-                string("private_key")
-            );
-            if (
-                keccak256(bytes(proposerType)) ==
-                keccak256(bytes("private_key"))
-            ) {
+            string memory proposerType = vm.envOr("PROPOSER_TYPE", string("private_key"));
+            if (keccak256(bytes(proposerType)) == keccak256(bytes("private_key"))) {
                 uint256 proposerKey = vm.envUint("PROPOSER_PRIVATE_KEY");
                 vm.rememberKey(proposerKey);
                 deployerConfig.senderAddress = vm.addr(proposerKey);
                 deployerConfig.derivationPath = "";
-            } else if (
-                keccak256(bytes(proposerType)) == keccak256(bytes("ledger"))
-            ) {
-                deployerConfig.senderAddress = vm.envAddress(
-                    "PROPOSER_ADDRESS"
-                );
-                deployerConfig.derivationPath = vm.envString(
-                    "PROPOSER_DERIVATION_PATH"
-                );
+            } else if (keccak256(bytes(proposerType)) == keccak256(bytes("ledger"))) {
+                deployerConfig.senderAddress = vm.envAddress("PROPOSER_ADDRESS");
+                deployerConfig.derivationPath = vm.envString("PROPOSER_DERIVATION_PATH");
             } else {
-                revert UnsupportedDeployer(
-                    string.concat("proposer type: ", proposerType)
-                );
+                revert UnsupportedDeployer(string.concat("proposer type: ", proposerType));
             }
 
             // Initialize Safe client
@@ -100,12 +79,7 @@ abstract contract Executor is Script {
         }
 
         console2.log("Configured deployer for environment:", environment);
-        console2.log(
-            "Deployer type:",
-            deployerConfig.deployerType == DeployerType.PRIVATE_KEY
-                ? "PRIVATE_KEY"
-                : "SAFE"
-        );
+        console2.log("Deployer type:", deployerConfig.deployerType == DeployerType.PRIVATE_KEY ? "PRIVATE_KEY" : "SAFE");
         console2.log("Deployer address:", getDeployerAddress());
     }
 
@@ -127,9 +101,7 @@ abstract contract Executor is Script {
      * @return success Whether the transaction succeeded
      * @return returnData The return data from the transaction
      */
-    function execute(
-        Transaction memory transaction
-    ) internal returns (bool success, bytes memory returnData) {
+    function execute(Transaction memory transaction) internal returns (bool success, bytes memory returnData) {
         if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
             return executeWithPrivateKey(transaction);
         } else if (deployerConfig.deployerType == DeployerType.SAFE) {
@@ -159,9 +131,10 @@ abstract contract Executor is Script {
      * @return success Whether the transaction succeeded
      * @return returnData The return data from the transaction
      */
-    function executeWithPrivateKey(
-        Transaction memory transaction
-    ) internal returns (bool success, bytes memory returnData) {
+    function executeWithPrivateKey(Transaction memory transaction)
+        internal
+        returns (bool success, bytes memory returnData)
+    {
         vm.startBroadcast(deployerConfig.privateKey);
         (success, returnData) = transaction.to.call(transaction.data);
         if (!success) {
@@ -196,9 +169,7 @@ abstract contract Executor is Script {
      * @return success Always true for Safe (queued for later execution)
      * @return safeTxHash The Safe transaction hash as bytes
      */
-    function queueForSafe(
-        Transaction memory transaction
-    ) internal returns (bool, bytes memory) {
+    function queueForSafe(Transaction memory transaction) internal returns (bool, bytes memory) {
         pendingTransactions.push(transaction);
         console2.log("Queued transaction for Safe:", transaction.label);
 
@@ -226,12 +197,8 @@ abstract contract Executor is Script {
             console2.log("  -", transactions[i].label);
         }
 
-        bytes32 safeTxHash = _safe.proposeTransactions(
-            targets,
-            datas,
-            deployerConfig.senderAddress,
-            deployerConfig.derivationPath
-        );
+        bytes32 safeTxHash =
+            _safe.proposeTransactions(targets, datas, deployerConfig.senderAddress, deployerConfig.derivationPath);
 
         return (true, abi.encode(safeTxHash));
     }

@@ -43,57 +43,33 @@ abstract contract CreateXDeployment is Executor, Registry {
     /// @notice Version or label for this deployment
     string public label;
 
-    /// @notice Directory for deployments on this chain
-    string public deploymentDir;
-
-    /// @notice Private key for deployment (from environment)
-    uint256 public deployerPrivateKey;
-
-    constructor(string memory _contractName, DeploymentType _deploymentType, DeployStrategy _strategy) Registry() Executor() {
+    constructor(string memory _contractName, DeploymentType _deploymentType, DeployStrategy _strategy)
+        Registry()
+        Executor()
+    {
         contractName = _contractName;
-        
-        // Load label from environment (for implementations)
-        if (_deploymentType == DeploymentType.IMPLEMENTATION) {
-            label = vm.envOr("DEPLOYMENT_LABEL", string(""));
-        } else {
-            // For proxies, use PROXY_LABEL
-            label = vm.envOr("PROXY_LABEL", string("main"));
-        }
 
-        // Set up deployment directory path
-        string memory chainId = vm.toString(block.chainid);
-        deploymentDir = string.concat("deployments/", chainId);
-
-        // Load deployer private key
-        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        label = vm.envOr("LABEL", string(""));
         deploymentType = _deploymentType;
         strategy = _strategy;
         saltComponents = buildSaltComponents();
     }
 
     /// @notice Get the deployment label (contract name + version)
-    function getLabel() public view returns (string memory) {
-        return string.concat(contractName, "_", label);
+    function getIdentifier() public view returns (string memory _identifier) {
+        _identifier = contractName;
+        if (deploymentType == DeploymentType.PROXY) {
+            _identifier = string.concat(_identifier, "Proxy");
+        }
+        if (bytes(label).length > 0) {
+            _identifier = string.concat(_identifier, ":", label);
+        }
     }
 
     /// @notice Check if deployment exists in registry
     function checkExistingDeployment() internal view returns (address existingAddress, bool isPending) {
-        // Build the identifier based on deployment type
-        string memory identifier;
-        if (deploymentType == DeploymentType.PROXY) {
-            identifier = string.concat(targetContract, "Proxy");
-            if (bytes(label).length > 0) {
-                identifier = string.concat(identifier, ":", label);
-            }
-        } else {
-            identifier = contractName;
-            if (bytes(label).length > 0) {
-                identifier = string.concat(identifier, ":", label);
-            }
-        }
-
         // Check if deployment exists
-        address deployed = getDeployment(identifier);
+        address deployed = getDeployment(getIdentifier());
         if (deployed != address(0)) {
             // Check deployment status in the registry JSON
             string memory deploymentsPath = "deployments.json";
@@ -165,62 +141,79 @@ abstract contract CreateXDeployment is Executor, Registry {
         return components;
     }
 
-    /// @notice Generate deterministic salt from components
+    /// @notice Generate deterministic salt from components, make it guarded.
     function generateSalt() public view returns (bytes32) {
         string memory combined = "";
         for (uint256 i = 0; i < saltComponents.length; i++) {
             if (i > 0) combined = string.concat(combined, ".");
-            combined = string.concat(combined, saltComponents[i]);
+            combined = string.concat(combined, ".", saltComponents[i]);
         }
-        return keccak256(bytes(combined));
-    }
-
-    /// @notice Generate guarded salt for enhanced security with CreateX
-    /// @dev Uses CreateX's guarded salt implementation to prevent front-running
-    function generateGuardedSalt() public view returns (bytes32) {
-        bytes32 baseSalt = generateSalt();
-        address deployer = getDeployerAddress();
-        // Create guarded salt: keccak256(deployer + baseSalt)
-        // This ensures only the intended deployer can use this salt
-        return keccak256(abi.encodePacked(deployer, baseSalt));
+        bytes32 entropy = keccak256(bytes(combined));
+        return entropy;
+        //return
+        //    bytes32(
+        //        abi.encodePacked(
+        //            getDeployerAddress(),
+        //            hex"00",
+        //            bytes11(uint88(uint256(entropy)))
+        //        )
+        //    );
     }
 
     /// @notice Predict deployment address
     function predictAddress() public {
         address predicted = _predictAddress(getInitCode());
-        console2.log("Address:", predicted);
+        console2.log("Predicted Address:", predicted);
     }
 
     /// @notice Predict deployment address based on strategy
-    function _predictAddress(bytes memory initCode) internal view returns (address) {
-        bytes32 salt = generateGuardedSalt();
-        address actualDeployer = getDeployerAddress();
+    function _predictAddress(bytes memory initCode) internal returns (address) {
+        // Get the basic salt
+        bytes32 salt = generateSalt();
+        address deployer = getDeployerAddress();
+
+        console2.log("Original salt:", vm.toString(salt));
+        console2.log("Deployer address:", deployer);
+
+        // Apply the same guard logic that CreateX will apply
+        // Since our salt doesn't have msg.sender or zero address in first 20 bytes,
+        // CreateX will hash it with keccak256(abi.encode(salt))
+        bytes32 guardedSalt = keccak256(abi.encode(salt));
+        console2.log("Guarded salt:", vm.toString(guardedSalt));
 
         if (strategy == DeployStrategy.CREATE3) {
-            return _predictCreate3Address(salt, actualDeployer);
+            // Use the guarded salt for prediction
+            return _predictCreate3Address(guardedSalt, deployer);
         } else {
-            return _predictCreate2Address(salt, actualDeployer, initCode);
+            // Use the guarded salt for prediction
+            return _predictCreate2Address(guardedSalt, deployer, initCode);
         }
     }
 
     /// @notice Predict CREATE3 address
-    function _predictCreate3Address(bytes32 salt, address deployer) internal view returns (address) {
+    function _predictCreate3Address(bytes32 salt, address deployer) internal returns (address) {
         // Use CreateX's computeCreate3Address function for accurate prediction
-        (bool success, bytes memory result) =
-            CREATEX.staticcall(abi.encodeWithSignature("computeCreate3Address(bytes32,address)", salt, deployer));
+        // This will handle the salt guarding internally
+        (bool success, bytes memory result) = CREATEX.staticcall(
+            abi.encodeWithSignature(
+                "computeCreate3Address(bytes32,address)",
+                salt,
+                CREATEX // Use CreateX as the deployer since that's what will deploy
+            )
+        );
 
         if (success) {
             return abi.decode(result, (address));
         }
 
-        // Fallback to standard CREATE3 calculation
-        bytes32 proxyCodeHash = keccak256(hex"67363d3d37363d34f03d5260086018f3");
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, proxyCodeHash)))));
+        // Fallback should not be needed but keep for safety
+        revert("CreateXDeployment: Failed to predict CREATE3 address");
     }
 
     /// @notice Predict CREATE2 address
     function _predictCreate2Address(bytes32 salt, address, bytes memory initCode) internal view returns (address) {
         // Use CreateX's computeCreate2Address function for accurate prediction
+        // This will handle the salt guarding internally
         bytes32 initCodeHash = keccak256(initCode);
         (bool success, bytes memory result) =
             CREATEX.staticcall(abi.encodeWithSignature("computeCreate2Address(bytes32,bytes32)", salt, initCodeHash));
@@ -229,8 +222,8 @@ abstract contract CreateXDeployment is Executor, Registry {
             return abi.decode(result, (address));
         }
 
-        // Fallback to standard CREATE2 calculation
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), CREATEX, salt, initCodeHash)))));
+        // Fallback should not be needed but keep for safety
+        revert("CreateXDeployment: Failed to predict CREATE2 address");
     }
 
     /// @notice Main deployment execution
@@ -260,7 +253,7 @@ abstract contract CreateXDeployment is Executor, Registry {
         if (bytes(label).length > 0) {
             console2.log("Label:", label);
         }
-        
+
         (address existingDeployment, bool isPending) = checkExistingDeployment();
         if (existingDeployment != address(0)) {
             if (isPending) {
@@ -274,15 +267,15 @@ abstract contract CreateXDeployment is Executor, Registry {
 
         console2.log("Starting deployment...");
 
-        // Deploy using strategy-specific method with guarded salt
-        bytes32 salt = generateGuardedSalt();
+        // Deploy using strategy-specific method with basic salt
+        bytes32 salt = generateSalt();
         bytes memory deployData;
 
         if (strategy == DeployStrategy.CREATE3) {
-            // Deploy using CreateX deployCreate3 function with guarded salt
+            // Deploy using CreateX deployCreate3 function with basic salt
             deployData = abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode);
         } else {
-            // Deploy using CreateX deployCreate2 function with guarded salt
+            // Deploy using CreateX deployCreate2 function with basic salt
             deployData = abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode);
         }
 
