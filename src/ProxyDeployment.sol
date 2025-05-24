@@ -48,7 +48,10 @@ abstract contract ProxyDeployment is Deployment {
     }
 
     function _getImplementationIdentifier() internal virtual view returns (string memory _identifier) {
-        _identifier = string.concat(implementationName, ":", implementationLabel);
+        _identifier = implementationName;
+        if (bytes(implementationLabel).length > 0) {
+            _identifier = string.concat(_identifier, ":", implementationLabel);
+        }
         return _identifier;
     }
 
@@ -59,7 +62,7 @@ abstract contract ProxyDeployment is Deployment {
     }
 
     /// @notice Get constructor arguments - override in child contracts when needed
-    function getConstructorArgs() internal view virtual returns (bytes memory) {
+    function _getConstructorArgs() internal view virtual override returns (bytes memory) {
         return abi.encode(getDeployment(_getImplementationIdentifier()), _getProxyInitializer());
     }
 
@@ -69,7 +72,7 @@ abstract contract ProxyDeployment is Deployment {
     }
 
     /// @notice Get contract bytecode - tries type().creationCode then falls back to artifacts
-    function getContractBytecode() internal virtual returns (bytes memory) {
+    function _getContractBytecode() internal virtual override returns (bytes memory) {
         // Default implementation: fallback to artifacts
         return getInitCodeFromArtifacts(vm, getArtifactPath());
     }
