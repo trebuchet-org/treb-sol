@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {CreateXScript, CREATEX_ADDRESS} from "createx-forge/CreateXScript.sol";
+import {CreateXScript, CREATEX_ADDRESS} from "createx-forge/script/CreateXScript.sol";
 import {console} from "forge-std/console.sol";
 import {Executor} from "./internal/Executor.sol";
 import {Registry} from "./internal/Registry.sol";

@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {console} from "forge-std/console.sol";
 import {Deployment, DeployStrategy, DeploymentType} from "./Deployment.sol";
-import {CREATEX_ADDRESS} from "createx-forge/CreateX.d.sol";
+import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 
 import {getInitCodeFromArtifacts} from "./internal/utils.sol";
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {console} from "forge-std/console.sol";
 import {Deployment, DeployStrategy, DeploymentType} from "./Deployment.sol";
-import {CREATEX_ADDRESS} from "createx-forge/CreateX.d.sol";
+import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {getInitCodeFromArtifacts} from "./internal/utils.sol";
 
 /**
@@ -45,12 +45,12 @@ abstract contract ContractDeployment is Deployment {
     }
 
     /// @notice Get constructor arguments - override in child contracts when needed
-    function getConstructorArgs() internal pure virtual returns (bytes memory) {
+    function _getConstructorArgs() internal virtual override returns (bytes memory) {
         return "";
     }
 
     /// @notice Get contract bytecode - tries type().creationCode then falls back to artifacts
-    function getContractBytecode() internal virtual returns (bytes memory) {
+    function _getContractBytecode() internal virtual override returns (bytes memory) {
         // Default implementation: fallback to artifacts
         return getInitCodeFromArtifacts(vm, getArtifactPath());
     }
