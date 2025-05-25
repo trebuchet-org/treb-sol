@@ -13,7 +13,8 @@ enum DeployStrategy {
 
 enum DeploymentType {
     CONTRACT,
-    PROXY
+    PROXY,
+    LIBRARY
 }
 /**
  * @title CreateXDeployment
@@ -48,7 +49,9 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     function _getContractBytecode() internal virtual returns (bytes memory);
 
     /// @notice Get the constructor arguments
-    function _getConstructorArgs() internal virtual view returns (bytes memory);
+    function _getConstructorArgs() internal virtual view returns (bytes memory) { 
+        return "";
+    }
 
     /// @notice Get the identifier for the deployment
     function _getIdentifier() internal virtual view returns (string memory);
@@ -158,7 +161,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         console.log(string.concat("ADDRESS:", vm.toString(deployment)));
         console.log(string.concat("SALT:", vm.toString(salt)));
         console.log(string.concat("INIT_CODE_HASH:", vm.toString(keccak256(initCode))));
-        console.log(string.concat("DEPLOYMENT_TYPE: CONTRACT"));
         console.log(string.concat("STRATEGY:", strategy == DeployStrategy.CREATE3 ? "CREATE3" : "CREATE2"));
         console.log(string.concat("CHAIN_ID:", vm.toString(block.chainid)));
         console.log(string.concat("BLOCK_NUMBER:", vm.toString(block.number)));
@@ -174,7 +176,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @notice Build salt components for deterministic deployment
     /// @dev Override this function to customize salt generation
     /// @return Array of string components used to generate the salt
-    function _buildSaltComponents() internal view returns (string[] memory) {
+    function _buildSaltComponents() internal view virtual returns (string[] memory) {
         string[] memory components = new string[](2);
         components[0] = _getIdentifier();
         components[1] = environment;
