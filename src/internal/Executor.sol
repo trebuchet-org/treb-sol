@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Safe} from "safe-utils/Safe.sol";
+import {DeployerConfig, DeployerType, Transaction, ExecutionResult, ExecutionStatus} from "./type.sol";
 
 /**
  * @title Executor
@@ -14,25 +15,6 @@ abstract contract Executor is Script {
 
     error UnsupportedDeployer(string deployerType);
     error TransactionFailed(string label);
-
-    enum DeployerType {
-        PRIVATE_KEY,
-        SAFE
-    }
-
-    struct Transaction {
-        string label;
-        address to;
-        bytes data;
-    }
-
-    struct DeployerConfig {
-        DeployerType deployerType;
-        address safeAddress;
-        uint256 privateKey;
-        address senderAddress;
-        string derivationPath;
-    }
 
     DeployerConfig public deployerConfig;
     Safe.Client private _safe;
@@ -62,6 +44,9 @@ abstract contract Executor is Script {
             deployerConfig.privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
             deployerConfig.senderAddress = vm.addr(deployerConfig.privateKey);
             vm.rememberKey(deployerConfig.privateKey);
+        } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("ledger"))) {
+            deployerConfig.deployerType = DeployerType.LEDGER;
+            deployerConfig.senderAddress = vm.envAddress("DEPLOYER_ADDRESS");
         } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("safe"))) {
             deployerConfig.deployerType = DeployerType.SAFE;
             deployerConfig.safeAddress = vm.envAddress("DEPLOYER_SAFE_ADDRESS");
@@ -113,10 +98,9 @@ abstract contract Executor is Script {
     /**
      * @notice Execute a single transaction
      * @param transaction The transaction to execute
-     * @return success Whether the transaction succeeded
-     * @return returnData The return data from the transaction
+     * @return ExecutionResult The result of the transaction execution
      */
-    function execute(Transaction memory transaction) internal returns (bool success, bytes memory returnData) {
+    function execute(Transaction memory transaction) internal returns (ExecutionResult memory) {
         if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
             return executeWithPrivateKey(transaction);
         } else if (deployerConfig.deployerType == DeployerType.SAFE) {
@@ -130,11 +114,11 @@ abstract contract Executor is Script {
      * @notice Execute multiple transactions
      * @param transactions Array of transactions to execute
      */
-    function execute(Transaction[] memory transactions) internal {
+    function execute(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
         if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
-            executeWithPrivateKey(transactions);
+            return executeWithPrivateKey(transactions);
         } else if (deployerConfig.deployerType == DeployerType.SAFE) {
-            queueForSafe(transactions);
+            return queueForSafe(transactions);
         } else {
             revert UnsupportedDeployer("Unknown deployer type");
         }
@@ -143,48 +127,53 @@ abstract contract Executor is Script {
     /**
      * @notice Execute a transaction with a private key
      * @param transaction The transaction to execute
-     * @return success Whether the transaction succeeded
-     * @return returnData The return data from the transaction
+     * @return ExecutionResult The result of the transaction execution
      */
     function executeWithPrivateKey(Transaction memory transaction)
         internal
-        returns (bool success, bytes memory returnData)
+        returns (ExecutionResult memory)
     {
         vm.startBroadcast(deployerConfig.privateKey);
-        (success, returnData) = transaction.to.call(transaction.data);
-        if (!success) {
-            console.log("Transaction failed:", transaction.label);
-            revert TransactionFailed(transaction.label);
-        }
+        (bool success, bytes memory returnData) = transaction.to.call(transaction.data);
         vm.stopBroadcast();
+        if (!success) {
+            revert TransactionFailed(transaction.label);
+        } else {
+            return ExecutionResult({
+                status: ExecutionStatus.EXECUTED,
+                returnData: returnData
+            });
+        }
     }
 
     /**
      * @notice Execute multiple transactions with a private key
      * @param transactions Array of transactions to execute
      */
-    function executeWithPrivateKey(Transaction[] memory transactions) internal returns (bool, bytes memory) {
+    function executeWithPrivateKey(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
         vm.startBroadcast(deployerConfig.privateKey);
         bytes[] memory returnData = new bytes[](transactions.length);
         for (uint256 i = 0; i < transactions.length; i++) {
-            (bool success, bytes memory data) = transactions[i].to.call(transactions[i].data);
-            if (!success) {
-                console.log("Transaction failed:", transactions[i].label);
+            (bool _success, bytes memory data) = transactions[i].to.call(transactions[i].data);
+            if (!_success) {
                 revert TransactionFailed(transactions[i].label);
             }
             returnData[i] = data;
         }
         vm.stopBroadcast();
-        return (true, abi.encode(returnData));
+
+        return ExecutionResult({
+            status: ExecutionStatus.EXECUTED,
+            returnData: abi.encode(returnData)
+        });
     }
 
     /**
      * @notice Queue a transaction for Safe execution
      * @param transaction The transaction to queue
-     * @return success Always true for Safe (queued for later execution)
-     * @return safeTxHash The Safe transaction hash as bytes
+     * @return ExecutionResult The result of the transaction execution
      */
-    function queueForSafe(Transaction memory transaction) internal returns (bool, bytes memory) {
+    function queueForSafe(Transaction memory transaction) internal returns (ExecutionResult memory) {
         pendingTransactions.push(transaction);
         console.log("Queued transaction for Safe:", transaction.label);
 
@@ -195,14 +184,17 @@ abstract contract Executor is Script {
             deployerConfig.derivationPath
         );
 
-        return (true, abi.encode(safeTxHash));
+        return ExecutionResult({
+            status: ExecutionStatus.PENDING_SAFE,
+            returnData: abi.encode(safeTxHash)
+        });
     }
 
     /**
      * @notice Queue multiple transactions for Safe execution
      * @param transactions Array of transactions to queue
      */
-    function queueForSafe(Transaction[] memory transactions) internal returns (bool, bytes memory) {
+    function queueForSafe(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
         address[] memory targets = new address[](transactions.length);
         bytes[] memory datas = new bytes[](transactions.length);
 
@@ -215,6 +207,9 @@ abstract contract Executor is Script {
         bytes32 safeTxHash =
             _safe.proposeTransactions(targets, datas, deployerConfig.senderAddress, deployerConfig.derivationPath);
 
-        return (true, abi.encode(safeTxHash));
+        return ExecutionResult({
+            status: ExecutionStatus.PENDING_SAFE,
+            returnData: abi.encode(safeTxHash)
+        });
     }
 }

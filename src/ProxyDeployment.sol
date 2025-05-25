@@ -2,60 +2,47 @@
 pragma solidity ^0.8.0;
 
 import {console} from "forge-std/console.sol";
-import {Deployment, DeployStrategy, DeploymentType} from "./Deployment.sol";
-import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
-
-import {getInitCodeFromArtifacts} from "./internal/utils.sol";
+import {SingletonDeployment} from "./SingletonDeployment.sol";
+import "./internal/type.sol";
 
 /**
  * @title ProxyDeployment
  * @notice Base contract for deterministic proxy deployments using CreateX
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
-abstract contract ProxyDeployment is Deployment {
+abstract contract ProxyDeployment is SingletonDeployment {
     /// @notice Name of the contract being deployed
     string public implementationName;
+
+    /// @notice Path to the implementation artifact file
+    string public implementationIdentifier;
 
     /// @notice Label for the implementation contract
     string public implementationLabel;
 
-    /// @notice Name of the proxy contract
-    string public proxyName;
-
-    /// @notice Label for the proxy contract
-    string public proxyLabel;
-
-    /// @notice Label for this deployment
-    string public label;
-
-    constructor(string memory _implementationName, DeployStrategy _strategy)
-        Deployment(_strategy, DeploymentType.CONTRACT)
-    {
+    constructor(
+        string memory _proxyName, 
+        string memory _proxyArtifactPath,
+        DeployStrategy _strategy,
+        string memory _implementationName
+    ) SingletonDeployment(_proxyName, _proxyArtifactPath, _strategy) {
         implementationName = _implementationName;
-        implementationLabel = vm.envOr("IMPLEMENTATION_LABEL", string(""));
-        proxyName = string.concat(implementationName, "Proxy");
-        proxyLabel = vm.envOr("DEPLOYMENT_LABEL", string(""));
-        strategy = _strategy;
+        implementationIdentifier = vm.envString("IMPLEMENTATION_IDENTIFIER");
+        require(bytes(implementationIdentifier).length > 0, "ProxyDeployment: IMPLEMENTATION_IDENTIFIER is not set");
     }
 
     /// @notice Get the deployment label for the proxy
     function _getIdentifier() internal view override returns (string memory _identifier) {
-        if (bytes(proxyLabel).length > 0) {
-            return string.concat(proxyName, ":", proxyLabel);
+        string memory identifier = string.concat(contractName, ":", implementationName);
+        if (bytes(label).length > 0) {
+            return string.concat(identifier, ":", label);
         }
-        return proxyName;
-    }
-
-    function _getImplementationIdentifier() internal virtual view returns (string memory _identifier) {
-        if (bytes(implementationLabel).length > 0) {
-            return string.concat(implementationName, ":", implementationLabel);
-        }
-        return implementationName;
+        return identifier;
     }
 
     /// @notice Get constructor arguments - override in child contracts when needed
     function _getConstructorArgs() internal view virtual override returns (bytes memory) {
-        return abi.encode(getDeployment(_getImplementationIdentifier()), _getProxyInitializer());
+        return abi.encode(getDeployment(implementationIdentifier), _getProxyInitializer());
     }
 
     /// @notice Get proxy initializer - override in child contracts when needed
@@ -63,29 +50,17 @@ abstract contract ProxyDeployment is Deployment {
         return "";
     }
 
-    /// @notice Get contract bytecode - tries type().creationCode then falls back to artifacts
-    function _getContractBytecode() internal virtual override returns (bytes memory) {
-        // Default implementation: fallback to artifacts
-        return getInitCodeFromArtifacts(vm, getArtifactPath());
-    }
-
-    /// @notice Get the artifact path for the contract, override in child contracts when needed
-    function getArtifactPath() internal virtual view returns (string memory) {
-        // Try to read from out/ directory (Foundry compilation artifacts)
-        return string.concat("out/", proxyName, ".sol/", proxyName, ".json");
+    /// @notice Log deployment type
+    function _logDeploymentType() internal virtual override {
+        _log("DEPLOYMENT_TYPE", "PROXY");
     }
 
     /// @notice Log execution result with enhanced metadata
-    function _logAdditionalDetails() internal override view {
-        // Output structured data for CLI parsing
-        console.log(string.concat("CONTRACT_NAME:", proxyName));
-        console.log(string.concat("DEPLOYMENT_TYPE: PROXY"));
-        if (bytes(label).length > 0) {
-            console.log(string.concat("DEPLOYMENT_LABEL:", label));
-        }
-        console.log(string.concat("IMPLEMENTATION_NAME:", implementationName));
-        if (bytes(implementationLabel).length > 0) {
-            console.log(string.concat("IMPLEMENTATION_LABEL:", implementationLabel));
-        }
+    function _logDeployment(DeploymentResult memory result) internal override {
+        super._logDeployment(result);
+        _log("DEPLOYMENT_TYPE", "PROXY");
+        _log("IMPLEMENTATION_NAME", implementationName);
+        _log("IMPLEMENTATION_ADDRESS", vm.toString(getDeployment(implementationIdentifier)));
+        _log("PROXY_INITIALIZER", vm.toString(_getProxyInitializer()));
     }
 }

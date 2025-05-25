@@ -5,48 +5,60 @@ import {CreateXScript, CREATEX_ADDRESS} from "createx-forge/script/CreateXScript
 import {console} from "forge-std/console.sol";
 import {Executor} from "./internal/Executor.sol";
 import {Registry} from "./internal/Registry.sol";
+import "./internal/type.sol";
 
-enum DeployStrategy {
-    CREATE2,
-    CREATE3
-}
-
-enum DeploymentType {
-    CONTRACT,
-    PROXY,
-    LIBRARY
-}
 /**
  * @title CreateXDeployment
  * @notice Base contract for deterministic deployments using CreateX
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
-abstract contract Deployment is CreateXScript, Executor, Registry {
+abstract contract SingletonDeployment is CreateXScript, Executor, Registry {
     error DeploymentPendingSafe();
     error DeploymentAlreadyExists();
     error DeploymentFailed();
     error DeploymentAddressMismatch();
+    error UnlinkedLibraries();
+    error CompilationArtifactsNotFound();
 
-    struct DeploymentResult {
-        address target;
-        bytes32 salt;
-        bytes initCode;
-        bytes32 safeTxHash;
-    }
+    /// @notice Name of the contract being deployed
+    string public contractName;
+
+    /// @notice Path to the artifact file
+    string public artifactPath;
+
+    /// @notice Label for this deployment
+    string public label;
 
     /// @notice Deployment strategy (CREATE2 or CREATE3)
     DeployStrategy public strategy;
 
-    /// @notice Deployment type (IMPLEMENTATION or PROXY)
-    DeploymentType public deploymentType;
+    /// @notice Log items for structured output
+    struct LogItem {
+        string key;
+        string value;
+    }
 
-    constructor(DeployStrategy _strategy, DeploymentType _deploymentType) {
+    LogItem[] public logItems;
+
+    constructor(string memory _contractName, string memory _artifactPath, DeployStrategy _strategy) {
+        contractName = _contractName;
+        artifactPath = _artifactPath;
+        label = vm.envOr("DEPLOYMENT_LABEL", string(""));
         strategy = _strategy;
-        deploymentType = _deploymentType;
     }
 
     /// @notice Get the contract bytecode
-    function _getContractBytecode() internal virtual returns (bytes memory);
+    function _getContractBytecode() internal virtual returns (bytes memory) {
+        try vm.getCode(artifactPath) returns (bytes memory code) {
+            return code;
+        } catch {
+            try vm.readFile(artifactPath) returns (string memory) {
+                revert UnlinkedLibraries();
+            } catch {
+                revert CompilationArtifactsNotFound();
+            }
+        }
+    }
 
     /// @notice Get the constructor arguments
     function _getConstructorArgs() internal virtual view returns (bytes memory) { 
@@ -54,7 +66,12 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     }
 
     /// @notice Get the identifier for the deployment
-    function _getIdentifier() internal virtual view returns (string memory);
+    function _getIdentifier() internal virtual view returns (string memory) {
+        if (bytes(label).length > 0) {
+            return string.concat(contractName, ":", label);
+        }
+        return contractName;
+    }
 
     /// @notice Log additional details to the console
     function _logAdditionalDetails() internal virtual view {}
@@ -65,7 +82,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     /// @notice Post-deployment setup hook
     /// @dev Override this to perform post-deployment configuration
-    function _postDeploy(address deployed) internal virtual {}
+    function _postDeploy(DeploymentResult memory result) internal virtual {}
 
     /// @notice Get complete init code (bytecode + constructor args)
     function _getInitCode() internal virtual returns (bytes memory) {
@@ -83,7 +100,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @notice Main deployment execution
     function run() public virtual {
         DeploymentResult memory result = _deploy();
-        _logDeployment(result.target, result.salt, result.initCode, result.safeTxHash);
+        _logDeployment(result);
     }
 
 
@@ -119,58 +136,58 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         Transaction memory deployTx = Transaction(string.concat("Deploy ", _getIdentifier()), CREATEX_ADDRESS, deployData);
 
         _preDeploy();
-        (bool success, bytes memory returnData) = execute(deployTx);
-
-        if (!success) {
-            revert DeploymentFailed();
-        }
+        ExecutionResult memory result = execute(deployTx);
 
         address deployed;
         bytes32 safeTxHash;
 
-        if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
-            // For private key deployments, decode the actual deployed address
-            deployed = abi.decode(returnData, (address));
+        if (result.status == ExecutionStatus.EXECUTED) {
+            // For private key and ledger deployments, decode the actual deployed address
+            deployed = abi.decode(result.returnData, (address));
             if (deployed != predicted) {
                 revert DeploymentAddressMismatch();
             }
-        } else {
+        } else if (result.status == ExecutionStatus.PENDING_SAFE) {
             // For Safe deployments, we get a transaction hash and use predicted address
-            safeTxHash = abi.decode(returnData, (bytes32));
-            deployed = predicted;
+            safeTxHash = abi.decode(result.returnData, (bytes32));
         }
 
-        _postDeploy(deployed);
-
-        return DeploymentResult({
-            target: deployed,
+        DeploymentResult memory deploymentResult = DeploymentResult({
+            deployed: deployed,
+            predicted: predicted,
+            status: result.status,
             salt: salt,
             initCode: initCode,
             safeTxHash: safeTxHash
         });
+
+        _postDeploy(deploymentResult);
+        _logDeployment(deploymentResult);
+        return deploymentResult;
+    }
+
+    /// @notice Log deployment type
+    function _logDeploymentType() internal virtual {
+        _log("DEPLOYMENT_TYPE", "SINGLETON");
     }
 
     /// @notice Log execution result with enhanced metadata
-    function _logDeployment(address deployment, bytes32 salt, bytes memory initCode, bytes32 safeTxHash)
+    function _logDeployment(DeploymentResult memory result)
         internal
-        view
+        virtual
     {
-        // Output structured data for CLI parsing
-        console.log("");
-        console.log("=== DEPLOYMENT_RESULT ===");
-        console.log(string.concat("ADDRESS:", vm.toString(deployment)));
-        console.log(string.concat("SALT:", vm.toString(salt)));
-        console.log(string.concat("INIT_CODE_HASH:", vm.toString(keccak256(initCode))));
-        console.log(string.concat("STRATEGY:", strategy == DeployStrategy.CREATE3 ? "CREATE3" : "CREATE2"));
-        console.log(string.concat("CHAIN_ID:", vm.toString(block.chainid)));
-        console.log(string.concat("BLOCK_NUMBER:", vm.toString(block.number)));
-        console.log(string.concat("CONSTRUCTOR_ARGS:", vm.toString(_getConstructorArgs())));
-        if (safeTxHash != bytes32(0)) {
-            console.log(string.concat("SAFE_TX_HASH:", vm.toString(safeTxHash)));
+        _logDeploymentType();
+        _log("ADDRESS", vm.toString(result.deployed));
+        _log("PREDICTED", vm.toString(result.predicted));
+        _log("STATUS", toString(result.status));
+        _log("SALT", vm.toString(result.salt));
+        _log("INIT_CODE_HASH", vm.toString(keccak256(result.initCode)));
+        _log("STRATEGY", toString(strategy));
+        _log("BLOCK_NUMBER", vm.toString(block.number));
+        _log("CONSTRUCTOR_ARGS", vm.toString(_getConstructorArgs()));
+        if (result.status == ExecutionStatus.PENDING_SAFE) {
+            _log("SAFE_TX_HASH", vm.toString(result.safeTxHash));
         }
-        _logAdditionalDetails();
-        console.log("=== END_DEPLOYMENT ===");
-        console.log("");
     }
 
     /// @notice Build salt components for deterministic deployment
@@ -268,5 +285,19 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         }
 
         return (address(0), false);
+    }
+
+    function _log(string memory key, string memory value) internal {
+        logItems.push(LogItem({key: key, value: value}));
+    }
+
+    function _writeLog() internal view {
+        console.log("");
+        console.log("=== DEPLOYMENT_RESULT ===");
+        for (uint256 i = 0; i < logItems.length; i++) {
+            console.log(string.concat(logItems[i].key, ":", logItems[i].value));
+        }
+        console.log("=== END_DEPLOYMENT ===");
+        console.log("");
     }
 }

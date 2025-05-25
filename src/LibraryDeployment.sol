@@ -1,49 +1,43 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Deployment, DeployStrategy, DeploymentType} from "./Deployment.sol";
 import {console} from "forge-std/console.sol";
+import {CreateXScript, CREATEX_ADDRESS} from "createx-forge/script/CreateXScript.sol";
+import {Executor} from "./internal/Executor.sol";
+import "./internal/type.sol";
 
 /**
  * @title LibraryDeployment
  * @notice Base contract for deploying libraries with deterministic addresses
  * @dev Libraries are deployed globally (no environment) for cross-chain consistency
  */
-abstract contract LibraryDeployment is Deployment {
-    /// @notice Name of the library being deployed
-    string public libraryName;
+abstract contract LibraryDeployment is CreateXScript, Executor {
+    constructor() {}
 
-    constructor(string memory _libraryName) 
-        Deployment(DeployStrategy.CREATE2, DeploymentType.LIBRARY) 
-    {
-        libraryName = _libraryName;
-    }
+    function run() public {
+        require(
+            deployerConfig.deployerType == DeployerType.PRIVATE_KEY ||
+            deployerConfig.deployerType == DeployerType.LEDGER,
+            "LibraryDeployment: Only private key and ledger deployments are supported"
+        );
 
-    /// @notice Get the library name
-    function _getIdentifier() internal override view returns (string memory) {
-        // Libraries use just their name as identifier (no environment)
-        return libraryName;
-    }
+        string memory libraryName = vm.envString("LIBRARY_NAME");
+        string memory libraryArtifactPath = vm.envString("LIBRARY_ARTIFACT_PATH");
 
-    /// @notice Get library bytecode using vm.getCode
-    function _getContractBytecode() internal virtual override returns (bytes memory) {
-        // Use vm.getCode to get the library's creation code
-        return vm.getCode(libraryName);
-    }
+        require(bytes(libraryName).length > 0, "LibraryDeployment: LIBRARY_NAME is not set");
+        require(bytes(libraryArtifactPath).length > 0, "LibraryDeployment: LIBRARY_ARTIFACT_PATH is not set");
 
-    /// @notice Build salt components for deterministic deployment
-    /// @dev Libraries use only the library name for global consistency
-    function _buildSaltComponents() internal override view returns (string[] memory) {
-        string[] memory components = new string[](1);
-        components[0] = libraryName;
-        return components;
-    }
+        bytes memory libraryCode = vm.getCode(libraryArtifactPath);
+        bytes32 salt = keccak256(abi.encodePacked(libraryName));
 
-    /// @notice Log additional details to the console
-    function _logAdditionalDetails() internal override view {
-        console.log(string.concat("LIBRARY_NAME:", libraryName));
-        console.log("DEPLOYMENT_TYPE: LIBRARY");
-        // Libraries are global, no environment
-        console.log("ENVIRONMENT: global");
+        bytes memory deployData = abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, libraryCode);
+        Transaction memory deployTx = Transaction(string.concat("Deploy ", libraryName), CREATEX_ADDRESS, deployData);
+        ExecutionResult memory result = execute(deployTx);
+
+        address deployed = abi.decode(result.returnData, (address));
+        console.log("=== DEPLOYMENT_RESULT ===");
+        console.log("DEPLOYMENT_TYPE:LIBRARY");
+        console.log(string.concat("LIBRARY_ADDRESS:", vm.toString(deployed)));
+        console.log("=== END_DEPLOYMENT ===");
     }
 }
