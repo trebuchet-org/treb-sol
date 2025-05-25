@@ -61,6 +61,7 @@ abstract contract Executor is Script {
             deployerConfig.deployerType = DeployerType.PRIVATE_KEY;
             deployerConfig.privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
             deployerConfig.senderAddress = vm.addr(deployerConfig.privateKey);
+            vm.rememberKey(deployerConfig.privateKey);
         } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("safe"))) {
             deployerConfig.deployerType = DeployerType.SAFE;
             deployerConfig.safeAddress = vm.envAddress("DEPLOYER_SAFE_ADDRESS");
@@ -99,6 +100,14 @@ abstract contract Executor is Script {
         } else {
             return deployerConfig.senderAddress;
         }
+    }
+
+    /**
+     * @notice Get the sender address
+     * @return The address that will execute transactions
+     */
+    function _getSenderAddress() internal view returns (address) {
+        return deployerConfig.senderAddress;
     }
 
     /**

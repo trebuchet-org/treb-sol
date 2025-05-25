@@ -53,12 +53,6 @@ abstract contract ProxyDeployment is Deployment {
         return implementationName;
     }
 
-    /// @notice Main deployment execution
-    function run() public virtual {
-        DeploymentResult memory result = _deploy();
-        _logDeployment(result.target, result.salt, result.initCode, result.safeTxHash);
-    }
-
     /// @notice Get constructor arguments - override in child contracts when needed
     function _getConstructorArgs() internal view virtual override returns (bytes memory) {
         return abi.encode(getDeployment(_getImplementationIdentifier()), _getProxyInitializer());
@@ -82,28 +76,16 @@ abstract contract ProxyDeployment is Deployment {
     }
 
     /// @notice Log execution result with enhanced metadata
-    function _logDeployment(address deployment, bytes32 salt, bytes memory initCode, bytes32 safeTxHash)
-        internal
-        view
-    {
+    function _logAdditionalDetails() internal override view {
         // Output structured data for CLI parsing
-        console.log("");
-        console.log("=== DEPLOYMENT_RESULT ===");
-        console.log(string.concat("ADDRESS:", vm.toString(deployment)));
-        console.log(string.concat("SALT:", vm.toString(salt)));
-        console.log(string.concat("INIT_CODE_HASH:", vm.toString(keccak256(initCode))));
         console.log(string.concat("CONTRACT_NAME:", proxyName));
         console.log(string.concat("DEPLOYMENT_TYPE: PROXY"));
-        console.log(string.concat("STRATEGY:", strategy == DeployStrategy.CREATE3 ? "CREATE3" : "CREATE2"));
-        console.log(string.concat("CHAIN_ID:", vm.toString(block.chainid)));
-        console.log(string.concat("BLOCK_NUMBER:", vm.toString(block.number)));
         if (bytes(label).length > 0) {
             console.log(string.concat("DEPLOYMENT_LABEL:", label));
         }
-        if (safeTxHash != bytes32(0)) {
-            console.log(string.concat("SAFE_TX_HASH:", vm.toString(safeTxHash)));
+        console.log(string.concat("IMPLEMENTATION_NAME:", implementationName));
+        if (bytes(implementationLabel).length > 0) {
+            console.log(string.concat("IMPLEMENTATION_LABEL:", implementationLabel));
         }
-        console.log("=== END_DEPLOYMENT ===");
-        console.log("");
     }
 }

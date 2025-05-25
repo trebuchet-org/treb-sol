@@ -48,10 +48,13 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     function _getContractBytecode() internal virtual returns (bytes memory);
 
     /// @notice Get the constructor arguments
-    function _getConstructorArgs() internal virtual returns (bytes memory);
+    function _getConstructorArgs() internal virtual view returns (bytes memory);
 
     /// @notice Get the identifier for the deployment
     function _getIdentifier() internal virtual view returns (string memory);
+
+    /// @notice Log additional details to the console
+    function _logAdditionalDetails() internal virtual view {}
 
     /// @notice Post-deployment setup hook
     /// @dev Override this to perform post-deployment configuration
@@ -73,6 +76,13 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         address predicted = _predictAddress(_getInitCode());
         console.log("Predicted Address:", predicted);
     }
+
+    /// @notice Main deployment execution
+    function run() public virtual {
+        DeploymentResult memory result = _deploy();
+        _logDeployment(result.target, result.salt, result.initCode, result.safeTxHash);
+    }
+
 
     function _deploy() internal virtual returns (DeploymentResult memory) {
         // Get init code for address prediction
@@ -135,6 +145,30 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
             initCode: initCode,
             safeTxHash: safeTxHash
         });
+    }
+
+    /// @notice Log execution result with enhanced metadata
+    function _logDeployment(address deployment, bytes32 salt, bytes memory initCode, bytes32 safeTxHash)
+        internal
+        view
+    {
+        // Output structured data for CLI parsing
+        console.log("");
+        console.log("=== DEPLOYMENT_RESULT ===");
+        console.log(string.concat("ADDRESS:", vm.toString(deployment)));
+        console.log(string.concat("SALT:", vm.toString(salt)));
+        console.log(string.concat("INIT_CODE_HASH:", vm.toString(keccak256(initCode))));
+        console.log(string.concat("DEPLOYMENT_TYPE: CONTRACT"));
+        console.log(string.concat("STRATEGY:", strategy == DeployStrategy.CREATE3 ? "CREATE3" : "CREATE2"));
+        console.log(string.concat("CHAIN_ID:", vm.toString(block.chainid)));
+        console.log(string.concat("BLOCK_NUMBER:", vm.toString(block.number)));
+        console.log(string.concat("CONSTRUCTOR_ARGS:", vm.toString(_getConstructorArgs())));
+        if (safeTxHash != bytes32(0)) {
+            console.log(string.concat("SAFE_TX_HASH:", vm.toString(safeTxHash)));
+        }
+        _logAdditionalDetails();
+        console.log("=== END_DEPLOYMENT ===");
+        console.log("");
     }
 
     /// @notice Build salt components for deterministic deployment

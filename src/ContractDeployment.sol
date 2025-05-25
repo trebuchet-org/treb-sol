@@ -12,6 +12,9 @@ import {getInitCodeFromArtifacts} from "./internal/utils.sol";
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
 abstract contract ContractDeployment is Deployment {
+    error UnlinkedLibraries();
+    error CompilationArtifactsNotFound();
+
     /// @notice Name of the contract being deployed
     string public contractName;
 
@@ -34,21 +37,23 @@ abstract contract ContractDeployment is Deployment {
         return contractName;
     }
 
-    /// @notice Main deployment execution
-    function run() public virtual {
-        DeploymentResult memory result = _deploy();
-        _logDeployment(result.target, result.salt, result.initCode, result.safeTxHash);
-    }
-
     /// @notice Get constructor arguments - override in child contracts when needed
-    function _getConstructorArgs() internal virtual override returns (bytes memory) {
+    function _getConstructorArgs() internal virtual override view returns (bytes memory) {
         return "";
     }
 
     /// @notice Get contract bytecode - tries type().creationCode then falls back to artifacts
     function _getContractBytecode() internal virtual override returns (bytes memory) {
         // Default implementation: fallback to artifacts
-        return getInitCodeFromArtifacts(vm, getArtifactPath());
+        try vm.getCode(contractName) returns (bytes memory code) {
+            return code;
+        } catch {
+            try vm.readFile(getArtifactPath()) returns (string memory artifactJson) {
+                revert UnlinkedLibraries();
+            } catch {
+                revert CompilationArtifactsNotFound();
+            }
+        }
     }
 
     /// @notice Get the artifact path for the contract, override in child contracts when needed
@@ -57,29 +62,12 @@ abstract contract ContractDeployment is Deployment {
         return string.concat("out/", contractName, ".sol/", contractName, ".json");
     }
 
-    /// @notice Log execution result with enhanced metadata
-    function _logDeployment(address deployment, bytes32 salt, bytes memory initCode, bytes32 safeTxHash)
-        internal
-        view
-    {
-        // Output structured data for CLI parsing
-        console.log("");
-        console.log("=== DEPLOYMENT_RESULT ===");
-        console.log(string.concat("ADDRESS:", vm.toString(deployment)));
-        console.log(string.concat("SALT:", vm.toString(salt)));
-        console.log(string.concat("INIT_CODE_HASH:", vm.toString(keccak256(initCode))));
+    /// @notice Log additional details to the console
+    function _logAdditionalDetails() internal override view {
         console.log(string.concat("CONTRACT_NAME:", contractName));
-        console.log(string.concat("DEPLOYMENT_TYPE: CONTRACT"));
-        console.log(string.concat("STRATEGY:", strategy == DeployStrategy.CREATE3 ? "CREATE3" : "CREATE2"));
-        console.log(string.concat("CHAIN_ID:", vm.toString(block.chainid)));
-        console.log(string.concat("BLOCK_NUMBER:", vm.toString(block.number)));
         if (bytes(label).length > 0) {
             console.log(string.concat("DEPLOYMENT_LABEL:", label));
         }
-        if (safeTxHash != bytes32(0)) {
-            console.log(string.concat("SAFE_TX_HASH:", vm.toString(safeTxHash)));
-        }
-        console.log("=== END_DEPLOYMENT ===");
-        console.log("");
     }
+
 }
