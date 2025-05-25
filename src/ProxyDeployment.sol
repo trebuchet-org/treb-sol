@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {console} from "forge-std/console.sol";
-import {SingletonDeployment} from "./SingletonDeployment.sol";
+import {Deployment} from "./Deployment.sol";
 import "./internal/type.sol";
 
 /**
@@ -10,7 +10,7 @@ import "./internal/type.sol";
  * @notice Base contract for deterministic proxy deployments using CreateX
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
-abstract contract ProxyDeployment is SingletonDeployment {
+abstract contract ProxyDeployment is Deployment {
     /// @notice Name of the contract being deployed
     string public implementationName;
 
@@ -25,7 +25,7 @@ abstract contract ProxyDeployment is SingletonDeployment {
         string memory _proxyArtifactPath,
         DeployStrategy _strategy,
         string memory _implementationName
-    ) SingletonDeployment(_proxyName, _proxyArtifactPath, _strategy) {
+    ) Deployment(_proxyName, _proxyArtifactPath, _strategy) {
         implementationName = _implementationName;
         implementationIdentifier = vm.envString("IMPLEMENTATION_IDENTIFIER");
         require(bytes(implementationIdentifier).length > 0, "ProxyDeployment: IMPLEMENTATION_IDENTIFIER is not set");

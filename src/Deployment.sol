@@ -8,11 +8,11 @@ import {Registry} from "./internal/Registry.sol";
 import "./internal/type.sol";
 
 /**
- * @title CreateXDeployment
+ * @title Deployment
  * @notice Base contract for deterministic deployments using CreateX
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
-abstract contract SingletonDeployment is CreateXScript, Executor, Registry {
+abstract contract Deployment is CreateXScript, Executor, Registry {
     error DeploymentPendingSafe();
     error DeploymentAlreadyExists();
     error DeploymentFailed();
