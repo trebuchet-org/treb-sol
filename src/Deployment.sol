@@ -100,7 +100,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @notice Main deployment execution
     function run() public virtual {
         DeploymentResult memory result = _deploy();
-        _logDeployment(result);
+        _writeLog();
     }
 
 
@@ -261,27 +261,9 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         // Check if deployment exists
         address deployed = getDeployment(_getIdentifier());
         if (deployed != address(0)) {
-            // Check deployment status in the registry JSON
-            string memory deploymentsPath = "deployments.json";
-            try vm.readFile(deploymentsPath) returns (string memory json) {
-                string memory statusPath = string.concat(
-                    ".networks.",
-                    vm.toString(block.chainid),
-                    ".deployments.",
-                    vm.toString(deployed),
-                    ".deployment.status"
-                );
-
-                try vm.parseJsonString(json, statusPath) returns (string memory status) {
-                    isPending = keccak256(bytes(status)) == keccak256(bytes("pending_safe"));
-                } catch {
-                    isPending = false;
-                }
-            } catch {
-                isPending = false;
-            }
-
-            return (deployed, isPending);
+            // For now, we can't check pending status from JSON in Foundry scripts
+            // The CLI will handle this check before running the script
+            return (deployed, false);
         }
 
         return (address(0), false);
