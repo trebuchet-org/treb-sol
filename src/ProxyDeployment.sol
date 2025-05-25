@@ -12,37 +12,33 @@ import "./internal/type.sol";
  */
 abstract contract ProxyDeployment is Deployment {
     /// @notice Name of the contract being deployed
-    string public implementationName;
+    string public implementationArtifactPath;
 
-    /// @notice Path to the implementation artifact file
-    string public implementationIdentifier;
-
-    /// @notice Label for the implementation contract
-    string public implementationLabel;
+    /// @notice Implementation address
+    address public implementationAddress;
 
     constructor(
-        string memory _proxyName, 
         string memory _proxyArtifactPath,
-        DeployStrategy _strategy,
-        string memory _implementationName
-    ) Deployment(_proxyName, _proxyArtifactPath, _strategy) {
-        implementationName = _implementationName;
-        implementationIdentifier = vm.envString("IMPLEMENTATION_IDENTIFIER");
-        require(bytes(implementationIdentifier).length > 0, "ProxyDeployment: IMPLEMENTATION_IDENTIFIER is not set");
+        string memory _implementationArtifactPath,
+        DeployStrategy _strategy
+    ) Deployment(_proxyArtifactPath, _strategy) {
+        implementationArtifactPath = _implementationArtifactPath;
+        implementationAddress = vm.envAddress("IMPLEMENTATION_ADDRESS");
+        require(implementationAddress != address(0), "ProxyDeployment: IMPLEMENTATION_ADDRESS is not set");
     }
 
     /// @notice Get the deployment label for the proxy
     function _getIdentifier() internal view override returns (string memory _identifier) {
-        string memory identifier = string.concat(contractName, ":", implementationName);
+        string memory identifier = string.concat(artifactPath, ":", implementationArtifactPath);
         if (bytes(label).length > 0) {
             return string.concat(identifier, ":", label);
         }
         return identifier;
     }
 
-    /// @notice Get constructor arguments - override in child contracts when needed
+    /// @notice common proxy constructor args, override in child contracts when needed
     function _getConstructorArgs() internal view virtual override returns (bytes memory) {
-        return abi.encode(getDeployment(implementationIdentifier), _getProxyInitializer());
+        return abi.encode(implementationAddress, _getProxyInitializer());
     }
 
     /// @notice Get proxy initializer - override in child contracts when needed
@@ -59,8 +55,7 @@ abstract contract ProxyDeployment is Deployment {
     function _logDeployment(DeploymentResult memory result) internal override {
         super._logDeployment(result);
         _log("DEPLOYMENT_TYPE", "PROXY");
-        _log("IMPLEMENTATION_NAME", implementationName);
-        _log("IMPLEMENTATION_ADDRESS", vm.toString(getDeployment(implementationIdentifier)));
+        _log("IMPLEMENTATION_ADDRESS", vm.toString(implementationAddress));
         _log("PROXY_INITIALIZER", vm.toString(_getProxyInitializer()));
     }
 }

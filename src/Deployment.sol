@@ -20,9 +20,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     error UnlinkedLibraries();
     error CompilationArtifactsNotFound();
 
-    /// @notice Name of the contract being deployed
-    string public contractName;
-
     /// @notice Path to the artifact file
     string public artifactPath;
 
@@ -40,8 +37,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     LogItem[] public logItems;
 
-    constructor(string memory _contractName, string memory _artifactPath, DeployStrategy _strategy) {
-        contractName = _contractName;
+    constructor(string memory _artifactPath, DeployStrategy _strategy) {
         artifactPath = _artifactPath;
         label = vm.envOr("DEPLOYMENT_LABEL", string(""));
         strategy = _strategy;
@@ -68,9 +64,9 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @notice Get the identifier for the deployment
     function _getIdentifier() internal virtual view returns (string memory) {
         if (bytes(label).length > 0) {
-            return string.concat(contractName, ":", label);
+            return string.concat(artifactPath, ":", label);
         }
-        return contractName;
+        return artifactPath;
     }
 
     /// @notice Log additional details to the console
