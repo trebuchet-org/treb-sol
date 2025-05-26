@@ -11,7 +11,7 @@ import "./internal/type.sol";
  * @notice Base contract for deploying libraries with deterministic addresses
  * @dev Libraries are deployed globally (no environment) for cross-chain consistency
  */
-abstract contract LibraryDeployment is CreateXScript, Executor {
+contract LibraryDeployment is CreateXScript, Executor {
     constructor() {}
 
     function run() public {

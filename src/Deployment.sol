@@ -48,11 +48,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         try vm.getCode(artifactPath) returns (bytes memory code) {
             return code;
         } catch {
-            try vm.readFile(artifactPath) returns (string memory) {
-                revert UnlinkedLibraries();
-            } catch {
-                revert CompilationArtifactsNotFound();
-            }
+            revert UnlinkedLibraries();
         }
     }
 
