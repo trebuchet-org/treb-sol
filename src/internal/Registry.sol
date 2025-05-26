@@ -31,7 +31,7 @@ contract Registry is Script {
 
     /**
      * @notice Get deployment address by identifier
-     * @param identifier Contract identifier (e.g., "Counter", "Counter:v2", "CounterProxy")
+     * @param identifier Contract identifier (e.g., "Counter", "Counter:V2", "CounterProxy")
      * @return The deployment address, or address(0) if not found
      */
     function getDeployment(string memory identifier) public view returns (address) {
@@ -94,48 +94,21 @@ contract Registry is Script {
                     string memory path = string.concat(deploymentsPath, ".", addr);
                     address parsedAddr = vm.parseAddress(addr);
 
-                    if (
-                        vm.keyExists(json, string.concat(path, ".contract_name"))
-                            && vm.keyExists(json, string.concat(path, ".environment"))
-                    ) {
-                        string memory contractName = vm.parseJsonString(json, string.concat(path, ".contract_name"));
-                        string memory environment = vm.parseJsonString(json, string.concat(path, ".environment"));
-                        string memory deployType = vm.parseJsonString(json, string.concat(path, ".type"));
-
-                        string memory baseIdentifier = contractName;
-
-                        if (keccak256(bytes(deployType)) == keccak256(bytes("proxy"))) {
-                            baseIdentifier = string.concat(contractName, "Proxy");
-                        }
-
-                        if (vm.keyExists(json, string.concat(path, ".label"))) {
-                            string memory label = vm.parseJsonString(json, string.concat(path, ".label"));
-                            if (bytes(label).length > 0) {
-                                baseIdentifier = string.concat(baseIdentifier, ":", label);
-                            }
-                        }
-
-                        if (
-                            vm.keyExists(json, string.concat(path, ".deployment"))
-                                && vm.keyExists(json, string.concat(path, ".deployment", ".status"))
-                        ) {
-                            string memory status = vm.parseJsonString(json, string.concat(path, ".deployment.status"));
-                            bytes32 statusHash = keccak256(bytes(status));
-                            if (statusHash == keccak256("pending_safe")) {
-                                deploymentStatus[parsedAddr] = DeploymentStatus.PENDING_SAFE;
-                            } else if (statusHash == keccak256("deployed")) {
-                                deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
-                            } else {
-                                console.log("[WARN] Could not get deployment status, assuming DEPLOYED");
-                                deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
-                            }
-                        } else {
-                            console.log("[WARN] Could not get deployment status, assuming DEPLOYED");
-                            deploymentStatus[parsedAddr] = DeploymentStatus.DEPLOYED;
-                        }
-
-                        string memory fqId = string.concat(vm.toString(chainId), "/", environment, "/", baseIdentifier);
+                    try vm.parseJsonString(json, string.concat(path, ".fqid")) returns (string memory fqId) {
                         deployments[fqId] = parsedAddr;
+                    } catch {
+                        console.log("Warning: Could not parse fqid for", addr);
+                    }
+
+                    try vm.parseJsonString(json, string.concat(path, ".sid")) returns (string memory shortId) {
+                        if (deployments[shortId] != address(0)) {
+                            console.log("Warning: Short ID already exists for", shortId, "at", deployments[shortId]);
+                            deployments[shortId] = address(0);
+                        } else {
+                            deployments[shortId] = parsedAddr;
+                        }
+                    } catch {
+                        console.log("Warning: Could not parse sid for", addr);
                     }
                 }
             }

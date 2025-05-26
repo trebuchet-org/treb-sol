@@ -63,9 +63,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     /// @notice Get the identifier for the deployment
     function _getIdentifier() internal virtual view returns (string memory) {
-        if (bytes(label).length > 0) {
-            return string.concat(artifactPath, ":", label);
-        }
         return artifactPath;
     }
 
@@ -95,10 +92,9 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     /// @notice Main deployment execution
     function run() public virtual {
-        DeploymentResult memory result = _deploy();
+        _deploy();
         _writeLog();
     }
-
 
     function _deploy() internal virtual returns (DeploymentResult memory) {
         // Get init code for address prediction
@@ -190,9 +186,17 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @dev Override this function to customize salt generation
     /// @return Array of string components used to generate the salt
     function _buildSaltComponents() internal view virtual returns (string[] memory) {
-        string[] memory components = new string[](2);
-        components[0] = _getIdentifier();
-        components[1] = environment;
+        string [] memory components;
+        if (bytes(label).length > 0) {
+            components = new string[](3);
+            components[0] = environment;
+            components[1] = _getIdentifier();
+            components[2] = label;
+        } else {
+            components = new string[](2);
+            components[0] = environment;
+            components[1] = _getIdentifier();
+        }
         return components;
     }
 
@@ -204,7 +208,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
             if (i > 0) combined = string.concat(combined, ".");
             console.log("saltComponents[%d] %s", i, saltComponents[i]);
             if (bytes(saltComponents[i]).length > 0) {
-                combined = string.concat(combined, ".", saltComponents[i]);
+                combined = string.concat(combined, "/", saltComponents[i]);
             }
         }
         bytes32 entropy = keccak256(bytes(combined));

@@ -29,7 +29,7 @@ abstract contract ProxyDeployment is Deployment {
 
     /// @notice Get the deployment label for the proxy
     function _getIdentifier() internal view override returns (string memory _identifier) {
-        string memory identifier = string.concat(artifactPath, ":", implementationArtifactPath);
+        string memory identifier = string.concat(implementationArtifactPath, "Proxy");
         if (bytes(label).length > 0) {
             return string.concat(identifier, ":", label);
         }
