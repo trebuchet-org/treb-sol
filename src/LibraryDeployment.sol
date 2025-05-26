@@ -14,7 +14,7 @@ import "./internal/type.sol";
 contract LibraryDeployment is CreateXScript, Executor {
     constructor() {}
 
-    function run() public {
+    function run() public withCreateX {
         require(
             deployerConfig.deployerType == DeployerType.PRIVATE_KEY ||
             deployerConfig.deployerType == DeployerType.LEDGER,
@@ -37,6 +37,7 @@ contract LibraryDeployment is CreateXScript, Executor {
         address deployed = abi.decode(result.returnData, (address));
         console.log("=== DEPLOYMENT_RESULT ===");
         console.log("DEPLOYMENT_TYPE:LIBRARY");
+        console.log("STATUS:EXECUTED");
         console.log(string.concat("LIBRARY_ADDRESS:", vm.toString(deployed)));
         console.log("=== END_DEPLOYMENT ===");
     }

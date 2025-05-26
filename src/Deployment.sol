@@ -87,7 +87,7 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     }
 
     /// @notice Main deployment execution
-    function run() public virtual {
+    function run() public virtual withCreateX {
         _deploy();
         _writeLog();
     }
