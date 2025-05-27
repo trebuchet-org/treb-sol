@@ -6,6 +6,7 @@ import {console} from "forge-std/console.sol";
 import {Executor} from "./internal/Executor.sol";
 import {Registry} from "./internal/Registry.sol";
 import "./internal/type.sol";
+import {DeploymentConfig, DeploymentInfo} from "./internal/types.sol";
 
 /**
  * @title Deployment
@@ -20,6 +21,16 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     error UnlinkedLibraries();
     error CompilationArtifactsNotFound();
 
+    /// @notice Emitted when a deployment is completed
+    event DeploymentCompleted(
+        address indexed deployedAddress,
+        string contractName,
+        string deploymentType,
+        bytes32 salt,
+        bytes32 initCodeHash,
+        ExecutionStatus status
+    );
+
     /// @notice Path to the artifact file
     string public artifactPath;
 
@@ -28,6 +39,9 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     /// @notice Deployment strategy (CREATE2 or CREATE3)
     DeployStrategy public strategy;
+
+    /// @notice Deployment configuration from CLI
+    DeploymentConfig public config;
 
     /// @notice Log items for structured output
     struct LogItem {
@@ -86,10 +100,37 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         console.log("Predicted Address:", predicted);
     }
 
-    /// @notice Main deployment execution
-    function run() public virtual withCreateX {
+    /// @notice Main deployment execution with config from CLI
+    function run(DeploymentConfig memory _config) public virtual withCreateX {
+        config = _config;
+        label = _config.label;
+        
+        // Initialize Executor and Registry with config
+        _initializeFromConfig(_config);
+        
         _deploy();
-        _writeLog();
+        if (!_config.broadcast) {
+            _writeLog();
+        }
+    }
+    
+    /// @notice Legacy run method for backward compatibility
+    function run() public virtual {
+        // Create config from environment variables for backward compatibility
+        DeploymentConfig memory _config = DeploymentConfig({
+            projectName: vm.envOr("PROJECT_NAME", string("default")),
+            namespace: vm.envOr("DEPLOYMENT_NAMESPACE", string("default")),
+            label: vm.envOr("DEPLOYMENT_LABEL", string("")),
+            chainId: block.chainid,
+            networkName: vm.envOr("NETWORK_NAME", string("unknown")),
+            sender: vm.envAddress("SENDER_ADDRESS"),
+            senderType: vm.envOr("SENDER_TYPE", string("private_key")),
+            registryAddress: vm.envOr("REGISTRY_ADDRESS", address(0)),
+            broadcast: vm.envOr("BROADCAST", false),
+            verify: vm.envOr("VERIFY", false)
+        });
+        
+        run(_config);
     }
 
     function _deploy() internal virtual returns (DeploymentResult memory) {
@@ -151,12 +192,28 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
         _postDeploy(deploymentResult);
         _logDeployment(deploymentResult);
+        
+        // Emit deployment event
+        emit DeploymentCompleted(
+            deploymentResult.deployed != address(0) ? deploymentResult.deployed : deploymentResult.predicted,
+            _getIdentifier(),
+            _getDeploymentTypeString(),
+            deploymentResult.salt,
+            keccak256(deploymentResult.initCode),
+            deploymentResult.status
+        );
+        
         return deploymentResult;
+    }
+
+    /// @notice Get deployment type as string
+    function _getDeploymentTypeString() internal virtual pure returns (string memory) {
+        return "SINGLETON";
     }
 
     /// @notice Log deployment type
     function _logDeploymentType() internal virtual {
-        _log("DEPLOYMENT_TYPE", "SINGLETON");
+        _log("DEPLOYMENT_TYPE", _getDeploymentTypeString());
     }
 
     /// @notice Log execution result with enhanced metadata
@@ -183,14 +240,14 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @return Array of string components used to generate the salt
     function _buildSaltComponents() internal view virtual returns (string[] memory) {
         string [] memory components;
-        if (bytes(label).length > 0) {
+        if (bytes(config.label).length > 0) {
             components = new string[](3);
-            components[0] = environment;
+            components[0] = config.namespace;
             components[1] = _getIdentifier();
-            components[2] = label;
+            components[2] = config.label;
         } else {
             components = new string[](2);
-            components[0] = environment;
+            components[0] = config.namespace;
             components[1] = _getIdentifier();
         }
         return components;

@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {console} from "forge-std/console.sol";
 import {Deployment} from "./Deployment.sol";
 import "./internal/type.sol";
+import {DeploymentConfig} from "./internal/types.sol";
 
 /**
  * @title ProxyDeployment
@@ -11,6 +12,14 @@ import "./internal/type.sol";
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
 abstract contract ProxyDeployment is Deployment {
+    /// @notice Emitted when a proxy is deployed
+    event ProxyDeployed(
+        address indexed proxyAddress,
+        address indexed implementationAddress,
+        string proxyType,
+        bytes initData
+    );
+
     /// @notice Name of the contract being deployed
     string public implementationArtifactPath;
 
@@ -46,9 +55,28 @@ abstract contract ProxyDeployment is Deployment {
         return "";
     }
 
+    /// @notice Get deployment type as string
+    function _getDeploymentTypeString() internal virtual pure override returns (string memory) {
+        return "PROXY";
+    }
+
     /// @notice Log deployment type
     function _logDeploymentType() internal virtual override {
         _log("DEPLOYMENT_TYPE", "PROXY");
+    }
+
+    /// @notice Post-deployment hook to emit proxy event
+    function _postDeploy(DeploymentResult memory result) internal virtual override {
+        super._postDeploy(result);
+        
+        // Emit proxy-specific event
+        address proxyAddr = result.deployed != address(0) ? result.deployed : result.predicted;
+        emit ProxyDeployed(
+            proxyAddr,
+            implementationAddress,
+            artifactPath, // proxy type (e.g., "ERC1967Proxy")
+            _getProxyInitializer()
+        );
     }
 
     /// @notice Log execution result with enhanced metadata

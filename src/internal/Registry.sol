@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Script, console} from "forge-std/Script.sol";
+import {DeploymentConfig} from "./types.sol";
 
 enum DeploymentStatus {
     PENDING_SAFE,
@@ -26,6 +27,18 @@ contract Registry is Script {
         deploymentNamespace = vm.envOr("DEPLOYMENT_NAMESPACE", string("default"));
         chainId = block.chainid;
 
+        _loadDeployments();
+    }
+
+    /**
+     * @notice Initialize from DeploymentConfig
+     * @param config The deployment configuration from CLI
+     */
+    function _initializeFromConfig(DeploymentConfig memory config) internal {
+        deploymentNamespace = config.namespace;
+        chainId = config.chainId;
+        
+        // Reload deployments with new configuration
         _loadDeployments();
     }
 
