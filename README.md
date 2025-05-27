@@ -155,7 +155,7 @@ Built on top of CreateX factory for deterministic deployments:
 
 The contracts expect certain environment variables to be set by treb:
 
-- `DEPLOYMENT_ENV`: Environment name (staging, production, etc.)
+- `DEPLOYMENT_NAMESPACE`: Deployment namespace (default, staging, production, etc.)
 - `DEPLOYMENT_LABEL`: Optional label for versioning
 - `DEPLOYER_ADDRESS`: Address of the deployer for access control
 

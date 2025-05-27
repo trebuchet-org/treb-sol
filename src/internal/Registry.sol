@@ -16,14 +16,14 @@ enum DeploymentStatus {
 contract Registry is Script {
     string public constant DEPLOYMENTS_FILE = "deployments.json";
 
-    string public deploymentEnv;
+    string public deploymentNamespace;
     uint256 public chainId;
 
     mapping(string => address) private deployments;
     mapping(address => DeploymentStatus) private deploymentStatus;
 
     constructor() {
-        deploymentEnv = vm.envOr("DEPLOYMENT_ENV", string("default"));
+        deploymentNamespace = vm.envOr("DEPLOYMENT_NAMESPACE", string("default"));
         chainId = block.chainid;
 
         _loadDeployments();
@@ -121,6 +121,6 @@ contract Registry is Script {
      * @dev Convert simple identifier to fully qualified identifier
      */
     function _getFullyQualifiedId(string memory identifier) private view returns (string memory) {
-        return string.concat(vm.toString(chainId), "/", deploymentEnv, "/", identifier);
+        return string.concat(vm.toString(chainId), "/", deploymentNamespace, "/", identifier);
     }
 }

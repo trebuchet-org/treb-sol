@@ -20,20 +20,20 @@ abstract contract Executor is Script {
     Safe.Client private _safe;
     Transaction[] public pendingTransactions;
 
-    /// @notice Deployment environment
-    string public environment;
+    /// @notice Deployment namespace
+    string public namespace;
 
     /// @notice Executor address
     address public executor;
 
     constructor() {
-        environment = vm.envOr("DEPLOYMENT_ENV", string("default"));
+        namespace = vm.envOr("DEPLOYMENT_NAMESPACE", string("default"));
         _configureDeployer();
         executor = _getExecutor();
     }
 
     /**
-     * @notice Configure the deployer based on environment
+     * @notice Configure the deployer based on sender configuration
      */
     function _configureDeployer() internal {
         // Get deployer type from simplified environment variable
