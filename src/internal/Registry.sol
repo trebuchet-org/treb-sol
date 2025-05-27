@@ -2,12 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Script, console} from "forge-std/Script.sol";
-import {DeploymentConfig} from "./types.sol";
-
-enum DeploymentStatus {
-    PENDING_SAFE,
-    DEPLOYED
-}
 
 /**
  * @title Registry
@@ -17,27 +11,21 @@ enum DeploymentStatus {
 contract Registry is Script {
     string public constant DEPLOYMENTS_FILE = "deployments.json";
 
-    string public deploymentNamespace;
+    string public namespace;
     uint256 public chainId;
 
     mapping(string => address) private deployments;
-    mapping(address => DeploymentStatus) private deploymentStatus;
 
     constructor() {
-        deploymentNamespace = vm.envOr("DEPLOYMENT_NAMESPACE", string("default"));
         chainId = block.chainid;
-
-        _loadDeployments();
     }
 
     /**
-     * @notice Initialize from DeploymentConfig
-     * @param config The deployment configuration from CLI
+     * @notice Initialize from RegistryConfig
+     * @param _namespace The namespace to use for the registry
      */
-    function _initializeFromConfig(DeploymentConfig memory config) internal {
-        deploymentNamespace = config.namespace;
-        chainId = config.chainId;
-        
+    function _initialize(string memory _namespace) internal virtual {
+        namespace = _namespace;
         // Reload deployments with new configuration
         _loadDeployments();
     }
@@ -47,7 +35,9 @@ contract Registry is Script {
      * @param identifier Contract identifier (e.g., "Counter", "Counter:V2", "CounterProxy")
      * @return The deployment address, or address(0) if not found
      */
-    function getDeployment(string memory identifier) public view returns (address) {
+    function getDeployment(
+        string memory identifier
+    ) public view returns (address) {
         string memory fqId = _getFullyQualifiedId(identifier);
         console.log("Registry lookup for:", fqId);
         address result = deployments[fqId];
@@ -65,8 +55,17 @@ contract Registry is Script {
      * @param environment Deployment environment
      * @return The deployment address, or address(0) if not found
      */
-    function getDeploymentByEnv(string memory identifier, string memory environment) public view returns (address) {
-        string memory fqId = string.concat(vm.toString(chainId), "/", environment, "/", identifier);
+    function getDeploymentByEnv(
+        string memory identifier,
+        string memory environment
+    ) public view returns (address) {
+        string memory fqId = string.concat(
+            vm.toString(chainId),
+            "/",
+            environment,
+            "/",
+            identifier
+        );
         return deployments[fqId];
     }
 
@@ -75,7 +74,9 @@ contract Registry is Script {
      * @param identifier Contract identifier
      * @return True if deployment exists
      */
-    function hasDeployment(string memory identifier) public view returns (bool) {
+    function hasDeployment(
+        string memory identifier
+    ) public view returns (bool) {
         return getDeployment(identifier) != address(0);
     }
 
@@ -84,12 +85,10 @@ contract Registry is Script {
      * @param identifier Simple identifier
      * @return Fully qualified identifier in format: {chainId}/{env}/{identifier}
      */
-    function getFullyQualifiedId(string memory identifier) public view returns (string memory) {
+    function getFullyQualifiedId(
+        string memory identifier
+    ) public view returns (string memory) {
         return _getFullyQualifiedId(identifier);
-    }
-
-    function getDeploymentStatus(address target) internal view returns (DeploymentStatus) {
-        return deploymentStatus[target];
     }
 
     /**
@@ -97,25 +96,45 @@ contract Registry is Script {
      */
     function _loadDeployments() private {
         try vm.readFile(DEPLOYMENTS_FILE) returns (string memory json) {
-            string memory deploymentsPath = string.concat(".networks.", vm.toString(chainId), ".deployments");
+            string memory deploymentsPath = string.concat(
+                ".networks.",
+                vm.toString(chainId),
+                ".deployments"
+            );
 
             if (vm.keyExists(json, deploymentsPath)) {
-                string[] memory addresses = vm.parseJsonKeys(json, deploymentsPath);
+                string[] memory addresses = vm.parseJsonKeys(
+                    json,
+                    deploymentsPath
+                );
 
                 for (uint256 i = 0; i < addresses.length; i++) {
                     string memory addr = addresses[i];
-                    string memory path = string.concat(deploymentsPath, ".", addr);
+                    string memory path = string.concat(
+                        deploymentsPath,
+                        ".",
+                        addr
+                    );
                     address parsedAddr = vm.parseAddress(addr);
 
-                    try vm.parseJsonString(json, string.concat(path, ".fqid")) returns (string memory fqId) {
+                    try
+                        vm.parseJsonString(json, string.concat(path, ".fqid"))
+                    returns (string memory fqId) {
                         deployments[fqId] = parsedAddr;
                     } catch {
                         console.log("Warning: Could not parse fqid for", addr);
                     }
 
-                    try vm.parseJsonString(json, string.concat(path, ".sid")) returns (string memory shortId) {
+                    try
+                        vm.parseJsonString(json, string.concat(path, ".sid"))
+                    returns (string memory shortId) {
                         if (deployments[shortId] != address(0)) {
-                            console.log("Warning: Short ID already exists for", shortId, "at", deployments[shortId]);
+                            console.log(
+                                "Warning: Short ID already exists for",
+                                shortId,
+                                "at",
+                                deployments[shortId]
+                            );
                             deployments[shortId] = address(0);
                         } else {
                             deployments[shortId] = parsedAddr;
@@ -126,14 +145,26 @@ contract Registry is Script {
                 }
             }
         } catch {
-            console.log("Warning: Could not load deployments from", DEPLOYMENTS_FILE);
+            console.log(
+                "Warning: Could not load deployments from",
+                DEPLOYMENTS_FILE
+            );
         }
     }
 
     /**
      * @dev Convert simple identifier to fully qualified identifier
      */
-    function _getFullyQualifiedId(string memory identifier) private view returns (string memory) {
-        return string.concat(vm.toString(chainId), "/", deploymentNamespace, "/", identifier);
+    function _getFullyQualifiedId(
+        string memory identifier
+    ) private view returns (string memory) {
+        return
+            string.concat(
+                vm.toString(chainId),
+                "/",
+                namespace,
+                "/",
+                identifier
+            );
     }
 }

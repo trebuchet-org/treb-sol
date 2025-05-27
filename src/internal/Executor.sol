@@ -3,8 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Safe} from "safe-utils/Safe.sol";
-import {DeployerConfig, DeployerType, Transaction, ExecutionResult, ExecutionStatus} from "./type.sol";
-import {DeploymentConfig} from "./types.sol";
+import "./types.sol";
 
 /**
  * @title Executor
@@ -34,104 +33,49 @@ abstract contract Executor is Script {
         uint256 transactionCount
     );
 
-    DeployerConfig public deployerConfig;
+    ExecutorConfig public executorConfig;
     Safe.Client private _safe;
     Transaction[] public pendingTransactions;
-
-    /// @notice Deployment namespace
-    string public namespace;
 
     /// @notice Executor address
     address public executor;
 
     constructor() {
-        // Default initialization from environment for backward compatibility
-        namespace = vm.envOr("DEPLOYMENT_NAMESPACE", string("default"));
-        _configureDeployer();
         executor = _getExecutor();
     }
 
     /**
-     * @notice Initialize from DeploymentConfig
-     * @param config The deployment configuration from CLI
+     * @notice Initialize from ExecutorConfig
+     * @param config The executor configuration
      */
-    function _initializeFromConfig(DeploymentConfig memory config) internal {
-        namespace = config.namespace;
-        
-        // Configure deployer based on sender type
-        if (keccak256(bytes(config.senderType)) == keccak256(bytes("private_key"))) {
-            deployerConfig.deployerType = DeployerType.PRIVATE_KEY;
-            deployerConfig.senderAddress = config.sender;
-            // Note: private key is still read from env for security
-            deployerConfig.privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-            vm.rememberKey(deployerConfig.privateKey);
-        } else if (keccak256(bytes(config.senderType)) == keccak256(bytes("ledger"))) {
-            deployerConfig.deployerType = DeployerType.LEDGER;
-            deployerConfig.senderAddress = config.sender;
-        } else if (keccak256(bytes(config.senderType)) == keccak256(bytes("safe"))) {
-            deployerConfig.deployerType = DeployerType.SAFE;
-            deployerConfig.safeAddress = vm.envAddress("DEPLOYER_SAFE_ADDRESS");
-            
-            // Configure proposer (still from env for security)
-            string memory proposerType = vm.envOr("PROPOSER_TYPE", string("private_key"));
-            if (keccak256(bytes(proposerType)) == keccak256(bytes("private_key"))) {
-                uint256 proposerKey = vm.envUint("PROPOSER_PRIVATE_KEY");
-                vm.rememberKey(proposerKey);
-                deployerConfig.senderAddress = vm.addr(proposerKey);
-                deployerConfig.derivationPath = "";
-            } else if (keccak256(bytes(proposerType)) == keccak256(bytes("ledger"))) {
-                deployerConfig.senderAddress = vm.envAddress("PROPOSER_ADDRESS");
-                deployerConfig.derivationPath = vm.envString("PROPOSER_DERIVATION_PATH");
-            }
-            
-            // Initialize Safe client
-            _safe.initialize(deployerConfig.safeAddress);
-        }
-        
-        executor = _getExecutor();
-    }
-
-    /**
-     * @notice Configure the deployer based on sender configuration
-     */
-    function _configureDeployer() internal {
-        // Get deployer type from simplified environment variable
-        string memory deployerTypeStr = vm.envOr("DEPLOYER_TYPE", string("private_key"));
-
-        if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("private_key"))) {
-            deployerConfig.deployerType = DeployerType.PRIVATE_KEY;
-            deployerConfig.privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-            deployerConfig.senderAddress = vm.addr(deployerConfig.privateKey);
-            vm.rememberKey(deployerConfig.privateKey);
-        } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("ledger"))) {
-            deployerConfig.deployerType = DeployerType.LEDGER;
-            deployerConfig.senderAddress = vm.envAddress("DEPLOYER_ADDRESS");
-        } else if (keccak256(bytes(deployerTypeStr)) == keccak256(bytes("safe"))) {
-            deployerConfig.deployerType = DeployerType.SAFE;
-            deployerConfig.safeAddress = vm.envAddress("DEPLOYER_SAFE_ADDRESS");
-
-            // Configure proposer based on type
-            string memory proposerType = vm.envOr("PROPOSER_TYPE", string("private_key"));
-            if (keccak256(bytes(proposerType)) == keccak256(bytes("private_key"))) {
-                uint256 proposerKey = vm.envUint("PROPOSER_PRIVATE_KEY");
-                vm.rememberKey(proposerKey);
-                deployerConfig.senderAddress = vm.addr(proposerKey);
-                deployerConfig.derivationPath = "";
-            } else if (keccak256(bytes(proposerType)) == keccak256(bytes("ledger"))) {
-                deployerConfig.senderAddress = vm.envAddress("PROPOSER_ADDRESS");
-                deployerConfig.derivationPath = vm.envString("PROPOSER_DERIVATION_PATH");
+    function _initialize(ExecutorConfig memory config) internal virtual {
+        require(config.sender != address(0), "InvalidExecutorConfig");
+        if (config.senderType == SenderType.SAFE) {
+            require(config.proposer != address(0), "InvalidExecutorConfig");
+            require(
+                config.proposerType == SenderType.PRIVATE_KEY || 
+                config.proposerType == SenderType.LEDGER, 
+                "InvalidExecutorConfig"
+            );
+            if (config.proposerType == SenderType.PRIVATE_KEY) {
+                require(config.proposerPrivateKey != 0, "InvalidExecutorConfig");
+                require(config.proposer == vm.addr(config.proposerPrivateKey), "InvalidExecutorConfig");
+                vm.rememberKey(config.proposerPrivateKey);
             } else {
-                revert UnsupportedDeployer(string.concat("proposer type: ", proposerType));
+                require(bytes(config.proposerDerivationPath).length > 0, "InvalidExecutorConfig");
             }
-
-            // Initialize Safe client
-            _safe.initialize(deployerConfig.safeAddress);
-        } else {
-            revert UnsupportedDeployer(deployerTypeStr);
+            _safe.initialize(config.sender);
+        } else if (config.senderType == SenderType.PRIVATE_KEY) {
+            require(config.privateKey != 0, "InvalidExecutorConfig");
+            address expected = vm.addr(config.privateKey);
+            require(expected == config.sender, "InvalidExecutorConfig");
+            vm.rememberKey(config.privateKey);
+        } else if (config.senderType == SenderType.LEDGER) {
+            require(bytes(config.ledgerDerivationPath).length > 0, "InvalidExecutorConfig");
         }
-
-        console.log("Executor:", _getExecutor());
-        console.log("Executor type:", deployerConfig.deployerType == DeployerType.PRIVATE_KEY ? "PRIVATE_KEY" : "SAFE");
+        
+        executorConfig = config;
+        executor = _getExecutor();
     }
 
     /**
@@ -139,10 +83,10 @@ abstract contract Executor is Script {
      * @return The address that will execute transactions
      */
     function _getExecutor() internal view returns (address) {
-        if (deployerConfig.deployerType == DeployerType.SAFE) {
-            return deployerConfig.safeAddress;
+        if (executorConfig.senderType == SenderType.SAFE) {
+            return executorConfig.sender;
         } else {
-            return deployerConfig.senderAddress;
+            return executorConfig.sender;
         }
     }
 
@@ -151,7 +95,7 @@ abstract contract Executor is Script {
      * @return The address that will execute transactions
      */
     function _getSenderAddress() internal view returns (address) {
-        return deployerConfig.senderAddress;
+        return executorConfig.sender;
     }
 
     /**
@@ -160,10 +104,10 @@ abstract contract Executor is Script {
      * @return ExecutionResult The result of the transaction execution
      */
     function execute(Transaction memory transaction) internal returns (ExecutionResult memory) {
-        if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
-            return executeWithPrivateKey(transaction);
-        } else if (deployerConfig.deployerType == DeployerType.SAFE) {
-            return queueForSafe(transaction);
+        if (executorConfig.senderType == SenderType.PRIVATE_KEY || executorConfig.senderType == SenderType.LEDGER) {
+            return broadcastFromSender(transaction);
+        } else if (executorConfig.senderType == SenderType.SAFE) {
+            return queueOnSafe(transaction);
         } else {
             revert UnsupportedDeployer("Unknown deployer type");
         }
@@ -174,10 +118,10 @@ abstract contract Executor is Script {
      * @param transactions Array of transactions to execute
      */
     function execute(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
-        if (deployerConfig.deployerType == DeployerType.PRIVATE_KEY) {
-            return executeWithPrivateKey(transactions);
-        } else if (deployerConfig.deployerType == DeployerType.SAFE) {
-            return queueForSafe(transactions);
+        if (executorConfig.senderType == SenderType.PRIVATE_KEY || executorConfig.senderType == SenderType.LEDGER) {
+            return broadcastFromSender(transactions);
+        } else if (executorConfig.senderType == SenderType.SAFE) {
+            return queueOnSafe(transactions);
         } else {
             revert UnsupportedDeployer("Unknown deployer type");
         }
@@ -188,11 +132,11 @@ abstract contract Executor is Script {
      * @param transaction The transaction to execute
      * @return ExecutionResult The result of the transaction execution
      */
-    function executeWithPrivateKey(Transaction memory transaction)
+    function broadcastFromSender(Transaction memory transaction)
         internal
         returns (ExecutionResult memory)
     {
-        vm.startBroadcast(deployerConfig.privateKey);
+        vm.startBroadcast(executorConfig.sender);
         (bool success, bytes memory returnData) = transaction.to.call(transaction.data);
         vm.stopBroadcast();
         
@@ -202,7 +146,7 @@ abstract contract Executor is Script {
         
         // Emit event for executed transaction
         emit TransactionExecuted(
-            deployerConfig.senderAddress,
+            executorConfig.sender,
             transaction.to,
             transaction.label,
             ExecutionStatus.EXECUTED,
@@ -219,8 +163,8 @@ abstract contract Executor is Script {
      * @notice Execute multiple transactions with a private key
      * @param transactions Array of transactions to execute
      */
-    function executeWithPrivateKey(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
-        vm.startBroadcast(deployerConfig.privateKey);
+    function broadcastFromSender(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
+        vm.startBroadcast(executorConfig.sender);
         bytes[] memory returnData = new bytes[](transactions.length);
         for (uint256 i = 0; i < transactions.length; i++) {
             (bool _success, bytes memory data) = transactions[i].to.call(transactions[i].data);
@@ -242,21 +186,21 @@ abstract contract Executor is Script {
      * @param transaction The transaction to queue
      * @return ExecutionResult The result of the transaction execution
      */
-    function queueForSafe(Transaction memory transaction) internal returns (ExecutionResult memory) {
+    function queueOnSafe(Transaction memory transaction) internal returns (ExecutionResult memory) {
         pendingTransactions.push(transaction);
         console.log("Queued transaction for Safe:", transaction.label);
 
         bytes32 safeTxHash = _safe.proposeTransaction(
             pendingTransactions[0].to,
             pendingTransactions[0].data,
-            deployerConfig.senderAddress,
-            deployerConfig.derivationPath
+            executorConfig.proposer,
+            executorConfig.ledgerDerivationPath
         );
         
         // Emit event for queued Safe transaction
         emit SafeTransactionQueued(
-            deployerConfig.safeAddress,
-            deployerConfig.senderAddress,
+            executorConfig.sender,
+            executorConfig.proposer,
             safeTxHash,
             1
         );
@@ -271,7 +215,7 @@ abstract contract Executor is Script {
      * @notice Queue multiple transactions for Safe execution
      * @param transactions Array of transactions to queue
      */
-    function queueForSafe(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
+    function queueOnSafe(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
         address[] memory targets = new address[](transactions.length);
         bytes[] memory datas = new bytes[](transactions.length);
 
@@ -282,12 +226,12 @@ abstract contract Executor is Script {
         }
 
         bytes32 safeTxHash =
-            _safe.proposeTransactions(targets, datas, deployerConfig.senderAddress, deployerConfig.derivationPath);
+            _safe.proposeTransactions(targets, datas, executorConfig.proposer, executorConfig.proposerDerivationPath);
         
         // Emit event for queued Safe transactions
         emit SafeTransactionQueued(
-            deployerConfig.safeAddress,
-            deployerConfig.senderAddress,
+            executorConfig.sender,
+            executorConfig.proposer,
             safeTxHash,
             transactions.length
         );

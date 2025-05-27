@@ -5,8 +5,8 @@ import {CreateXScript, CREATEX_ADDRESS} from "createx-forge/script/CreateXScript
 import {console} from "forge-std/console.sol";
 import {Executor} from "./internal/Executor.sol";
 import {Registry} from "./internal/Registry.sol";
-import "./internal/type.sol";
-import {DeploymentConfig, DeploymentInfo} from "./internal/types.sol";
+
+import "./internal/types.sol";
 
 /**
  * @title Deployment
@@ -34,14 +34,11 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     /// @notice Path to the artifact file
     string public artifactPath;
 
-    /// @notice Label for this deployment
-    string public label;
-
     /// @notice Deployment strategy (CREATE2 or CREATE3)
     DeployStrategy public strategy;
 
     /// @notice Deployment configuration from CLI
-    DeploymentConfig public config;
+    DeploymentConfig private config;
 
     /// @notice Log items for structured output
     struct LogItem {
@@ -53,7 +50,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     constructor(string memory _artifactPath, DeployStrategy _strategy) {
         artifactPath = _artifactPath;
-        label = vm.envOr("DEPLOYMENT_LABEL", string(""));
         strategy = _strategy;
     }
 
@@ -101,36 +97,18 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     }
 
     /// @notice Main deployment execution with config from CLI
-    function run(DeploymentConfig memory _config) public virtual withCreateX {
-        config = _config;
-        label = _config.label;
-        
-        // Initialize Executor and Registry with config
-        _initializeFromConfig(_config);
-        
-        _deploy();
-        if (!_config.broadcast) {
-            _writeLog();
-        }
+    function run(DeploymentConfig memory _config) public virtual withCreateX returns (DeploymentResult memory) {
+        _initialize(_config);
+
+        DeploymentResult memory result = _deploy();
+        _writeLog();
+        return result;
     }
     
-    /// @notice Legacy run method for backward compatibility
-    function run() public virtual {
-        // Create config from environment variables for backward compatibility
-        DeploymentConfig memory _config = DeploymentConfig({
-            projectName: vm.envOr("PROJECT_NAME", string("default")),
-            namespace: vm.envOr("DEPLOYMENT_NAMESPACE", string("default")),
-            label: vm.envOr("DEPLOYMENT_LABEL", string("")),
-            chainId: block.chainid,
-            networkName: vm.envOr("NETWORK_NAME", string("unknown")),
-            sender: vm.envAddress("SENDER_ADDRESS"),
-            senderType: vm.envOr("SENDER_TYPE", string("private_key")),
-            registryAddress: vm.envOr("REGISTRY_ADDRESS", address(0)),
-            broadcast: vm.envOr("BROADCAST", false),
-            verify: vm.envOr("VERIFY", false)
-        });
-        
-        run(_config);
+    /// @notice Initialize from DeploymentConfig
+    function _initialize(DeploymentConfig memory _config) internal virtual {
+        Executor._initialize(_config.executorConfig);
+        Registry._initialize(_config.namespace);
     }
 
     function _deploy() internal virtual returns (DeploymentResult memory) {

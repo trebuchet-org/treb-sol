@@ -1,44 +1,120 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.0;
 
-/**
- * @title Deployment Types
- * @notice Common types used across the treb deployment system
- */
-
-/**
- * @notice Configuration passed from CLI to deployment scripts
- * @dev This struct replaces environment variable usage for cleaner interface
- */
-struct DeploymentConfig {
-    // Deployment identification
-    string projectName;        // Project name for salt generation
-    string namespace;          // Deployment namespace (e.g., "default", "staging")
-    string label;              // Deployment label for salt generation
-    
-    // Network information
-    uint256 chainId;           // Chain ID for deployment
-    string networkName;        // Human-readable network name
-    
-    // Sender configuration
-    address sender;            // Transaction sender address
-    string senderType;         // Type of sender (e.g., "private_key", "ledger", "safe")
-    
-    // Registry configuration
-    address registryAddress;   // Address of the deployment registry (if exists)
-    
-    // Deployment flags
-    bool broadcast;            // Whether to broadcast transactions
-    bool verify;               // Whether to verify contracts after deployment
+enum DeployStrategy {
+    CREATE2,
+    CREATE3
 }
 
-/**
- * @notice Extended deployment information for events
- */
-struct DeploymentInfo {
-    address deployedAddress;   // Address of deployed contract
-    bytes32 salt;              // Salt used for deployment (if deterministic)
-    bytes32 initCodeHash;      // Init code hash for address prediction
-    string contractName;       // Name of the deployed contract
-    string deploymentType;     // Type of deployment (singleton, proxy, library)
+enum DeploymentType {
+    SINGLETON,
+    PROXY,
+    LIBRARY
+}
+
+struct DeploymentResult {
+    address deployed;
+    address predicted;
+    ExecutionStatus status;
+    bytes32 salt;
+    bytes initCode;
+    bytes32 safeTxHash;
+}
+
+enum DeployerType {
+    PRIVATE_KEY,
+    SAFE,
+    LEDGER
+}
+
+struct Transaction {
+    string label;
+    address to;
+    bytes data;
+}
+
+struct DeployerConfig {
+    DeployerType deployerType;
+    address safeAddress;
+    uint256 privateKey;
+    address senderAddress;
+    string derivationPath;
+}
+
+enum ExecutionStatus {
+    PENDING_SAFE,
+    EXECUTED
+}
+
+struct ExecutionResult {
+    ExecutionStatus status;
+    bytes returnData;
+}
+
+enum SenderType {
+    PRIVATE_KEY,
+    SAFE,
+    LEDGER
+}
+
+struct LibraryDeploymentConfig {
+    ExecutorConfig executorConfig;
+    string libraryName;
+    string libraryArtifactPath;
+}
+
+struct ProxyDeploymentConfig {
+    address implementationAddress;
+    DeploymentConfig deploymentConfig;
+}
+
+struct DeploymentConfig {
+    string namespace;
+    string label;
+    ExecutorConfig executorConfig;
+}
+
+struct ExecutorConfig {
+    SenderType senderType;
+    address sender;
+    // Sender: privateKey
+    uint256 privateKey;
+    // Sender: ledger
+    string ledgerDerivationPath;
+    // Sender: safe
+    SenderType proposerType;
+    address proposer;
+    // Sender: safe / Proposer: privateKey
+    uint256 proposerPrivateKey;
+    // Sender: safe / Proposer: ledger
+    string proposerDerivationPath;
+}
+
+function toString(ExecutionStatus executionStatus) pure returns (string memory) {
+    if (executionStatus == ExecutionStatus.PENDING_SAFE) {
+        return "PENDING_SAFE";
+    } else if (executionStatus == ExecutionStatus.EXECUTED) {
+        return "EXECUTED";
+    }
+    return "UNKNOWN";
+}
+
+function toString(DeploymentType deploymentType) pure returns (string memory) {
+    if (deploymentType == DeploymentType.SINGLETON) {
+        return "SINGLETON";
+    } else if (deploymentType == DeploymentType.PROXY) {
+        return "PROXY";
+    } else if (deploymentType == DeploymentType.LIBRARY) {
+        return "LIBRARY";
+    }
+    return "UNKNOWN";
+}
+
+function toString(DeployStrategy deployStrategy) pure returns (string memory) {
+    if (deployStrategy == DeployStrategy.CREATE2) {
+        return "CREATE2";
+    } else if (deployStrategy == DeployStrategy.CREATE3) {
+        return "CREATE3";
+    }
+    return "UNKNOWN";
 }

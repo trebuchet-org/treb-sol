@@ -3,8 +3,7 @@ pragma solidity ^0.8.0;
 
 import {console} from "forge-std/console.sol";
 import {Deployment} from "./Deployment.sol";
-import "./internal/type.sol";
-import {DeploymentConfig} from "./internal/types.sol";
+import "./internal/types.sol";
 
 /**
  * @title ProxyDeployment
@@ -12,19 +11,13 @@ import {DeploymentConfig} from "./internal/types.sol";
  * @dev Provides deployment logic with comprehensive tracking and verification
  */
 abstract contract ProxyDeployment is Deployment {
-    /// @notice Emitted when a proxy is deployed
-    event ProxyDeployed(
-        address indexed proxyAddress,
-        address indexed implementationAddress,
-        string proxyType,
-        bytes initData
-    );
-
     /// @notice Name of the contract being deployed
     string public implementationArtifactPath;
 
     /// @notice Implementation address
     address public implementationAddress;
+
+    ProxyDeploymentConfig private config;
 
     constructor(
         string memory _proxyArtifactPath,
@@ -32,15 +25,19 @@ abstract contract ProxyDeployment is Deployment {
         DeployStrategy _strategy
     ) Deployment(_proxyArtifactPath, _strategy) {
         implementationArtifactPath = _implementationArtifactPath;
-        implementationAddress = vm.envAddress("IMPLEMENTATION_ADDRESS");
-        require(implementationAddress != address(0), "ProxyDeployment: IMPLEMENTATION_ADDRESS is not set");
+    }
+
+    function _initialize(ProxyDeploymentConfig memory _config) internal virtual {
+        super._initialize(_config.deploymentConfig);
+        implementationAddress = _config.implementationAddress;
+        config = _config;
     }
 
     /// @notice Get the deployment label for the proxy
     function _getIdentifier() internal view override returns (string memory _identifier) {
         string memory identifier = string.concat(implementationArtifactPath, "Proxy");
-        if (bytes(label).length > 0) {
-            return string.concat(identifier, ":", label);
+        if (bytes(config.deploymentConfig.label).length > 0) {
+            return string.concat(identifier, ":", config.deploymentConfig.label);
         }
         return identifier;
     }
@@ -55,28 +52,9 @@ abstract contract ProxyDeployment is Deployment {
         return "";
     }
 
-    /// @notice Get deployment type as string
-    function _getDeploymentTypeString() internal virtual pure override returns (string memory) {
-        return "PROXY";
-    }
-
     /// @notice Log deployment type
     function _logDeploymentType() internal virtual override {
         _log("DEPLOYMENT_TYPE", "PROXY");
-    }
-
-    /// @notice Post-deployment hook to emit proxy event
-    function _postDeploy(DeploymentResult memory result) internal virtual override {
-        super._postDeploy(result);
-        
-        // Emit proxy-specific event
-        address proxyAddr = result.deployed != address(0) ? result.deployed : result.predicted;
-        emit ProxyDeployed(
-            proxyAddr,
-            implementationAddress,
-            artifactPath, // proxy type (e.g., "ERC1967Proxy")
-            _getProxyInitializer()
-        );
     }
 
     /// @notice Log execution result with enhanced metadata
