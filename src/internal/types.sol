@@ -12,43 +12,10 @@ enum DeploymentType {
     LIBRARY
 }
 
-struct DeploymentResult {
-    address deployed;
-    address predicted;
-    ExecutionStatus status;
-    bytes32 salt;
-    bytes initCode;
-    bytes32 safeTxHash;
-}
-
 enum DeployerType {
     PRIVATE_KEY,
     SAFE,
     LEDGER
-}
-
-struct Transaction {
-    string label;
-    address to;
-    bytes data;
-}
-
-struct DeployerConfig {
-    DeployerType deployerType;
-    address safeAddress;
-    uint256 privateKey;
-    address senderAddress;
-    string derivationPath;
-}
-
-enum ExecutionStatus {
-    PENDING_SAFE,
-    EXECUTED
-}
-
-struct ExecutionResult {
-    ExecutionStatus status;
-    bytes returnData;
 }
 
 enum SenderType {
@@ -57,9 +24,38 @@ enum SenderType {
     LEDGER
 }
 
+enum ExecutionStatus {
+    PENDING_SAFE,
+    EXECUTED
+}
+
+struct Transaction {
+    string label;
+    address to;
+    bytes data;
+}
+
+struct ExecutionResult {
+    ExecutionStatus status;
+    bytes returnData;
+}
+
+struct DeploymentResult {
+    address deployed;
+    address predicted;
+    bytes32 salt;
+    bytes initCode;
+    bytes32 safeTxHash;
+    bytes constructorArgs;
+    // Converted from enum to string
+    string status;
+    string strategy;
+    string deploymentType;
+}
+
+
 struct LibraryDeploymentConfig {
     ExecutorConfig executorConfig;
-    string libraryName;
     string libraryArtifactPath;
 }
 
@@ -71,33 +67,35 @@ struct ProxyDeploymentConfig {
 struct DeploymentConfig {
     string namespace;
     string label;
+    DeploymentType deploymentType;
     ExecutorConfig executorConfig;
 }
 
 struct ExecutorConfig {
-    SenderType senderType;
     address sender;
-    // Sender: privateKey
-    uint256 privateKey;
-    // Sender: ledger
-    string ledgerDerivationPath;
-    // Sender: safe
+    SenderType senderType;
+    // senderType == PRIVATE_KEY
+    uint256 senderPrivateKey;
+    // senderType == LEDGER
+    string senderDerivationPath;
+    // senderType == SAFE
     SenderType proposerType;
     address proposer;
-    // Sender: safe / Proposer: privateKey
+    // senderType == SAFE & proposerType == PRIVATE_KEY
     uint256 proposerPrivateKey;
-    // Sender: safe / Proposer: ledger
+    // senderType == SAFE & proposerType == LEDGER
     string proposerDerivationPath;
+    // senderType == SAFE & proposerType == SAFE => will revert
 }
 
-function toString(ExecutionStatus executionStatus) pure returns (string memory) {
-    if (executionStatus == ExecutionStatus.PENDING_SAFE) {
-        return "PENDING_SAFE";
-    } else if (executionStatus == ExecutionStatus.EXECUTED) {
-        return "EXECUTED";
+function toString(DeployStrategy strategy) pure returns (string memory) {
+    if (strategy == DeployStrategy.CREATE2) {
+        return "CREATE2";
+    } else if (strategy == DeployStrategy.CREATE3) {
+        return "CREATE3";
     }
     return "UNKNOWN";
-}
+}   
 
 function toString(DeploymentType deploymentType) pure returns (string memory) {
     if (deploymentType == DeploymentType.SINGLETON) {
@@ -108,13 +106,13 @@ function toString(DeploymentType deploymentType) pure returns (string memory) {
         return "LIBRARY";
     }
     return "UNKNOWN";
-}
+}   
 
-function toString(DeployStrategy deployStrategy) pure returns (string memory) {
-    if (deployStrategy == DeployStrategy.CREATE2) {
-        return "CREATE2";
-    } else if (deployStrategy == DeployStrategy.CREATE3) {
-        return "CREATE3";
+function toString(ExecutionStatus status) pure returns (string memory) {
+    if (status == ExecutionStatus.PENDING_SAFE) {
+        return "PENDING_SAFE";
+    } else if (status == ExecutionStatus.EXECUTED) {
+        return "EXECUTED";
     }
     return "UNKNOWN";
-}
+}   

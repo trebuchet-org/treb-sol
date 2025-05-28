@@ -21,17 +21,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
     error UnlinkedLibraries();
     error CompilationArtifactsNotFound();
 
-    /// @notice Emitted when a deployment is completed
-    event DeploymentCompleted(
-        address indexed deployedAddress,
-        string contractName,
-        string deploymentType,
-        bytes32 salt,
-        bytes32 initCodeHash,
-        ExecutionStatus status
-    );
-
-    /// @notice Path to the artifact file
     string public artifactPath;
 
     /// @notice Deployment strategy (CREATE2 or CREATE3)
@@ -39,14 +28,6 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     /// @notice Deployment configuration from CLI
     DeploymentConfig private config;
-
-    /// @notice Log items for structured output
-    struct LogItem {
-        string key;
-        string value;
-    }
-
-    LogItem[] public logItems;
 
     constructor(string memory _artifactPath, DeployStrategy _strategy) {
         artifactPath = _artifactPath;
@@ -98,19 +79,12 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
 
     /// @notice Main deployment execution with config from CLI
     function run(DeploymentConfig memory _config) public virtual withCreateX returns (DeploymentResult memory) {
-        _initialize(_config);
-
-        DeploymentResult memory result = _deploy();
-        _writeLog();
-        return result;
-    }
-    
-    /// @notice Initialize from DeploymentConfig
-    function _initialize(DeploymentConfig memory _config) internal virtual {
         Executor._initialize(_config.executorConfig);
         Registry._initialize(_config.namespace);
+        config = _config;
+        return _deploy();
     }
-
+    
     function _deploy() internal virtual returns (DeploymentResult memory) {
         // Get init code for address prediction
         console.log("Identifier:", _getIdentifier());
@@ -162,55 +136,19 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         DeploymentResult memory deploymentResult = DeploymentResult({
             deployed: deployed,
             predicted: predicted,
-            status: result.status,
+            status: toString(result.status),
+            deploymentType: toString(config.deploymentType),
+            strategy: toString(strategy),
             salt: salt,
             initCode: initCode,
-            safeTxHash: safeTxHash
+            safeTxHash: safeTxHash,
+            constructorArgs: _getConstructorArgs()
         });
 
         _postDeploy(deploymentResult);
-        _logDeployment(deploymentResult);
         
         // Emit deployment event
-        emit DeploymentCompleted(
-            deploymentResult.deployed != address(0) ? deploymentResult.deployed : deploymentResult.predicted,
-            _getIdentifier(),
-            _getDeploymentTypeString(),
-            deploymentResult.salt,
-            keccak256(deploymentResult.initCode),
-            deploymentResult.status
-        );
-        
         return deploymentResult;
-    }
-
-    /// @notice Get deployment type as string
-    function _getDeploymentTypeString() internal virtual pure returns (string memory) {
-        return "SINGLETON";
-    }
-
-    /// @notice Log deployment type
-    function _logDeploymentType() internal virtual {
-        _log("DEPLOYMENT_TYPE", _getDeploymentTypeString());
-    }
-
-    /// @notice Log execution result with enhanced metadata
-    function _logDeployment(DeploymentResult memory result)
-        internal
-        virtual
-    {
-        _logDeploymentType();
-        _log("ADDRESS", vm.toString(result.deployed));
-        _log("PREDICTED", vm.toString(result.predicted));
-        _log("STATUS", toString(result.status));
-        _log("SALT", vm.toString(result.salt));
-        _log("INIT_CODE_HASH", vm.toString(keccak256(result.initCode)));
-        _log("STRATEGY", toString(strategy));
-        _log("BLOCK_NUMBER", vm.toString(block.number));
-        _log("CONSTRUCTOR_ARGS", vm.toString(_getConstructorArgs()));
-        if (result.status == ExecutionStatus.PENDING_SAFE) {
-            _log("SAFE_TX_HASH", vm.toString(result.safeTxHash));
-        }
     }
 
     /// @notice Build salt components for deterministic deployment
@@ -298,19 +236,5 @@ abstract contract Deployment is CreateXScript, Executor, Registry {
         }
 
         return (address(0), false);
-    }
-
-    function _log(string memory key, string memory value) internal {
-        logItems.push(LogItem({key: key, value: value}));
-    }
-
-    function _writeLog() internal view {
-        console.log("");
-        console.log("=== DEPLOYMENT_RESULT ===");
-        for (uint256 i = 0; i < logItems.length; i++) {
-            console.log(string.concat(logItems[i].key, ":", logItems[i].value));
-        }
-        console.log("=== END_DEPLOYMENT ===");
-        console.log("");
     }
 }

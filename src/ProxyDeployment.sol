@@ -27,10 +27,11 @@ abstract contract ProxyDeployment is Deployment {
         implementationArtifactPath = _implementationArtifactPath;
     }
 
-    function _initialize(ProxyDeploymentConfig memory _config) internal virtual {
-        super._initialize(_config.deploymentConfig);
+    function run(ProxyDeploymentConfig memory _config) public virtual returns (DeploymentResult memory) {
+        require(_config.deploymentConfig.deploymentType == DeploymentType.PROXY, "ProxyDeployment: deploymentType misconfigured");
         implementationAddress = _config.implementationAddress;
         config = _config;
+        return Deployment.run(_config.deploymentConfig);
     }
 
     /// @notice Get the deployment label for the proxy
@@ -50,18 +51,5 @@ abstract contract ProxyDeployment is Deployment {
     /// @notice Get proxy initializer - override in child contracts when needed
     function _getProxyInitializer() internal view virtual returns (bytes memory) {
         return "";
-    }
-
-    /// @notice Log deployment type
-    function _logDeploymentType() internal virtual override {
-        _log("DEPLOYMENT_TYPE", "PROXY");
-    }
-
-    /// @notice Log execution result with enhanced metadata
-    function _logDeployment(DeploymentResult memory result) internal override {
-        super._logDeployment(result);
-        _log("DEPLOYMENT_TYPE", "PROXY");
-        _log("IMPLEMENTATION_ADDRESS", vm.toString(implementationAddress));
-        _log("PROXY_INITIALIZER", vm.toString(_getProxyInitializer()));
     }
 }

@@ -21,8 +21,7 @@ abstract contract Executor is Script {
         address indexed executor,
         address indexed target,
         string label,
-        ExecutionStatus status,
-        bytes32 txHash
+        ExecutionStatus status
     );
 
     /// @notice Emitted when a Safe transaction is queued
@@ -30,12 +29,12 @@ abstract contract Executor is Script {
         address indexed safe,
         address indexed proposer,
         bytes32 safeTxHash,
+        string label,
         uint256 transactionCount
     );
 
     ExecutorConfig public executorConfig;
     Safe.Client private _safe;
-    Transaction[] public pendingTransactions;
 
     /// @notice Executor address
     address public executor;
@@ -66,12 +65,12 @@ abstract contract Executor is Script {
             }
             _safe.initialize(config.sender);
         } else if (config.senderType == SenderType.PRIVATE_KEY) {
-            require(config.privateKey != 0, "InvalidExecutorConfig");
-            address expected = vm.addr(config.privateKey);
+            require(config.senderPrivateKey != 0, "InvalidExecutorConfig");
+            address expected = vm.addr(config.senderPrivateKey);
             require(expected == config.sender, "InvalidExecutorConfig");
-            vm.rememberKey(config.privateKey);
+            vm.rememberKey(config.senderPrivateKey);
         } else if (config.senderType == SenderType.LEDGER) {
-            require(bytes(config.ledgerDerivationPath).length > 0, "InvalidExecutorConfig");
+            require(bytes(config.senderDerivationPath).length > 0, "InvalidExecutorConfig");
         }
         
         executorConfig = config;
@@ -149,8 +148,7 @@ abstract contract Executor is Script {
             executorConfig.sender,
             transaction.to,
             transaction.label,
-            ExecutionStatus.EXECUTED,
-            keccak256(transaction.data)
+            ExecutionStatus.EXECUTED
         );
         
         return ExecutionResult({
@@ -175,6 +173,15 @@ abstract contract Executor is Script {
         }
         vm.stopBroadcast();
 
+        for (uint256 i = 0; i < transactions.length; i++) {
+            emit TransactionExecuted(
+                executorConfig.sender,
+                transactions[i].to,
+                transactions[i].label,
+                ExecutionStatus.EXECUTED
+            );
+        }
+
         return ExecutionResult({
             status: ExecutionStatus.EXECUTED,
             returnData: abi.encode(returnData)
@@ -187,14 +194,13 @@ abstract contract Executor is Script {
      * @return ExecutionResult The result of the transaction execution
      */
     function queueOnSafe(Transaction memory transaction) internal returns (ExecutionResult memory) {
-        pendingTransactions.push(transaction);
         console.log("Queued transaction for Safe:", transaction.label);
 
         bytes32 safeTxHash = _safe.proposeTransaction(
-            pendingTransactions[0].to,
-            pendingTransactions[0].data,
+            transaction.to,
+            transaction.data,
             executorConfig.proposer,
-            executorConfig.ledgerDerivationPath
+            executorConfig.proposerDerivationPath
         );
         
         // Emit event for queued Safe transaction
@@ -202,6 +208,7 @@ abstract contract Executor is Script {
             executorConfig.sender,
             executorConfig.proposer,
             safeTxHash,
+            transaction.label,
             1
         );
 
@@ -218,10 +225,16 @@ abstract contract Executor is Script {
     function queueOnSafe(Transaction[] memory transactions) internal returns (ExecutionResult memory) {
         address[] memory targets = new address[](transactions.length);
         bytes[] memory datas = new bytes[](transactions.length);
+        string memory label = "";
 
         for (uint256 i = 0; i < transactions.length; i++) {
             targets[i] = transactions[i].to;
             datas[i] = transactions[i].data;
+            if (i == 0) {
+                label = transactions[i].label;
+            } else {
+                label = string.concat(label, "; ", transactions[i].label);
+            }
             console.log("  -", transactions[i].label);
         }
 
@@ -233,6 +246,7 @@ abstract contract Executor is Script {
             executorConfig.sender,
             executorConfig.proposer,
             safeTxHash,
+            label,
             transactions.length
         );
 
