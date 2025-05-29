@@ -18,15 +18,8 @@ contract Registry is Script {
 
     constructor() {
         chainId = block.chainid;
-    }
-
-    /**
-     * @notice Initialize from RegistryConfig
-     * @param _namespace The namespace to use for the registry
-     */
-    function _initialize(string memory _namespace) internal virtual {
-        namespace = _namespace;
-        // Reload deployments with new configuration
+        string memory defaultNamespace = "default";
+        namespace = vm.envOr("NAMESPACE", defaultNamespace);
         _loadDeployments();
     }
 
