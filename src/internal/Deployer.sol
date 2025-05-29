@@ -9,12 +9,23 @@ abstract contract Deployer is CreateXScript, Registry {
     error ContractNotFound(string what);
     error PredictedAddressMismatch(address predicted, address actual);
 
+    event ContractDeployed(
+        bytes32 indexed operationId,
+        address indexed sender,
+        address indexed location,
+        bytes32 salt,
+        bytes32 initCodeHash,
+        bytes constructorArgs,
+        string createStrategy
+    );
+
     function execute(Transaction memory _transaction) public virtual returns (OperationResult memory result);
 
     function getSender() internal virtual pure returns (address);
 
     // *************** CREATE3 *************** //
-    function deployCreate3(bytes32 salt, bytes memory initCode) public returns (address) {
+    function deployCreate3(bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) public returns (address) {
+        bytes memory initCode = abi.encode(bytecode, constructorArgs);
         address predictedAddress = predictCreate3(salt);
         OperationResult memory result = execute(Transaction({
             to: CREATEX_ADDRESS,
@@ -26,11 +37,22 @@ abstract contract Deployer is CreateXScript, Registry {
         if (actualAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, actualAddress);
         }
-        return abi.decode(result.returnData[0], (address));
+
+        emit ContractDeployed(
+            result.operationId,
+            getSender(),
+            actualAddress,
+            salt,
+            keccak256(initCode),
+            constructorArgs,
+            "CREATE2"
+        );
+
+        return actualAddress;
     }
 
     function deployCreate3(string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
-        return deployCreate3(_salt(string.concat(namespace, ":", _entropy)), abi.encode(_bytecode, _constructorArgs));
+        return deployCreate3(_salt(string.concat(namespace, ":", _entropy)), _bytecode, _constructorArgs);
     }
 
     function deployCreate3(string memory _what, string memory _label, bytes memory _constructorArgs) public returns (address) {
@@ -59,12 +81,13 @@ abstract contract Deployer is CreateXScript, Registry {
 
     // *************** CREATE2 *************** //
 
-    function deployCreate2(bytes32 salt, bytes memory initCode) public returns (address) {
+    function deployCreate2(bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) public returns (address) {
+        bytes memory initCode = abi.encode(bytecode, constructorArgs);
         address predictedAddress = predictCreate2(salt, initCode);
         OperationResult memory result = execute(Transaction({
             to: CREATEX_ADDRESS,
             data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
-            label: "deployCreate3",
+            label: "deployCreate2",
             value: 0
         }));
 
@@ -72,10 +95,22 @@ abstract contract Deployer is CreateXScript, Registry {
         if (actualAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, actualAddress);
         }
+
+        emit ContractDeployed(
+            result.operationId,
+            getSender(),
+            actualAddress,
+            salt,
+            keccak256(initCode),
+            constructorArgs,
+            "CREATE2"
+        );
+
+        return actualAddress;
     }
 
     function deployCreate2(string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
-        return deployCreate2(_salt(string.concat(namespace, ":", _entropy)), abi.encode(_bytecode, _constructorArgs));
+        return deployCreate2(_salt(_entropy), _bytecode, _constructorArgs);
     }
 
     function deployCreate2(string memory _what, string memory _label, bytes memory _constructorArgs) public returns (address) {
@@ -105,8 +140,8 @@ abstract contract Deployer is CreateXScript, Registry {
 
     // *************** SALT HELPERS *************** //
 
-    function _salt(string memory _entropy) internal pure returns (bytes32) {
-        bytes32 entropy = keccak256(bytes(_entropy));
+    function _salt(string memory _entropy) internal view returns (bytes32) {
+        bytes32 entropy = keccak256(bytes(string.concat(namespace, ":", _entropy)));
         // return entropy;
         return
             bytes32(

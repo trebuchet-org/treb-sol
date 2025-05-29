@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {Sender} from "./Sender.sol";
-import {Script} from "forge-std/Script.sol";
+import {Transaction, OperationResult, OperationStatus} from "../types.sol";
 
-contract PrivateKeySender is Sender, Script {
+contract PrivateKeySender is Sender {
     uint256 private immutable key;
 
     constructor(address _sender, uint256 _privateKey) {
@@ -25,16 +25,11 @@ contract PrivateKeySender is Sender, Script {
             returnData[i] = data;
         }
         vm.stopBroadcast();
-        
-        // Emit event for executed transaction
-        result.status = OperationStatus.EXECUTED;
-        result.returnData = returnData;
 
-        emit OperationSent(
-            sender,
-            operationId,
-            _transactions,
-            result
-        );
+        return OperationResult({
+            operationId: operationId,
+            status: OperationStatus.EXECUTED,
+            returnData: returnData
+        });
     }
 }

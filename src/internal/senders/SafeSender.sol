@@ -7,6 +7,7 @@ import {Safe} from "safe-utils/Safe.sol";
 import {Sender} from "./Sender.sol";
 import {HardwareWalletSender} from "./HardwareWalletSender.sol";
 import {Dispatcher} from "./Dispatcher.sol";
+import {Transaction, OperationResult, OperationStatus} from "../types.sol";
 
 contract SafeSender is Sender, Dispatcher {
     error ProposerNotSupported(string proposerId);
@@ -61,8 +62,6 @@ contract SafeSender is Sender, Dispatcher {
         }
 
         bytes32 safeTxHash = safe.proposeTransactions(targets, datas);
-        result.status = OperationStatus.QUEUED;
-        result.returnData = abi.encode(returnDatas);
 
         emit SafeTransactionQueued(
             operationId,
@@ -71,11 +70,10 @@ contract SafeSender is Sender, Dispatcher {
             safeTxHash
         );
 
-        emit OperationSent(
-            sender,
-            operationId,
-            _transactions,
-            result
-        );
+        return OperationResult({
+            operationId: operationId,
+            status: OperationStatus.QUEUED,
+            returnData: abi.encode(returnDatas)
+        });
     }
 }

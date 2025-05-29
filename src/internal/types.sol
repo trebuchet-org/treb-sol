@@ -14,6 +14,7 @@ enum OperationStatus {
 }
 
 struct OperationResult {
+    bytes32 operationId;
     OperationStatus status;
     bytes[] returnData;
 }

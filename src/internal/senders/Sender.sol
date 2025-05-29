@@ -30,7 +30,14 @@ abstract contract Sender is Deployer {
 
     function execute(Transaction[] memory _transactions) public returns (OperationResult memory result) {
         bytes32 operationId = keccak256(abi.encode(block.timestamp, sender, _transactions));
-        return execute(operationId, _transactions);
+        result = execute(operationId, _transactions);
+        emit OperationSent(
+            sender,
+            operationId,
+            _transactions,
+            result
+        );
+        return result;
     }
 
     function execute(Transaction memory _transaction) public returns (OperationResult memory result) {
