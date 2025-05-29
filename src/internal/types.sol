@@ -8,13 +8,15 @@ struct Transaction {
     uint256 value;
 }
 
-enum OperationStatus {
+enum BundleStatus {
     QUEUED,
     EXECUTED
 }
 
-struct OperationResult {
-    bytes32 operationId;
-    OperationStatus status;
-    bytes[] returnData;
+struct BundleTransaction {
+    bytes32 txId;
+    bytes32 bundleId;
+    Transaction transaction;
+    bytes simulatedReturnData;
+    bytes executedReturnData;
 }

@@ -13,22 +13,31 @@ import {PrivateKeySender} from "./PrivateKeySender.sol";
  */
 
 abstract contract HardwareWalletSender is PrivateKeySender {
-    string public derivationPath;
+    string private _derivationPath;
 
-    constructor(address _sender, uint256 _mnemonicIndex, string memory _derivationPath) PrivateKeySender(_sender, _mnemonicIndex) {
-        isHardwareWallet = true;
-        derivationPath = _derivationPath;
+    constructor(address _sender, uint256 _mnemonicIndex, string memory derivationPath_) PrivateKeySender(_sender, _mnemonicIndex) {
+        _derivationPath = derivationPath_;
+    }
+    
+    function derivationPath() public view returns (string memory) {
+        return _derivationPath;
     }
 }
 
 contract LedgerSender is HardwareWalletSender {
     constructor(address _sender, uint256 _mnemonicIndex, string memory _derivationPath) HardwareWalletSender(_sender, _mnemonicIndex, _derivationPath) {
-        isLedger = true;
+    }
+    
+    function senderType() public pure override returns (bytes4) {
+        return bytes4(keccak256("Ledger"));
     }
 }
 
 contract TrezorSender is HardwareWalletSender {
     constructor(address _sender, uint256 _mnemonicIndex, string memory _derivationPath) HardwareWalletSender(_sender, _mnemonicIndex, _derivationPath) {
-        isTrezor = true;
+    }
+    
+    function senderType() public pure override returns (bytes4) {
+        return bytes4(keccak256("Trezor"));
     }
 }

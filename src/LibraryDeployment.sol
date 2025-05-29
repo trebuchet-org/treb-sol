@@ -2,14 +2,15 @@
 pragma solidity ^0.8.0;
 
 import {console} from "forge-std/console.sol";
-import {Script} from "./Script.sol";
+import {TrebScript} from "./TrebScript.sol";
+import {Deployer} from "./internal/Deployer.sol";
 
 /**
  * @title LibraryDeployment
  * @notice Base contract for deploying libraries with deterministic addresses
  * @dev Libraries are deployed globally (no environment) for cross-chain consistency
  */
-contract LibraryDeployment is Script{
+contract LibraryDeployment is TrebScript {
     string private constant LIBRARY_DEPLOYER = "libraries";
     string private artifactPath;
 
@@ -20,7 +21,8 @@ contract LibraryDeployment is Script{
         }
     }
 
-    function run() public virtual returns (address) {
-        return sender(LIBRARY_DEPLOYER).deployCreate3(artifactPath);
+    function run() public virtual flush returns (address) {
+        Deployer deployer = sender(LIBRARY_DEPLOYER).deployer();
+        return deployer.deployCreate3(artifactPath);
     }
 }

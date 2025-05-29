@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Sender} from "./Sender.sol";
-import {Transaction, OperationResult, OperationStatus} from "../types.sol";
+import {Sender} from "../Sender.sol";
+import {Transaction, BundleStatus} from "../types.sol";
 
 contract PrivateKeySender is Sender {
     uint256 private immutable key;
 
-    constructor(address _sender, uint256 _privateKey) {
-        isPrivateKey = true;
-        sender = _sender;
+    constructor(address _sender, uint256 _privateKey) Sender(_sender) {
         key = _privateKey;
         vm.rememberKey(key);
     }
+    
+    function senderType() public pure virtual override returns (bytes4) {
+        return bytes4(keccak256("PrivateKey"));
+    }
 
-    function execute(bytes32 operationId, Transaction[] memory _transactions) public override returns (OperationResult memory result) {
-        vm.startBroadcast(sender);
-        bytes[] memory returnData = new bytes[](_transactions.length);
+    function _execute(Transaction[] memory _transactions) internal override returns (BundleStatus status, bytes[] memory returnData) {
+        vm.startBroadcast(senderAddress);
+        returnData = new bytes[](_transactions.length);
         for (uint256 i = 0; i < _transactions.length; i++) {
             (bool _success, bytes memory data) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
             if (!_success) {
@@ -25,11 +27,6 @@ contract PrivateKeySender is Sender {
             returnData[i] = data;
         }
         vm.stopBroadcast();
-
-        return OperationResult({
-            operationId: operationId,
-            status: OperationStatus.EXECUTED,
-            returnData: returnData
-        });
+        return (BundleStatus.EXECUTED, returnData);
     }
 }

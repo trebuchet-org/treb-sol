@@ -8,6 +8,7 @@ cache_path = "cache"
 broadcast = "broadcast"
 optimizer = true
 optimizer_runs = 200
+fs_permissions = [{ access = "read", path = "test/fixtures"}, { access = "read-write", path = "deployments.json"}]
 
 # Deployment configuration example
 # Set these in your project's .env file:
@@ -20,5 +21,5 @@ optimizer_runs = 200
 # RPC endpoints
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
-base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 alfajores = "https://alfajores-forno.celo-testnet.org"
+anvil = "http://127.0.0.1:8545"

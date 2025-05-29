@@ -9,8 +9,7 @@ import {Script, console} from "forge-std/Script.sol";
  * @dev Reads deployment information from deployments.json to provide address lookups
  */
 contract Registry is Script {
-    string public constant DEPLOYMENTS_FILE = "deployments.json";
-
+    string public deploymentsFile;
     string public namespace;
     uint256 public chainId;
 
@@ -20,6 +19,7 @@ contract Registry is Script {
         chainId = block.chainid;
         string memory defaultNamespace = "default";
         namespace = vm.envOr("NAMESPACE", defaultNamespace);
+        deploymentsFile = vm.envOr("DEPLOYMENTS_FILE", string("deployments.json"));
         _loadDeployments();
     }
 
@@ -88,14 +88,14 @@ contract Registry is Script {
      * @dev Load deployments from JSON file into memory
      */
     function _loadDeployments() private {
-        try vm.readFile(DEPLOYMENTS_FILE) returns (string memory json) {
+        try vm.readFile(deploymentsFile) returns (string memory json) {
             string memory deploymentsPath = string.concat(
                 ".networks.",
                 vm.toString(chainId),
                 ".deployments"
             );
 
-            if (vm.keyExists(json, deploymentsPath)) {
+            if (vm.keyExistsJson(json, deploymentsPath)) {
                 string[] memory addresses = vm.parseJsonKeys(
                     json,
                     deploymentsPath
@@ -140,7 +140,7 @@ contract Registry is Script {
         } catch {
             console.log(
                 "Warning: Could not load deployments from",
-                DEPLOYMENTS_FILE
+                deploymentsFile
             );
         }
     }
