@@ -18,6 +18,7 @@ library PrivateKey {
         bytes config;
         RichTransaction[] queue;
         bytes32 bundleId;
+        bool broadcasted;
     }
 
     function cast(Senders.Sender storage _sender) internal view returns (Sender storage _privateKeySender) {
@@ -59,6 +60,7 @@ library InMemory {
         bytes config;
         RichTransaction[] queue;
         bytes32 bundleId;
+        bool broadcasted;
         // Private key specific fields:
         uint256 privateKey;
     }
@@ -97,6 +99,7 @@ library HardwareWallet {
         bytes config;
         RichTransaction[] queue;
         bytes32 bundleId;
+        bool broadcasted;
         // Hardware wallet specific fields:
         string hardwareWalletType;
         string mnemonicDerivationPath;

@@ -36,17 +36,9 @@ contract IntegrationTest is Test, CreateXScript {
     string constant LEDGER = "ledger";
     string constant SAFE = "safe";
     
-    function setUp() public withCreateX {
-        // Mark CreateX as persistent so it survives fork switches
-        vm.makePersistent(CREATEX_ADDRESS);
-    }
+    function setUp() public withCreateX {}
     
     function test_BasicSenderWorkflow() public {
-        // Setup forks
-        string memory rpcUrl = vm.envOr("NETWORK", string("http://localhost:8545"));
-        uint256 simFork = vm.createFork(rpcUrl);
-        uint256 execFork = vm.createFork(rpcUrl);
-        
         // Create sender config
         uint256 pk = 0x12345;
         address senderAddr = vm.addr(pk);
@@ -62,9 +54,6 @@ contract IntegrationTest is Test, CreateXScript {
         
         // Initialize
         Senders.initialize(configs);
-        
-        // Deploy a contract
-        vm.selectFork(simFork);
         
         // Get sender directly from registry
         Senders.Registry storage reg = Senders.registry();
@@ -92,7 +81,6 @@ contract IntegrationTest is Test, CreateXScript {
         s.execute(txn);
         
         // Broadcast
-        vm.selectFork(execFork);
         s.broadcast();
         
         // Verify
@@ -127,11 +115,6 @@ contract IntegrationTest is Test, CreateXScript {
     }
     
     function test_MultipleSenderTypes() public {
-        // Setup forks
-        string memory rpcUrl = vm.envOr("NETWORK", string("http://localhost:8545"));
-        uint256 simFork = vm.createFork(rpcUrl);
-        uint256 execFork = vm.createFork(rpcUrl);
-        
         // Create multiple sender configs
         Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](3);
         

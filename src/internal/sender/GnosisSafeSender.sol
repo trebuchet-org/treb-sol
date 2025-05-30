@@ -30,6 +30,7 @@ library GnosisSafe {
         bytes config;
         RichTransaction[] queue;
         bytes32 bundleId;
+        bool broadcasted;
         // Gnosis safe specific fields:
         bytes32 proposerId;
     }

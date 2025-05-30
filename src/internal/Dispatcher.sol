@@ -13,9 +13,7 @@ contract Dispatcher is Script {
     using Senders for Senders.Sender;
 
     modifier broadcast() {
-        uint256 snap = vm.snapshot();
         _;
-        vm.revertTo(snap);
         _broadcast();
     }
 

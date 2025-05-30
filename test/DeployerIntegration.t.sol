@@ -42,7 +42,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         Senders.initialize(configs);
         
         // Deploy contract
-        uint256 snap = vm.snapshot();
+        uint256 snap = vm.snapshotState();
         Senders.Sender storage sender = Senders.get(DEPLOYER);
         
         string memory entropy = "test-entrop-123123y";
@@ -59,7 +59,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         assertEq(deployed, predicted);
         
         // Broadcast
-        vm.revertTo(snap);
+        vm.revertToState(snap);
         sender.broadcast();
         
         // Verify contract was deployed with correct state
@@ -84,7 +84,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         Senders.initialize(configs);
         
         // Deploy using artifact path
-        uint256 snap = vm.snapshot();
+        uint256 snap = vm.snapshotState();
         Senders.Sender storage sender = Senders.get(DEPLOYER);
         
         // This will use vm.getCode internally
@@ -95,7 +95,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         address deployed = sender.deployCreate3(artifact, bytecode, abi.encode(100));
         
         // Broadcast
-        vm.revertTo(snap);
+        vm.revertToState(snap);
         sender.broadcast();
         
         // Verify
@@ -122,7 +122,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         
         // Initialize on simulation fork
         Senders.initialize(configs);
-        uint256 snap = vm.snapshot();
+        uint256 snap = vm.snapshotState();
 
         // Deploy with CREATE2
         Senders.Sender storage sender = Senders.get(DEPLOYER);
@@ -142,7 +142,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         assertEq(deployed, predicted);
         
         // Broadcast
-        vm.revertTo(snap);
+        vm.revertToState(snap);
         sender.broadcast();
         
         // Verify deployment

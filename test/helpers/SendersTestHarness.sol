@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import {console} from "forge-std/console.sol";
+import {Vm} from "forge-std/Vm.sol";
+
+import {Senders} from "../../src/internal/sender/Senders.sol";
+import {PrivateKey, HardwareWallet, InMemory} from "../../src/internal/sender/PrivateKeySender.sol";
+import {GnosisSafe} from "../../src/internal/sender/GnosisSafeSender.sol";
+import {Transaction, RichTransaction, SenderTypes} from "../../src/internal/types.sol";
+import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
+import {Safe} from "safe-utils/Safe.sol";
+
+contract SendersTestHarness {
+    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+
+    using Senders for Senders.Sender;
+    using Senders for Senders.Registry;
+    using Safe for Safe.Client;
+    using GnosisSafe for GnosisSafe.Sender;
+
+    constructor(Senders.SenderInitConfig[] memory _configs) {
+        Senders.initialize(_configs);
+        
+        // Deploy MultiSendCallOnly for testing (after initialize)
+        MultiSendCallOnly multiSendCallOnly = new MultiSendCallOnly();
+        
+        // Setup Safe senders for testing
+        for (uint256 i = 0; i < _configs.length; i++) {
+            if (_configs[i].senderType == SenderTypes.GnosisSafe) {
+                // Get the Safe.Client storage for this sender
+                Senders.Sender storage sender = Senders.get(_configs[i].name);
+                GnosisSafe.Sender storage gnosisSafeSender = GnosisSafe.cast(sender);
+                Safe.Client storage safeClient = gnosisSafeSender.safe();
+                safeClient.instance().urls[block.chainid] = "https://localhost";
+                safeClient.instance().multiSendCallOnly[block.chainid] = multiSendCallOnly;
+                
+                // Mock Safe contract calls
+                address safeAddress = sender.account;
+                vm.mockCall(
+                    safeAddress,
+                    abi.encodeWithSignature("nonce()"),
+                    abi.encode(uint256(0))
+                );
+                vm.mockCall(
+                    safeAddress,
+                    abi.encodeWithSignature("getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)"),
+                    abi.encode(bytes32(keccak256("mock-tx-hash")))
+                );
+                
+            }
+        }
+        
+        // Update the snapshot to include our MultiSendCallOnly setup
+        Senders.registry().snapshot = vm.snapshotState();
+    }
+
+    function broadcast() public {
+        return Senders.registry().broadcast();
+    }
+
+    function broadcast(string memory _name) public returns (bytes32) {
+        return Senders.get(_name).broadcast();
+    }
+
+    function execute(string memory _name, Transaction memory _transaction) public returns (RichTransaction memory) {
+        return Senders.get(_name).execute(_transaction);
+    }
+
+    function execute(string memory _name, Transaction[] memory _transactions) public returns (RichTransaction[] memory) {
+        return Senders.get(_name).execute(_transactions);
+    }
+
+    function get(string memory _name) public view returns (Senders.Sender memory) {
+        return Senders.get(_name);
+    }
+
+    function getPrivateKey(string memory _name) public view returns (PrivateKey.Sender memory) {
+        return Senders.get(_name).privateKey();
+    }
+
+    function getGnosisSafe(string memory _name) public view returns (GnosisSafe.Sender memory) {
+        return Senders.get(_name).gnosisSafe();
+    }
+
+    function getHardwareWallet(string memory _name) public view returns (HardwareWallet.Sender memory) {
+        return Senders.get(_name).hardwareWallet();
+    }
+
+    function getInMemory(string memory _name) public view returns (InMemory.Sender memory) {
+        return Senders.get(_name).inMemory();
+    }
+
+    function isType(string memory _name, bytes8 _senderType) public view returns (bool) {
+        return Senders.get(_name).isType(_senderType);
+    }
+}

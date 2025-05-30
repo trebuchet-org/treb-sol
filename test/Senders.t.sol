@@ -6,7 +6,7 @@ import {Senders} from "../src/internal/sender/Senders.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "../src/internal/sender/PrivateKeySender.sol";
 import {GnosisSafe} from "../src/internal/sender/GnosisSafeSender.sol";
 import {SenderTypes} from "../src/internal/types.sol";
-import {SenderTestHarness} from "./helpers/SenderTestHarness.sol";
+import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
 contract SendersRegistryTestHarness {
     function initialize(Senders.SenderInitConfig[] memory _configs) public {
@@ -15,13 +15,10 @@ contract SendersRegistryTestHarness {
 }
 
 contract SendersTest is Test {
-    mapping(string => SenderTestHarness) public senders;
+    SendersTestHarness harness;
 
     function initialize(Senders.SenderInitConfig[] memory _configs) public {
-        for (uint256 i = 0; i < _configs.length; i++) {
-            SenderTestHarness sender = new SenderTestHarness(_configs[i].name, _configs);
-            senders[_configs[i].name] = sender;
-        }
+        harness = new SendersTestHarness(_configs);
     }
 
     function test_RevertWhen_initializeWithNoSenders() public {
@@ -40,7 +37,7 @@ contract SendersTest is Test {
         });
         initialize(configs);
 
-        InMemory.Sender memory sender = senders["sender1"].getInMemory();
+        InMemory.Sender memory sender = harness.getInMemory("sender1");
 
         assertEq(sender.name, "sender1");
         assertEq(sender.account, address(0x1234));
@@ -60,6 +57,6 @@ contract SendersTest is Test {
         initialize(configs);
 
         vm.expectRevert(abi.encodeWithSelector(Senders.InvalidCast.selector, "sender1", SenderTypes.Ledger, SenderTypes.InMemory));
-        senders["sender1"].getInMemory();
+        harness.getInMemory("sender1");
     }
 }

@@ -22,6 +22,7 @@ library Senders {
     error TransactionExecutionMismatch(string label, bytes returnData);
     error CannotBroadcastCustomSender(string name);
     error UnexpectedSenderBroadcast(string name, bytes8 senderType);
+    error BroadcastAlreadyCalled();
 
     using Senders for Senders.Registry;
     using Senders for Senders.Sender;
@@ -48,6 +49,8 @@ library Senders {
         mapping(bytes32 => Sender) senders;
         mapping(bytes32 => mapping(address => address)) senderHarness;
         bytes32[] ids;
+        uint256 snapshot;
+        bool broadcasted;
     }
 
     struct Sender {
@@ -58,6 +61,7 @@ library Senders {
         bytes config;
         RichTransaction[] queue;
         bytes32 bundleId;
+        bool broadcasted;
     }
 
     function registry() internal pure returns (Registry storage _registry) {
@@ -107,12 +111,19 @@ library Senders {
         for (uint256 i = 0; i < _registry.ids.length; i++) {
             _registry.senders[_registry.ids[i]].initialize();
         }
+
+        _registry.snapshot = vm.snapshotState();
     }
 
     function broadcast(Registry storage _registry) internal {
+        if (_registry.broadcasted) {
+            revert BroadcastAlreadyCalled();
+        }
+
         for (uint256 i = 0; i < _registry.ids.length; i++) {
             _registry.senders[_registry.ids[i]].broadcast();
         }
+        _registry.broadcasted = true;
     }
 
     // ************* Sender ************* //
@@ -181,6 +192,10 @@ library Senders {
     function simulate(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
         bundleTransactions = new RichTransaction[](_transactions.length);
         for (uint256 i = 0; i < _transactions.length; i++) {
+            console.log(_sender.account);
+            console.log("to", _transactions[i].to);
+            console.log("data", vm.toString(_transactions[i].data));
+
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
             if (!success) {
@@ -196,9 +211,15 @@ library Senders {
     }
 
     function broadcast(Sender storage _sender) internal returns (bytes32 bundleId) {
+        if (_sender.broadcasted) {
+            revert BroadcastAlreadyCalled();
+        }
         if (_sender.isType(SenderTypes.Custom)) {
             revert CannotBroadcastCustomSender(_sender.name);
         }
+
+        uint256 snap = vm.snapshotState();
+        vm.revertToState(registry().snapshot);
 
         BundleStatus status;
         if (_sender.isType(SenderTypes.PrivateKey)) {
@@ -216,8 +237,11 @@ library Senders {
             _sender.queue
         );
 
+        vm.revertToState(snap);
+
         delete _sender.queue;
-        return bundleId;
+        _sender.broadcasted = true;
+        return _sender.bundleId;
     }
 
 }

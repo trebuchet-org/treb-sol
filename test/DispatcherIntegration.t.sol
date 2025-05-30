@@ -85,27 +85,6 @@ contract DispatcherIntegrationTest is Test {
         dispatcher.testGetSender("any");
     }
     
-    function test_DispatcherForkManagement() public {
-        // Setup configs
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
-        configs[0] = Senders.SenderInitConfig({
-            name: TEST_SENDER,
-            account: vm.addr(0x1111),
-            senderType: SenderTypes.InMemory,
-            config: abi.encode(0x1111)
-        });
-        
-        bytes memory encodedConfigs = abi.encode(configs);
-        vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
-        
-        // Create dispatcher
-        uint256 originalFork = vm.activeFork();
-        dispatcher = new TestDispatcher();
-        
-        // Should be on simulation fork after construction
-        uint256 currentFork = vm.activeFork();
-        assertTrue(currentFork != originalFork);
-    }
     
     function test_DispatcherBroadcastModifier() public {
         // Setup
@@ -122,21 +101,12 @@ contract DispatcherIntegrationTest is Test {
         
         dispatcher = new TestDispatcher();
         
-        // Test with DRYRUN=false (default)
-        uint256 simFork = vm.activeFork();
+        // Test broadcast with DRYRUN=false (default)
         dispatcher.testBroadcast();
-        uint256 execFork = vm.activeFork();
-        
-        // Should have switched to execution fork
-        assertTrue(simFork != execFork);
         
         // Test with DRYRUN=true
-        vm.selectFork(simFork);
         vm.setEnv("DRYRUN", "true");
         dispatcher.testBroadcast();
-        
-        // Should stay on simulation fork
-        assertEq(vm.activeFork(), simFork);
     }
     
     function test_DispatcherLazyLoading() public {
