@@ -30,17 +30,17 @@ library PrivateKey {
         }
     }
 
-    function broadcast(Sender storage _sender) internal returns (BundleStatus status) {
+    function broadcast(Sender storage _sender, RichTransaction[] memory _queue) internal returns (BundleStatus status, RichTransaction[] memory _executedQueue) {
         vm.startBroadcast(_sender.account);
-        for (uint256 i = 0; i < _sender.queue.length; i++) {
-            (bool _success, bytes memory data) = _sender.queue[i].transaction.to.call{value: _sender.queue[i].transaction.value}(_sender.queue[i].transaction.data);
+        for (uint256 i = 0; i < _queue.length; i++) {
+            (bool _success, bytes memory data) = _queue[i].transaction.to.call{value: _queue[i].transaction.value}(_queue[i].transaction.data);
             if (!_success) {
-                revert Senders.TransactionFailed(_sender.queue[i].transaction.label);
+                revert Senders.TransactionFailed(_queue[i].transaction.label);
             }
-            _sender.queue[i].executedReturnData = data;
+            _queue[i].executedReturnData = data;
         }
         vm.stopBroadcast();
-        return BundleStatus.EXECUTED;
+        return (BundleStatus.EXECUTED, _queue);
     }
 }
 

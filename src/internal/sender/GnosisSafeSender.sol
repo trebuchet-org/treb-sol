@@ -73,9 +73,9 @@ library GnosisSafe {
         }));
     }
 
-    function broadcast(Sender storage _sender) internal returns (BundleStatus status) {
-        address[] memory targets = new address[](_sender.queue.length);
-        bytes[] memory datas = new bytes[](_sender.queue.length);
+    function broadcast(Sender storage _sender, RichTransaction[] memory _queue) internal returns (BundleStatus status, RichTransaction[] memory _executedQueue) {
+        address[] memory targets = new address[](_queue.length);
+        bytes[] memory datas = new bytes[](_queue.length);
 
         for (uint256 i = 0; i < _sender.queue.length; i++) {
             if (_sender.queue[i].transaction.value > 0) {
@@ -94,7 +94,7 @@ library GnosisSafe {
             safeTxHash
         );
 
-        return BundleStatus.QUEUED;
+        return (BundleStatus.QUEUED, _queue);
     }
 
     function proposer(Sender storage _sender) internal view returns (Senders.Sender storage) {

@@ -10,6 +10,7 @@ import {TrebScript, Deployer, Senders} from "./TrebScript.sol";
  */
 contract LibraryDeployment is TrebScript {
     using Deployer for Senders.Sender;
+    using Deployer for Deployer.Deployment;
 
     error MissingLibraryArtifactPath();
     
@@ -24,6 +25,7 @@ contract LibraryDeployment is TrebScript {
     }
 
     function run() public broadcast returns (address) {
-        return sender(LIBRARY_DEPLOYER).deployCreate3(artifactPath);
+        // Libraries typically don't have constructor args
+        return sender(LIBRARY_DEPLOYER).create3(artifactPath).deploy();
     }
 }

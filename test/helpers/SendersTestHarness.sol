@@ -20,6 +20,7 @@ contract SendersTestHarness {
     using Safe for Safe.Client;
     using GnosisSafe for GnosisSafe.Sender;
     using Deployer for Senders.Sender;
+    using Deployer for Deployer.Deployment;
 
     constructor(Senders.SenderInitConfig[] memory _configs) {
         Senders.initialize(_configs);
@@ -99,16 +100,21 @@ contract SendersTestHarness {
 
     // ************* Deployer Methods ************* //
 
+    // New factory pattern methods
     function deployCreate3(string memory _name, string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
-        return Senders.get(_name).deployCreate3(_entropy, _bytecode, _constructorArgs);
+        // Use the low-level deployCreate3 with salt
+        bytes32 salt = Senders.get(_name)._salt(_entropy);
+        return Senders.get(_name).deployCreate3(salt, _bytecode, _constructorArgs);
     }
 
     function deployCreate3(string memory _name, string memory _artifact, bytes memory _args) public returns (address) {
-        return Senders.get(_name).deployCreate3(_artifact, _args);
+        // Use factory pattern: create3 -> deploy
+        return Senders.get(_name).create3(_artifact).deploy(_args);
     }
 
     function deployCreate3(string memory _name, string memory _artifact, string memory _label, bytes memory _args) public returns (address) {
-        return Senders.get(_name).deployCreate3(_artifact, _label, _args);
+        // Use factory pattern: create3 -> setLabel -> deploy
+        return Senders.get(_name).create3(_artifact).setLabel(_label).deploy(_args);
     }
 
     function deployCreate2(string memory _name, bytes32 _saltValue, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
@@ -116,7 +122,8 @@ contract SendersTestHarness {
     }
 
     function predictCreate3(string memory _name, string memory _entropy) public view returns (address) {
-        return Senders.get(_name).predictCreate3(_entropy);
+        bytes32 salt = Senders.get(_name)._salt(_entropy);
+        return Senders.get(_name).predictCreate3(salt);
     }
 
     function predictCreate2(string memory _name, bytes32 _saltValue, bytes memory _initCode) public view returns (address) {

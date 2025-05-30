@@ -261,13 +261,18 @@ library Senders {
         }
 
         uint256 snap = vm.snapshotState();
+        RichTransaction[] memory queue = _sender.queue;
+
         vm.revertToState(registry().snapshot);
+
+        console.log("bundleId", vm.toString(_sender.bundleId));
+        console.log("queue length", _sender.queue.length);
 
         BundleStatus status;
         if (_sender.isType(SenderTypes.PrivateKey)) {
-            status = _sender.privateKey().broadcast();
+            (status, queue) = _sender.privateKey().broadcast(queue);
         } else if (_sender.isType(SenderTypes.GnosisSafe)) {
-            status = _sender.gnosisSafe().broadcast();
+            (status, queue) = _sender.gnosisSafe().broadcast(queue);
         } else {
             revert UnexpectedSenderBroadcast(_sender.name, _sender.senderType);
         }
@@ -276,12 +281,11 @@ library Senders {
             _sender.account,
             _sender.bundleId,
             status,
-            _sender.queue
+            queue
         );
 
         vm.revertToState(snap);
 
-        delete _sender.queue;
         _sender.broadcasted = true;
         return _sender.bundleId;
     }

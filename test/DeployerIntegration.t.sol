@@ -105,14 +105,15 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         // Set namespace to production
         harness.setNamespace("production");
         
-        // Deploy with label
-        string memory artifact = "SimpleContract";
-        string memory label = "v1";
-        address deployed1 = harness.deployCreate3(DEPLOYER, artifact, label, abi.encode(300));
+        // Deploy with entropy directly (not using factory pattern with label)
+        string memory entropy1 = "SimpleContract:v1";
+        bytes memory bytecode = type(SimpleContract).creationCode;
+        address deployed1 = harness.deployCreate3(DEPLOYER, entropy1, bytecode, abi.encode(300));
         
         // Change namespace to staging
         harness.setNamespace("staging");
-        address deployed2 = harness.deployCreate3(DEPLOYER, artifact, label, abi.encode(400));
+        string memory entropy2 = "SimpleContract:v1"; // Same entropy, different namespace
+        address deployed2 = harness.deployCreate3(DEPLOYER, entropy2, bytecode, abi.encode(400));
         
         // Different namespaces should result in different addresses
         assertTrue(deployed1 != deployed2);

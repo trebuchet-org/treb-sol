@@ -167,6 +167,7 @@ contract IntegrationTest is Test, CreateXScript {
 contract TestDispatcher is Dispatcher {
     using Senders for Senders.Sender;
     using Deployer for Senders.Sender;
+    using Deployer for Deployer.Deployment;
     
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
         Dispatcher(_rawConfigs, _namespace, _dryrun) {}
@@ -177,9 +178,9 @@ contract TestDispatcher is Dispatcher {
         bytes memory bytecode = type(TestContract).creationCode;
         bytes memory args = abi.encode(value);
         
-        // Use entropy-based deployment
+        // Use the new factory pattern
         string memory entropy = "TestContract";
-        address deployed = s.deployCreate3(entropy, bytecode, args);
+        address deployed = s.create3(entropy, bytecode).deploy(args);
         
         // Manually broadcast
         _broadcast();

@@ -13,11 +13,30 @@ library Deployer {
     ICreateX constant CreateX = ICreateX(CREATEX_ADDRESS);
     using Senders for Senders.Sender;
     using Deployer for Senders.Sender;
+    using Deployer for Deployment;
 
     error ContractNotFound(string what);
     error PredictedAddressMismatch(address predicted, address actual);
+    error EntropyAlreadySet();
+    error LabelAlreadySet();
+    error ConstructorArgsAlreadySet();
+    error InvalidCreateStrategy(CreateStrategy strategy);
 
     event DeployingContract(string what, string label, bytes32 initCodeHash);
+
+    enum CreateStrategy {
+        CREATE3,
+        CREATE2
+    }
+
+    struct Deployment {
+        Senders.Sender sender;
+        CreateStrategy strategy;
+        bytes bytecode;
+        string label;
+        string entropy;
+        string artifact;
+    }
 
     event ContractDeployed(
         address indexed deployer,
@@ -29,7 +48,81 @@ library Deployer {
         string createStrategy
     );
 
+    // *************** DEPLOYMENT *************** //
+
+    function _deploy(Senders.Sender storage sender, bytes memory bytecode) internal returns (Deployment storage deployment) {
+        bytes32 deploymentSlot = keccak256(abi.encode(sender.account, bytecode, sender.queue.length));
+        assembly {
+            deployment.slot := deploymentSlot
+        }
+        deployment.sender = sender;
+        deployment.bytecode = bytecode;
+    }
+
+    function setLabel(Deployment storage deployment, string memory _label) internal returns (Deployment storage) {
+        if (bytes(deployment.entropy).length > 0) {
+            revert EntropyAlreadySet();
+        }
+        deployment.label = _label;
+        return deployment;
+    }
+
+    function setEntropy(Deployment storage deployment, string memory _entropy) internal returns (Deployment storage) {
+        if (bytes(deployment.label).length > 0) {
+            revert LabelAlreadySet();
+        }
+        deployment.entropy = _entropy;
+        return deployment;
+    }
+
+    function deploy(Deployment storage deployment, bytes memory _constructorArgs) internal returns (address) {
+        if (bytes(deployment.entropy).length == 0) {
+            deployment.entropy = string.concat(deployment.artifact, ":", deployment.label);
+        }
+        if (deployment.strategy == CreateStrategy.CREATE3) {
+            return deployment.sender.deployCreate3(deployment.sender._salt(deployment.entropy), deployment.bytecode, _constructorArgs);
+        } else if (deployment.strategy == CreateStrategy.CREATE2) {
+            return deployment.sender.deployCreate2(deployment.sender._salt(deployment.entropy), deployment.bytecode, _constructorArgs);
+        } else {
+            revert InvalidCreateStrategy(deployment.strategy);
+        }
+    }
+
+    function predict(Deployment storage deployment) internal returns (address) {
+        if (bytes(deployment.entropy).length == 0) {
+            deployment.entropy = string.concat(deployment.artifact, ":", deployment.label);
+        }
+        if (deployment.strategy == CreateStrategy.CREATE3) {
+            return deployment.sender.predictCreate3(deployment.sender._salt(deployment.entropy));
+        } else if (deployment.strategy == CreateStrategy.CREATE2) {
+            return deployment.sender.predictCreate2(deployment.sender._salt(deployment.entropy), deployment.bytecode);
+        } else {
+            revert InvalidCreateStrategy(deployment.strategy);
+        }
+    }
+
     // *************** CREATE3 *************** //
+    
+    function create3(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode) internal returns (Deployment storage deployment) {
+        deployment = sender._deploy(bytecode);
+        deployment.artifact = _entropy;
+        deployment.strategy = CreateStrategy.CREATE3;
+    }
+
+    function create3(Senders.Sender storage sender, string memory _artifact) internal returns (Deployment storage deployment) {
+        try vm.getCode(_artifact) returns (bytes memory code) {
+            deployment = sender._deploy(code);
+            deployment.artifact = _artifact;
+            deployment.strategy = CreateStrategy.CREATE3;
+        } catch {
+            revert ContractNotFound(_artifact);
+        }
+    }
+
+    function deploy(Deployment storage deployment) internal returns (address) {
+        return deployment.deploy("");
+    }
+
     function deployCreate3(Senders.Sender storage sender, bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) internal returns (address) {
         bytes memory initCode = abi.encodePacked(bytecode, constructorArgs);
         address predictedAddress = sender.predictCreate3(salt);
@@ -57,37 +150,8 @@ library Deployer {
         return simulatedAddress;
     }
 
-    function deployCreate3(Senders.Sender storage sender, string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) internal returns (address) {
-        return sender.deployCreate3(sender._salt(_entropy), _bytecode, _constructorArgs);
-    }
-
-    function deployCreate3(Senders.Sender storage sender, string memory _what, string memory _label, bytes memory _constructorArgs) internal returns (address) {
-        try vm.getCode(_what) returns (bytes memory code) {
-            emit DeployingContract(_what, _label, keccak256(code));
-            return sender.deployCreate3(string.concat(_what, ":", _label), code, _constructorArgs);
-        } catch {
-            revert ContractNotFound(_what);
-        }
-    }
-
-    function deployCreate3(Senders.Sender storage sender, string memory _what, bytes memory _constructorArgs) internal returns (address) {
-        try vm.getCode(_what) returns (bytes memory code) {
-            return sender.deployCreate3(_what, code, _constructorArgs);
-        } catch {
-            revert ContractNotFound(_what);
-        }
-    }
-
-    function deployCreate3(Senders.Sender storage sender, string memory _what) internal returns (address) {
-        return sender.deployCreate3(_what, "");
-    }
-
     function predictCreate3(Senders.Sender storage sender, bytes32 salt) internal view returns (address) {
         return CreateX.computeCreate3Address(sender._derivedSalt(salt));
-    }
-
-    function predictCreate3(Senders.Sender storage sender, string memory _entropy) internal view returns (address) {
-        return sender.predictCreate3(sender._salt(_entropy));
     }
 
     // *************** CREATE2 *************** //
@@ -120,36 +184,8 @@ library Deployer {
         return simulatedAddress;
     }
 
-    function deployCreate2(Senders.Sender storage sender, string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) internal returns (address) {
-        return sender.deployCreate2(sender._salt(_entropy), _bytecode, _constructorArgs);
-    }
-
-    function deployCreate2(Senders.Sender storage sender, string memory _what, string memory _label, bytes memory _constructorArgs) internal returns (address) {
-        try vm.getCode(_what) returns (bytes memory code) {
-            return sender.deployCreate2(string.concat(_what, ":", _label), code, _constructorArgs);
-        } catch {
-            revert ContractNotFound(_what);
-        }
-    }
-
-    function deployCreate2(Senders.Sender storage sender, string memory _what, bytes memory _constructorArgs) internal returns (address) {
-        try vm.getCode(_what) returns (bytes memory code) {
-            return sender.deployCreate2(_what, code, _constructorArgs);
-        } catch {
-            revert ContractNotFound(_what);
-        }
-    }
-
-    function deployCreate2(Senders.Sender storage sender, string memory _what) internal returns (address) {
-        return sender.deployCreate2(_what, "");
-    }
-
     function predictCreate2(Senders.Sender storage sender, bytes32 salt, bytes memory initCode) internal view returns (address) {
         return CreateX.computeCreate2Address(sender._derivedSalt(salt), keccak256(initCode));
-    }
-
-    function predictCreate2(Senders.Sender storage sender, string memory _entropy, bytes memory initCode) internal view returns (address) {
-        return sender.predictCreate2(sender._salt(_entropy), initCode);
     }
 
     // *************** SALT HELPERS *************** //
