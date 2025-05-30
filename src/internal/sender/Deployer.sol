@@ -43,6 +43,7 @@ library Deployer {
         address indexed location,
         bytes32 indexed bundleId,
         bytes32 salt,
+        bytes32 bytecodeHash,
         bytes32 initCodeHash,
         bytes constructorArgs,
         string createStrategy
@@ -142,6 +143,7 @@ library Deployer {
             simulatedAddress,
             sender.bundleId,
             salt,
+            keccak256(bytecode),
             keccak256(initCode),
             constructorArgs,
             "CREATE3"
@@ -176,6 +178,7 @@ library Deployer {
             simulatedAddress,
             sender.bundleId,
             salt,
+            keccak256(bytecode),
             keccak256(initCode),
             constructorArgs,
             "CREATE2"

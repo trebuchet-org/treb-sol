@@ -138,7 +138,8 @@ contract DeployerIntegrationTest is Test, CreateXScript {
             predictedAddr,
             bundleId,
             salt,
-            keccak256(initCode),
+            keccak256(bytecode),  // bytecodeHash
+            keccak256(initCode),  // initCodeHash
             constructorArgs,
             "CREATE3"
         );

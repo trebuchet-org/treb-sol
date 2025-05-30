@@ -133,6 +133,23 @@ contract SendersTestHarness {
     function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
         return Senders.get(_name)._salt(_entropy);
     }
+    
+    function _derivedSalt(string memory _name, bytes32 _baseSalt) public view returns (bytes32) {
+        return Senders.get(_name)._derivedSalt(_baseSalt);
+    }
+    
+    // Factory pattern helpers for testing
+    function predictCreate3WithLabel(string memory _name, string memory _artifact, string memory _label) public view returns (address) {
+        // Manually construct the entropy as artifact:label
+        string memory entropy = string.concat(_artifact, ":", _label);
+        return predictCreate3(_name, entropy);
+    }
+    
+    function predictCreate3ArtifactOnly(string memory _name, string memory _artifact) public view returns (address) {
+        // For artifact only, entropy is artifact:
+        string memory entropy = string.concat(_artifact, ":");
+        return predictCreate3(_name, entropy);
+    }
 
     // ************* Registry Helpers ************* //
 
