@@ -199,7 +199,7 @@ contract SenderIntegrationTest is Test {
         assertNotEq(returnedBundleId, bytes32(0));
     }
     
-    function test_HardwareWalletSenderInitialization() public {
+    function test_HardwareWalletSenderInitialization() public view {
         // Verify hardware wallet was properly initialized
         HardwareWallet.Sender memory hwSender = harness.getHardwareWallet(LEDGER_SENDER);
         assertEq(hwSender.hardwareWalletType, "ledger");

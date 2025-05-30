@@ -111,16 +111,16 @@ contract SendersTestHarness {
         return Senders.get(_name).deployCreate3(_artifact, _label, _args);
     }
 
-    function deployCreate2(string memory _name, bytes32 _salt, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
-        return Senders.get(_name).deployCreate2(_salt, _bytecode, _constructorArgs);
+    function deployCreate2(string memory _name, bytes32 _saltValue, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
+        return Senders.get(_name).deployCreate2(_saltValue, _bytecode, _constructorArgs);
     }
 
     function predictCreate3(string memory _name, string memory _entropy) public view returns (address) {
         return Senders.get(_name).predictCreate3(_entropy);
     }
 
-    function predictCreate2(string memory _name, bytes32 _salt, bytes memory _initCode) public view returns (address) {
-        return Senders.get(_name).predictCreate2(_salt, _initCode);
+    function predictCreate2(string memory _name, bytes32 _saltValue, bytes memory _initCode) public view returns (address) {
+        return Senders.get(_name).predictCreate2(_saltValue, _initCode);
     }
 
     function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {

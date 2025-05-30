@@ -114,7 +114,7 @@ library HardwareWallet {
         }
     }
 
-    function base(Sender storage _sender) internal view returns (Senders.Sender storage _baseSender) {
+    function base(Sender storage _sender) internal pure returns (Senders.Sender storage _baseSender) {
         assembly {
             _baseSender.slot := _sender.slot
         }

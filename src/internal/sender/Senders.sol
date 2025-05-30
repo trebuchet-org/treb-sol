@@ -158,7 +158,10 @@ library Senders {
         }
 
         for (uint256 i = 0; i < _registry.ids.length; i++) {
-            _registry.senders[_registry.ids[i]].broadcast();
+            Sender storage sender = _registry.senders[_registry.ids[i]];
+            if (sender.queue.length > 0) {
+                sender.broadcast();
+            }
         }
         _registry.broadcasted = true;
     }
@@ -249,6 +252,12 @@ library Senders {
         }
         if (_sender.isType(SenderTypes.Custom)) {
             revert CannotBroadcastCustomSender(_sender.name);
+        }
+        if (registry().dryrun) {
+            return _sender.bundleId;
+        }
+        if (_sender.queue.length == 0) {
+            return _sender.bundleId;
         }
 
         uint256 snap = vm.snapshotState();
