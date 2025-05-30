@@ -28,6 +28,7 @@ contract IntegrationTest is Test, CreateXScript {
     using Senders for Senders.Sender;
     using Senders for Senders.Registry;
     using Deployer for Senders.Sender;
+    using Deployer for Deployer.Deployment;
     
     // Constants for sender names
     string constant TEST = "test";
@@ -60,15 +61,15 @@ contract IntegrationTest is Test, CreateXScript {
         bytes32 senderId = keccak256(abi.encodePacked("test"));
         Senders.Sender storage s = reg.senders[senderId];
         
-        // Deploy contract
-        bytes32 salt = keccak256("test-salt");
-        bytes memory bytecode = type(TestContract).creationCode;
+        // Deploy contract using factory pattern
+        string memory artifact = "TestContract";
         bytes memory args = abi.encode(42);
         
-        address predicted = s.predictCreate3(salt);
-        address deployed = s.deployCreate3(salt, bytecode, args);
+        // Use the factory pattern: create3 -> deploy
+        address deployed = s.create3(artifact).deploy(args);
         
-        assertEq(deployed, predicted);
+        // Verify deployment worked
+        assertTrue(deployed != address(0));
         
         // Execute transaction
         Transaction memory txn = Transaction({

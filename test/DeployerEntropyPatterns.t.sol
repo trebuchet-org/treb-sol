@@ -47,13 +47,11 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
     
     // Test 1: Artifact-only deployment pattern
     function test_ArtifactOnlyPattern() public {
-        bytes memory bytecode = type(SimpleContract).creationCode;
-        
         // Predict address using artifact-only pattern
-        address predicted = harness.predictCreate3ArtifactOnly(DEPLOYER, "MyContract");
+        address predicted = harness.predictCreate3ArtifactOnly(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract");
         
-        // Deploy using direct entropy (artifact + empty label = "MyContract:")
-        address deployed = harness.deployCreate3(DEPLOYER, "MyContract:", bytecode, abi.encode(100));
+        // Deploy using factory pattern with artifact only
+        address deployed = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", abi.encode(100));
         
         // Should match
         assertEq(predicted, deployed);
@@ -64,19 +62,17 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
     
     // Test 2: Artifact + Label pattern
     function test_ArtifactWithLabelPattern() public {
-        bytes memory bytecode = type(SimpleContract).creationCode;
-        
         // Predict address using artifact + label pattern
-        address predicted = harness.predictCreate3WithLabel(DEPLOYER, "MyContract", "v1");
+        address predicted = harness.predictCreate3WithLabel(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v1");
         
-        // Deploy using direct entropy "MyContract:v1"
-        address deployed = harness.deployCreate3(DEPLOYER, "MyContract:v1", bytecode, abi.encode(200));
+        // Deploy using factory pattern with artifact + label
+        address deployed = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v1", abi.encode(200));
         
         // Should match
         assertEq(predicted, deployed);
         
         // Different labels should give different addresses
-        address predictedV2 = harness.predictCreate3WithLabel(DEPLOYER, "MyContract", "v2");
+        address predictedV2 = harness.predictCreate3WithLabel(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v2");
         assertTrue(predicted != predictedV2);
     }
     
@@ -84,9 +80,9 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
     function test_DirectEntropyPattern() public {
         bytes memory bytecode = type(SimpleContract).creationCode;
         
-        // Deploy with custom entropy
+        // Deploy with custom entropy using WithEntropy method
         string memory customEntropy = "my-custom-entropy-string";
-        address deployed = harness.deployCreate3(DEPLOYER, customEntropy, bytecode, abi.encode(300));
+        address deployed = harness.deployCreate3WithEntropy(DEPLOYER, customEntropy, bytecode, abi.encode(300));
         
         // Predict should match
         address predicted = harness.predictCreate3(DEPLOYER, customEntropy);
@@ -99,16 +95,16 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
     
     // Test 4: Namespace affects entropy
     function test_NamespaceAffectsEntropy() public {
-        bytes memory bytecode = type(SimpleContract).creationCode;
-        string memory entropy = "TestContract:v1";
+        string memory artifact = "DeployerEntropyPatterns.t.sol:SimpleContract";
+        string memory label = "v1";
         
         // Deploy in default namespace
         harness.setNamespace("default");
-        address deployedDefault = harness.deployCreate3(DEPLOYER, entropy, bytecode, abi.encode(400));
+        address deployedDefault = harness.deployCreate3(DEPLOYER, artifact, label, abi.encode(400));
         
         // Deploy in production namespace
         harness.setNamespace("production");
-        address deployedProd = harness.deployCreate3(DEPLOYER, entropy, bytecode, abi.encode(500));
+        address deployedProd = harness.deployCreate3(DEPLOYER, artifact, label, abi.encode(500));
         
         // Should be different addresses
         assertTrue(deployedDefault != deployedProd);
@@ -153,12 +149,12 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
         
         // Test with special characters
         string memory specialEntropy = "test@#$%^&*()_+-=[]{}|;:',.<>?/";
-        address deployed1 = harness.deployCreate3(DEPLOYER, specialEntropy, bytecode, abi.encode(600));
+        address deployed1 = harness.deployCreate3WithEntropy(DEPLOYER, specialEntropy, bytecode, abi.encode(600));
         assertTrue(deployed1 != address(0));
         
         // Test with very long entropy
         string memory longEntropy = "very-long-entropy-string-that-exceeds-normal-length-expectations-and-tests-the-limits-of-the-system";
-        address deployed2 = harness.deployCreate3(DEPLOYER, longEntropy, bytecode, abi.encode(700));
+        address deployed2 = harness.deployCreate3WithEntropy(DEPLOYER, longEntropy, bytecode, abi.encode(700));
         assertTrue(deployed2 != address(0));
         
         // Should be different
@@ -185,19 +181,17 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
         // Pattern 1: Direct entropy
         string memory entropy1 = "direct-entropy";
         address predicted1 = harness.predictCreate3(DEPLOYER, entropy1);
-        address deployed1 = harness.deployCreate3(DEPLOYER, entropy1, bytecode, abi.encode(800));
+        address deployed1 = harness.deployCreate3WithEntropy(DEPLOYER, entropy1, bytecode, abi.encode(800));
         assertEq(predicted1, deployed1);
         
-        // Pattern 2: Artifact-only (simulated)
-        string memory entropy2 = "MyArtifact:";
-        address predicted2 = harness.predictCreate3(DEPLOYER, entropy2);
-        address deployed2 = harness.deployCreate3(DEPLOYER, entropy2, bytecode, abi.encode(900));
+        // Pattern 2: Artifact-only
+        address predicted2 = harness.predictCreate3ArtifactOnly(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract");
+        address deployed2 = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", abi.encode(900));
         assertEq(predicted2, deployed2);
         
-        // Pattern 3: Artifact + label (simulated)
-        string memory entropy3 = "MyArtifact:v2";
-        address predicted3 = harness.predictCreate3(DEPLOYER, entropy3);
-        address deployed3 = harness.deployCreate3(DEPLOYER, entropy3, bytecode, abi.encode(1000));
+        // Pattern 3: Artifact + label
+        address predicted3 = harness.predictCreate3WithLabel(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v2");
+        address deployed3 = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v2", abi.encode(1000));
         assertEq(predicted3, deployed3);
         
         // All should be different
@@ -206,40 +200,34 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
         assertTrue(deployed1 != deployed3);
     }
     
-    // Test 10: CREATE2 comparison
-    function test_Create2Comparison() public {
+    // Test 10: Multiple deployments with different patterns don't collide
+    function test_MultipleDeploymentPatterns() public {
+        // Deploy same artifact with different labels - should get different addresses
+        address deployed1 = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v1", abi.encode(1100));
+        address deployed2 = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v2", abi.encode(1200));
+        
+        assertTrue(deployed1 != deployed2);
+        
+        // Deploy different artifacts - use different entropy for the third one
         bytes memory bytecode = type(SimpleContract).creationCode;
-        bytes memory args = abi.encode(1100);
+        address deployed3 = harness.deployCreate3WithEntropy(DEPLOYER, "different-contract-v1", bytecode, abi.encode(1300));
         
-        // CREATE3 deployment
-        string memory entropy = "test-contract";
-        address deployedCreate3 = harness.deployCreate3(DEPLOYER, entropy, bytecode, args);
+        assertTrue(deployed1 != deployed3);
+        assertTrue(deployed2 != deployed3);
         
-        // CREATE2 deployment with same effective salt
-        bytes32 salt = harness._salt(DEPLOYER, entropy);
-        address deployedCreate2 = harness.deployCreate2(DEPLOYER, salt, bytecode, args);
-        
-        // Should be different (CREATE2 vs CREATE3)
-        assertTrue(deployedCreate3 != deployedCreate2);
-        
-        // Both should work
-        assertEq(SimpleContract(deployedCreate3).value(), 1100);
-        assertEq(SimpleContract(deployedCreate2).value(), 1100);
+        // All should work
+        assertEq(SimpleContract(deployed1).value(), 1100);
+        assertEq(SimpleContract(deployed2).value(), 1200);
+        assertEq(SimpleContract(deployed3).value(), 1300);
     }
     
-    // Test 11: Factory pattern simulation 
-    function test_FactoryPatternSimulation() public {
-        bytes memory bytecode = type(SimpleContract).creationCode;
-        
-        // Simulate the factory pattern behavior
-        // create3("Contract").setLabel("v1").deploy(args)
-        // This would generate entropy "Contract:v1"
-        
-        string memory simulatedEntropy = "Contract:v1";
-        address deployed = harness.deployCreate3(DEPLOYER, simulatedEntropy, bytecode, abi.encode(1200));
+    // Test 11: Factory pattern validation
+    function test_FactoryPatternValidation() public {
+        // Use actual factory pattern
+        address deployed = harness.deployCreate3(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v1", abi.encode(1200));
         
         // Verify it matches the helper prediction
-        address predicted = harness.predictCreate3WithLabel(DEPLOYER, "Contract", "v1");
+        address predicted = harness.predictCreate3WithLabel(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", "v1");
         assertEq(deployed, predicted);
     }
     

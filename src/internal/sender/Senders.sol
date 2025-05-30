@@ -171,15 +171,12 @@ library Senders {
     }
 
     function broadcast(Registry storage _registry) internal {
-        console.log("Broadcasting registry");
         if (_registry.broadcasted) {
             revert BroadcastAlreadyCalled();
         }
 
         for (uint256 i = 0; i < _registry.ids.length; i++) {
             Sender storage sender = _registry.senders[_registry.ids[i]];
-            console.log("Broadcasting sender", sender.name);
-            console.log("Queue length", sender.queue.length);
             if (sender.queue.length > 0) {
                 sender.broadcast();
             }

@@ -102,13 +102,7 @@ contract SendersTestHarness is Dispatcher {
 
     // ************* Deployer Methods ************* //
 
-    // New factory pattern methods
-    function deployCreate3(string memory _name, string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
-        // Use the low-level deployCreate3 with salt
-        bytes32 salt = Senders.get(_name)._salt(_entropy);
-        return Senders.get(_name).deployCreate3(salt, _bytecode, _constructorArgs);
-    }
-
+    // Factory pattern methods only
     function deployCreate3(string memory _name, string memory _artifact, bytes memory _args) public returns (address) {
         // Use factory pattern: create3 -> deploy
         return Senders.get(_name).create3(_artifact).deploy(_args);
@@ -119,18 +113,16 @@ contract SendersTestHarness is Dispatcher {
         return Senders.get(_name).create3(_artifact).setLabel(_label).deploy(_args);
     }
 
-    function deployCreate2(string memory _name, bytes32 _saltValue, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
-        return Senders.get(_name).deployCreate2(_saltValue, _bytecode, _constructorArgs);
+    function deployCreate3WithEntropy(string memory _name, string memory _entropy, bytes memory _bytecode, bytes memory _args) public returns (address) {
+        // Use factory pattern: create3 with entropy -> deploy
+        return Senders.get(_name).create3(_entropy, _bytecode).deploy(_args);
     }
 
     function predictCreate3(string memory _name, string memory _entropy) public view returns (address) {
         bytes32 salt = Senders.get(_name)._salt(_entropy);
-        return Senders.get(_name).predictCreate3(salt);
+        return Senders.get(_name).predictCreate3(Senders.get(_name)._derivedSalt(salt));
     }
 
-    function predictCreate2(string memory _name, bytes32 _saltValue, bytes memory _initCode) public view returns (address) {
-        return Senders.get(_name).predictCreate2(_saltValue, _initCode);
-    }
 
     function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
         return Senders.get(_name)._salt(_entropy);

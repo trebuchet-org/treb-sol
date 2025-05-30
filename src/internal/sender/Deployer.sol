@@ -36,17 +36,25 @@ library Deployer {
         string label;
         string entropy;
         string artifact;
+        bytes constructorArgs;
+    }
+
+    struct EventDeployment {
+        string artifact;
+        string label;
+        string entropy;
+        bytes32 salt;
+        bytes32 bytecodeHash;
+        bytes32 initCodeHash;
+        bytes constructorArgs;
+        string createStrategy;
     }
 
     event ContractDeployed(
         address indexed deployer,
         address indexed location,
         bytes32 indexed bundleId,
-        bytes32 salt,
-        bytes32 bytecodeHash,
-        bytes32 initCodeHash,
-        bytes constructorArgs,
-        string createStrategy
+        EventDeployment deployment
     );
 
     // *************** DEPLOYMENT *************** //
@@ -81,13 +89,14 @@ library Deployer {
     }
 
     function deploy(Deployment storage deployment, bytes memory _constructorArgs) internal returns (address) {
+        deployment.constructorArgs = _constructorArgs;
         if (bytes(deployment.entropy).length == 0) {
             deployment.entropy = string.concat(deployment.artifact, ":", deployment.label);
         }
         if (deployment.strategy == CreateStrategy.CREATE3) {
-            return deployment.sender.deployCreate3(deployment.sender._salt(deployment.entropy), deployment.bytecode, _constructorArgs);
+            return deployment.sender.deployCreate3(deployment);
         } else if (deployment.strategy == CreateStrategy.CREATE2) {
-            return deployment.sender.deployCreate2(deployment.sender._salt(deployment.entropy), deployment.bytecode, _constructorArgs);
+            return deployment.sender.deployCreate2(deployment);
         } else {
             revert InvalidCreateStrategy(deployment.strategy);
         }
@@ -124,8 +133,9 @@ library Deployer {
         }
     }
 
-    function deployCreate3(Senders.Sender storage sender, bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) internal returns (address) {
-        bytes memory initCode = abi.encodePacked(bytecode, constructorArgs);
+    function deployCreate3(Senders.Sender storage sender, Deployment storage deployment) internal returns (address) {
+        bytes memory initCode = abi.encodePacked(deployment.bytecode, deployment.constructorArgs);
+        bytes32 salt = sender._derivedSalt(deployment.sender._salt(deployment.entropy));
         address predictedAddress = sender.predictCreate3(salt);
         RichTransaction memory richTransaction = sender.execute(Transaction({
             to: CREATEX_ADDRESS,
@@ -133,20 +143,28 @@ library Deployer {
             label: "deployCreate3",
             value: 0
         }));
+
         address simulatedAddress = abi.decode(richTransaction.simulatedReturnData, (address));
         if (simulatedAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, simulatedAddress);
         }
 
+        EventDeployment memory eventDeployment = EventDeployment({
+            artifact: deployment.artifact,
+            label: deployment.label,
+            entropy: deployment.entropy,
+            salt: salt,
+            bytecodeHash: keccak256(deployment.bytecode),
+            initCodeHash: keccak256(initCode),
+            constructorArgs: deployment.constructorArgs,
+            createStrategy: "CREATE3"
+        });
+
         emit ContractDeployed(
             sender.account,
             simulatedAddress,
             sender.bundleId,
-            salt,
-            keccak256(bytecode),
-            keccak256(initCode),
-            constructorArgs,
-            "CREATE3"
+            eventDeployment
         );
 
         return simulatedAddress;
@@ -158,8 +176,9 @@ library Deployer {
 
     // *************** CREATE2 *************** //
 
-    function deployCreate2(Senders.Sender storage sender, bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) internal returns (address) {
-        bytes memory initCode = abi.encodePacked(bytecode, constructorArgs);
+    function deployCreate2(Senders.Sender storage sender, Deployment storage deployment) internal returns (address) {
+        bytes memory initCode = abi.encodePacked(deployment.bytecode, deployment.constructorArgs);
+        bytes32 salt = sender._derivedSalt(deployment.sender._salt(deployment.entropy));
         address predictedAddress = sender.predictCreate2(salt, initCode);
         RichTransaction memory bundleTransaction = sender.execute(Transaction({
             to: CREATEX_ADDRESS,
@@ -173,15 +192,22 @@ library Deployer {
             revert PredictedAddressMismatch(predictedAddress, simulatedAddress);
         }
 
+        EventDeployment memory eventDeployment = EventDeployment({
+            artifact: deployment.artifact,
+            label: deployment.label,
+            entropy: deployment.entropy,
+            salt: salt,
+            bytecodeHash: keccak256(deployment.bytecode),
+            initCodeHash: keccak256(initCode),
+            constructorArgs: deployment.constructorArgs,
+            createStrategy: "CREATE2"
+        });
+
         emit ContractDeployed(
             sender.account,
             simulatedAddress,
             sender.bundleId,
-            salt,
-            keccak256(bytecode),
-            keccak256(initCode),
-            constructorArgs,
-            "CREATE2"
+            eventDeployment
         );
 
         return simulatedAddress;
@@ -190,7 +216,6 @@ library Deployer {
     function predictCreate2(Senders.Sender storage sender, bytes32 salt, bytes memory initCode) internal view returns (address) {
         return CreateX.computeCreate2Address(sender._derivedSalt(salt), keccak256(initCode));
     }
-
     // *************** SALT HELPERS *************** //
 
     function _salt(Senders.Sender storage sender, string memory _entropy) internal view returns (bytes32) {
