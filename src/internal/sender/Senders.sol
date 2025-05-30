@@ -51,6 +51,8 @@ library Senders {
         bytes32[] ids;
         uint256 snapshot;
         bool broadcasted;
+        string namespace;
+        bool dryrun;
     }
 
     struct Sender {
@@ -72,6 +74,20 @@ library Senders {
 
     // ************* Registry ************* //
 
+    function reset() internal {
+        Registry storage _registry = registry();
+        // Clear all senders
+        for (uint256 i = 0; i < _registry.ids.length; i++) {
+            delete _registry.senders[_registry.ids[i]];
+        }
+        // Clear the registry
+        delete _registry.ids;
+        _registry.snapshot = 0;
+        _registry.broadcasted = false;
+        _registry.namespace = "";
+        _registry.dryrun = false;
+    }
+
     function get(bytes32 _id) internal view returns (Sender storage) {
         return get(registry(), _id);
     }
@@ -92,10 +108,31 @@ library Senders {
         initialize(registry(), _configs);
     }
 
+    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
+        initialize(registry(), _configs, _namespace, _dryrun);
+    }
+
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs) internal {
+        _registry.namespace = vm.envOr("NAMESPACE", string("default"));
+        _registry.dryrun = vm.envOr("DRYRUN", false);
+
         if (_configs.length == 0) {
             revert NoSenders();
         }
+        _initializeSenders(_registry, _configs);
+    }
+
+    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
+        _registry.namespace = _namespace;
+        _registry.dryrun = _dryrun;
+
+        if (_configs.length == 0) {
+            revert NoSenders();
+        }
+        _initializeSenders(_registry, _configs);
+    }
+
+    function _initializeSenders(Registry storage _registry, SenderInitConfig[] memory _configs) private {
 
         for (uint256 i = 0; i < _configs.length; i++) {
             bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
@@ -192,10 +229,6 @@ library Senders {
     function simulate(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
         bundleTransactions = new RichTransaction[](_transactions.length);
         for (uint256 i = 0; i < _transactions.length; i++) {
-            console.log(_sender.account);
-            console.log("to", _transactions[i].to);
-            console.log("data", vm.toString(_transactions[i].data));
-
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
             if (!success) {

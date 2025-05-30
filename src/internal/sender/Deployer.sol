@@ -2,6 +2,7 @@
 pragma solidity ^0.8.27;
 
 import {Vm} from "forge-std/Vm.sol";
+import {console} from "forge-std/console.sol";
 import {Senders} from "./Senders.sol";
 import {RichTransaction, Transaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
@@ -82,7 +83,7 @@ library Deployer {
     }
 
     function predictCreate3(Senders.Sender storage sender, bytes32 salt) internal view returns (address) {
-        return CreateX.computeCreate3Address(sender._derivedSalt(salt), sender.account);
+        return CreateX.computeCreate3Address(sender._derivedSalt(salt));
     }
 
     function predictCreate3(Senders.Sender storage sender, string memory _entropy) internal view returns (address) {
@@ -93,11 +94,10 @@ library Deployer {
 
     function deployCreate2(Senders.Sender storage sender, bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) internal returns (address) {
         bytes memory initCode = abi.encodePacked(bytecode, constructorArgs);
-        bytes32 derivedSalt = sender._derivedSalt(salt);
         address predictedAddress = sender.predictCreate2(salt, initCode);
         RichTransaction memory bundleTransaction = sender.execute(Transaction({
             to: CREATEX_ADDRESS,
-            data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", derivedSalt, initCode),
+            data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
             label: "deployCreate2",
             value: 0
         }));
@@ -155,9 +155,8 @@ library Deployer {
     // *************** SALT HELPERS *************** //
 
     function _salt(Senders.Sender storage sender, string memory _entropy) internal view returns (bytes32) {
-        string memory namespace = vm.envOr("NAMESPACE", string("default"));
+        string memory namespace = Senders.registry().namespace;
         bytes32 entropy = keccak256(bytes(string.concat(namespace, ":", _entropy)));
-        // return entropy;
         return
             bytes32(
                 abi.encodePacked(

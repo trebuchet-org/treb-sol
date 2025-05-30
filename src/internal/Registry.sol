@@ -15,11 +15,10 @@ contract Registry is Script {
 
     mapping(string => address) private deployments;
 
-    constructor() {
+    constructor(string memory _namespace, string memory _deploymentsFile) {
         chainId = block.chainid;
-        string memory defaultNamespace = "default";
-        namespace = vm.envOr("NAMESPACE", defaultNamespace);
-        deploymentsFile = vm.envOr("DEPLOYMENTS_FILE", string("deployments.json"));
+        namespace = _namespace;
+        deploymentsFile = _deploymentsFile;
         _loadDeployments();
     }
 

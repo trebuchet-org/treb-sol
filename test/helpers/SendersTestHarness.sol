@@ -10,6 +10,7 @@ import {GnosisSafe} from "../../src/internal/sender/GnosisSafeSender.sol";
 import {Transaction, RichTransaction, SenderTypes} from "../../src/internal/types.sol";
 import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
+import {Deployer} from "../../src/internal/sender/Deployer.sol";
 
 contract SendersTestHarness {
     Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
@@ -18,6 +19,7 @@ contract SendersTestHarness {
     using Senders for Senders.Registry;
     using Safe for Safe.Client;
     using GnosisSafe for GnosisSafe.Sender;
+    using Deployer for Senders.Sender;
 
     constructor(Senders.SenderInitConfig[] memory _configs) {
         Senders.initialize(_configs);
@@ -93,5 +95,53 @@ contract SendersTestHarness {
 
     function isType(string memory _name, bytes8 _senderType) public view returns (bool) {
         return Senders.get(_name).isType(_senderType);
+    }
+
+    // ************* Deployer Methods ************* //
+
+    function deployCreate3(string memory _name, string memory _entropy, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
+        return Senders.get(_name).deployCreate3(_entropy, _bytecode, _constructorArgs);
+    }
+
+    function deployCreate3(string memory _name, string memory _artifact, bytes memory _args) public returns (address) {
+        return Senders.get(_name).deployCreate3(_artifact, _args);
+    }
+
+    function deployCreate3(string memory _name, string memory _artifact, string memory _label, bytes memory _args) public returns (address) {
+        return Senders.get(_name).deployCreate3(_artifact, _label, _args);
+    }
+
+    function deployCreate2(string memory _name, bytes32 _salt, bytes memory _bytecode, bytes memory _constructorArgs) public returns (address) {
+        return Senders.get(_name).deployCreate2(_salt, _bytecode, _constructorArgs);
+    }
+
+    function predictCreate3(string memory _name, string memory _entropy) public view returns (address) {
+        return Senders.get(_name).predictCreate3(_entropy);
+    }
+
+    function predictCreate2(string memory _name, bytes32 _salt, bytes memory _initCode) public view returns (address) {
+        return Senders.get(_name).predictCreate2(_salt, _initCode);
+    }
+
+    function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
+        return Senders.get(_name)._salt(_entropy);
+    }
+
+    // ************* Registry Helpers ************* //
+
+    function setNamespace(string memory _namespace) public {
+        Senders.registry().namespace = _namespace;
+    }
+
+    function getNamespace() public view returns (string memory) {
+        return Senders.registry().namespace;
+    }
+
+    function setDryrun(bool _dryrun) public {
+        Senders.registry().dryrun = _dryrun;
+    }
+
+    function getDryrun() public view returns (bool) {
+        return Senders.registry().dryrun;
     }
 }
