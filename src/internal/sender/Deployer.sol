@@ -75,6 +75,10 @@ library Deployer {
         return deployment;
     }
 
+    function deploy(Deployment storage deployment) internal returns (address) {
+        return deployment.deploy("");
+    }
+
     function deploy(Deployment storage deployment, bytes memory _constructorArgs) internal returns (address) {
         if (bytes(deployment.entropy).length == 0) {
             deployment.entropy = string.concat(deployment.artifact, ":", deployment.label);
@@ -117,10 +121,6 @@ library Deployer {
         } catch {
             revert ContractNotFound(_artifact);
         }
-    }
-
-    function deploy(Deployment storage deployment) internal returns (address) {
-        return deployment.deploy("");
     }
 
     function deployCreate3(Senders.Sender storage sender, bytes32 salt, bytes memory bytecode, bytes memory constructorArgs) internal returns (address) {
