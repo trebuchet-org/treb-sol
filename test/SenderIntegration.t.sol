@@ -216,11 +216,12 @@ contract SenderIntegrationTest is Test {
         });
         
         // Expect TransactionSimulated and TransactionFailed events
+        bytes32 expectedBundleId = harness.get(FAIL_SENDER).bundleId;
         vm.expectEmit(true, true, true, true);
-        emit Senders.TransactionSimulated(address(target), 0, abi.encodeWithSelector(bytes4(0xdeadbeef)), "failing-tx");
+        emit Senders.TransactionSimulated(expectedBundleId, address(target), 0, abi.encodeWithSelector(bytes4(0xdeadbeef)), "failing-tx");
         
         vm.expectEmit(true, true, true, true);
-        emit Senders.TransactionFailed(address(target), 0, abi.encodeWithSelector(bytes4(0xdeadbeef)), "failing-tx");
+        emit Senders.TransactionFailed(expectedBundleId, address(target), 0, abi.encodeWithSelector(bytes4(0xdeadbeef)), "failing-tx");
         
         // Execute should revert with the actual error (function does not exist)
         vm.expectRevert();

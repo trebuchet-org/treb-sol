@@ -39,6 +39,7 @@ library Senders {
     );
 
     event TransactionFailed(
+        bytes32 indexed bundleId,
         address indexed to,
         uint256 value,
         bytes data,
@@ -46,6 +47,7 @@ library Senders {
     );
 
     event TransactionSimulated(
+        bytes32 indexed bundleId,
         address indexed to,
         uint256 value,
         bytes data,
@@ -102,6 +104,24 @@ library Senders {
         _registry.dryrun = false;
     }
 
+    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs) internal {
+        _registry.namespace = vm.envOr("NAMESPACE", string("default"));
+        _registry.dryrun = vm.envOr("DRYRUN", false);
+
+        if (_configs.length == 0) {
+            revert NoSenders();
+        }
+        _initializeSenders(_registry, _configs);
+    }
+
+    function initialize(SenderInitConfig[] memory _configs) internal {
+        initialize(registry(), _configs);
+    }
+
+    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
+        initialize(registry(), _configs, _namespace, _dryrun);
+    }
+
     function get(bytes32 _id) internal view returns (Sender storage) {
         return get(registry(), _id);
     }
@@ -118,23 +138,7 @@ library Senders {
         return _registry.senders[_id];
     }
 
-    function initialize(SenderInitConfig[] memory _configs) internal {
-        initialize(registry(), _configs);
-    }
 
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
-        initialize(registry(), _configs, _namespace, _dryrun);
-    }
-
-    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs) internal {
-        _registry.namespace = vm.envOr("NAMESPACE", string("default"));
-        _registry.dryrun = vm.envOr("DRYRUN", false);
-
-        if (_configs.length == 0) {
-            revert NoSenders();
-        }
-        _initializeSenders(_registry, _configs);
-    }
 
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
         _registry.namespace = _namespace;
@@ -167,12 +171,15 @@ library Senders {
     }
 
     function broadcast(Registry storage _registry) internal {
+        console.log("Broadcasting registry");
         if (_registry.broadcasted) {
             revert BroadcastAlreadyCalled();
         }
 
         for (uint256 i = 0; i < _registry.ids.length; i++) {
             Sender storage sender = _registry.senders[_registry.ids[i]];
+            console.log("Broadcasting sender", sender.name);
+            console.log("Queue length", sender.queue.length);
             if (sender.queue.length > 0) {
                 sender.broadcast();
             }
@@ -220,10 +227,11 @@ library Senders {
     }
 
     function harness(Sender storage _sender, address _target) internal returns (address) {
-        address _harness = registry().senderHarness[_sender.id][_target];
+        Registry storage reg = registry();
+        address _harness = reg.senderHarness[_sender.id][_target];
         if (_harness == address(0)) {
             _harness = address(new Harness(_target, _sender.name, _sender.id, address(this)));
-            registry().senderHarness[_sender.id][_target] = _harness;
+            reg.senderHarness[_sender.id][_target] = _harness;
         }
         return _harness;
     }
@@ -233,7 +241,13 @@ library Senders {
         for (uint256 i = 0; i < bundleTransactions.length; i++) {
             _sender.queue.push(bundleTransactions[i]);
         }
+        console.log("Queue length", _sender.queue.length);
+        _persistSender(_sender);
         return bundleTransactions;
+    }
+    
+    function _persistSender(Sender storage _sender) internal {
+        registry().senders[_sender.id] = _sender;
     }
 
     function execute(Sender storage _sender, Transaction memory _transaction) internal returns (RichTransaction memory bundleTransaction) {
@@ -248,9 +262,9 @@ library Senders {
         for (uint256 i = 0; i < _transactions.length; i++) {
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
-            emit TransactionSimulated( _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
+            emit TransactionSimulated( _sender.bundleId, _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
             if (!success) {
-                emit TransactionFailed( _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
+                emit TransactionFailed( _sender.bundleId, _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
                 assembly {
                     revert(add(returnData, 0x20), mload(returnData))
                 }
@@ -271,6 +285,7 @@ library Senders {
         if (_sender.isType(SenderTypes.Custom)) {
             revert CannotBroadcastCustomSender(_sender.name);
         }
+
         if (registry().dryrun) {
             return _sender.bundleId;
         }
@@ -282,9 +297,6 @@ library Senders {
         RichTransaction[] memory queue = _sender.queue;
 
         vm.revertToState(registry().snapshot);
-
-        console.log("bundleId", vm.toString(_sender.bundleId));
-        console.log("queue length", _sender.queue.length);
 
         BundleStatus status;
         if (_sender.isType(SenderTypes.PrivateKey)) {
@@ -307,5 +319,4 @@ library Senders {
         _sender.broadcasted = true;
         return _sender.bundleId;
     }
-
 }

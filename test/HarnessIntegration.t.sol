@@ -403,8 +403,10 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         address harnessAddr = harness.getHarness(SENDER_NAME, address(freshCounter));
         
         // Test successful transaction emits TransactionSimulated
+        bytes32 expectedBundleId = harness.get(SENDER_NAME).bundleId;
         vm.expectEmit(true, true, true, true);
         emit Senders.TransactionSimulated(
+            expectedBundleId,
             address(freshCounter),
             0,
             abi.encodeWithSelector(Counter.setNumber.selector, 100),
@@ -418,6 +420,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         // Test failed transaction emits both TransactionSimulated and TransactionFailed
         vm.expectEmit(true, true, true, true);
         emit Senders.TransactionSimulated(
+            expectedBundleId,
             address(freshCounter),
             0,
             abi.encodeWithSelector(Counter.decrement.selector),
@@ -426,6 +429,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         
         vm.expectEmit(true, true, true, true);
         emit Senders.TransactionFailed(
+            expectedBundleId,
             address(freshCounter),
             0,
             abi.encodeWithSelector(Counter.decrement.selector),
