@@ -135,7 +135,7 @@ contract SenderIntegrationTest is Test {
         assertEq(richTxn.transaction.label, "setValue");
         
         // Broadcast transaction
-        bytes32 bundleId = harness.broadcast(TEST_SENDER);
+        bytes32 bundleId = harness.broadcastSender(TEST_SENDER);
         
         // Verify execution
         assertEq(target.getValue(), 42);
@@ -173,7 +173,7 @@ contract SenderIntegrationTest is Test {
         assertEq(abi.decode(results[1].simulatedReturnData, (uint256)), 20);
         
         // Broadcast
-        harness.broadcast(BATCH_SENDER);
+        harness.broadcastSender(BATCH_SENDER);
         
         // Verify final state
         assertEq(target.getValue(), 20);
@@ -194,7 +194,7 @@ contract SenderIntegrationTest is Test {
         
         // Broadcast should return QUEUED status
         // Note: The event verification is tricky because we need the exact state at broadcast time
-        bytes32 returnedBundleId = harness.broadcast(SAFE_SENDER);
+        bytes32 returnedBundleId = harness.broadcastSender(SAFE_SENDER);
         
         assertNotEq(returnedBundleId, bytes32(0));
     }
@@ -223,7 +223,7 @@ contract SenderIntegrationTest is Test {
     function test_CustomSenderType() public {
         // But broadcast should fail
         vm.expectRevert(abi.encodeWithSelector(Senders.CannotBroadcastCustomSender.selector, CUSTOM_SENDER));
-        harness.broadcast(CUSTOM_SENDER);
+        harness.broadcastSender(CUSTOM_SENDER);
     }
     
     function test_RegistryMultipleSenders() public {

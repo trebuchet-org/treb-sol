@@ -54,7 +54,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         assertEq(deployed, predicted);
         
         // Broadcast
-        harness.broadcast(DEPLOYER);
+        harness.broadcastSender(DEPLOYER);
         
         // Verify contract was deployed with correct state
         SimpleContract deployedContract = SimpleContract(deployed);
@@ -71,7 +71,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         address deployed = harness.deployCreate3(DEPLOYER, entropy, bytecode, abi.encode(100));
         
         // Broadcast
-        harness.broadcast(DEPLOYER);
+        harness.broadcastSender(DEPLOYER);
         
         // Verify
         SimpleContract deployedContract = SimpleContract(deployed);
@@ -94,7 +94,7 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         assertEq(deployed, predicted);
         
         // Broadcast
-        harness.broadcast(DEPLOYER);
+        harness.broadcastSender(DEPLOYER);
         
         // Verify deployment
         SimpleContract deployedContract = SimpleContract(deployed);

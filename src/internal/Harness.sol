@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {Senders} from "./sender/Senders.sol";
+import {console} from "forge-std/console.sol";
+import {Dispatcher} from "./Dispatcher.sol";
 import {CommonBase} from "forge-std/Base.sol";
 import {Transaction, RichTransaction} from "./types.sol";
 
@@ -9,11 +11,14 @@ contract Harness is CommonBase {
     using Senders for Senders.Sender;
 
     address private target;
-    string private sender;
+    bytes32 private senderId;
+    Dispatcher private dispatcher;
 
-    constructor(address _target, string memory _sender) {
+    constructor(address _target, string memory _sender, bytes32 _senderId, address _dispatcher) {
         target = _target;
-        sender = _sender;
+        senderId = _senderId;
+        dispatcher = Dispatcher(_dispatcher);
+        vm.label(address(this), string.concat("Harness[",_sender, "]"));
     }
 
     fallback(bytes calldata) external payable returns (bytes memory) {
@@ -21,14 +26,32 @@ contract Harness is CommonBase {
             to: target,
             value: msg.value,
             data: msg.data,
-            label: string.concat(sender, ":harness:", vm.toString(target), ":", vm.toString(bytes4(msg.data)))
+            label: ""
         });
 
-        RichTransaction memory richTransaction = Senders.get(sender).execute(transaction);
-        bytes memory returnData = richTransaction.simulatedReturnData;
+        try dispatcher.execute(senderId, transaction) returns (RichTransaction memory richTransaction) {
+            bytes memory returnData = richTransaction.simulatedReturnData;
+            assembly {
+                return(add(returnData, 0x20), mload(returnData))
+            }
+        } catch (bytes memory errorData) {
+            if (errorData.length > 0) {
+                assembly {
+                    revert(add(errorData, 0x20), mload(errorData))
+                }
+            }
 
-        assembly {
-            return(add(returnData, 0x20), mload(returnData))
+            (bool success, bytes memory returnData) = target.staticcall(msg.data);
+            if (success) {
+                assembly {
+                    return(add(returnData, 0x20), mload(returnData))
+                }
+            } else {
+                assembly {
+                    revert(add(returnData, 0x20), mload(returnData))
+                }
+            }
         }
+
     }
 }

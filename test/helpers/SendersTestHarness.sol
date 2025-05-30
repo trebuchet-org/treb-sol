@@ -11,10 +11,9 @@ import {Transaction, RichTransaction, SenderTypes} from "../../src/internal/type
 import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {Deployer} from "../../src/internal/sender/Deployer.sol";
+import {Dispatcher} from "../../src/internal/Dispatcher.sol";
 
-contract SendersTestHarness {
-    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-
+contract SendersTestHarness is Dispatcher {
     using Senders for Senders.Sender;
     using Senders for Senders.Registry;
     using Safe for Safe.Client;
@@ -22,7 +21,10 @@ contract SendersTestHarness {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(Senders.SenderInitConfig[] memory _configs) {
+    constructor(Senders.SenderInitConfig[] memory _configs) 
+        Dispatcher(abi.encode(_configs), "default", false) 
+    {
+        // Also initialize Senders directly (Dispatcher initializes lazily)
         Senders.initialize(_configs);
         
         // Deploy MultiSendCallOnly for testing (after initialize)
@@ -58,11 +60,11 @@ contract SendersTestHarness {
         Senders.registry().snapshot = vm.snapshotState();
     }
 
-    function broadcast() public {
+    function broadcastAll() public {
         return Senders.registry().broadcast();
     }
 
-    function broadcast(string memory _name) public returns (bytes32) {
+    function broadcastSender(string memory _name) public returns (bytes32) {
         return Senders.get(_name).broadcast();
     }
 
@@ -167,5 +169,11 @@ contract SendersTestHarness {
 
     function getDryrun() public view returns (bool) {
         return Senders.registry().dryrun;
+    }
+    
+    // ************* Harness Helpers ************* //
+    
+    function getHarness(string memory _name, address _target) public returns (address) {
+        return Senders.get(_name).harness(_target);
     }
 }

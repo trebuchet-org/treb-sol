@@ -7,6 +7,7 @@ import {Safe} from "safe-utils/Safe.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
 import {Deployer} from "./Deployer.sol";
+import {Harness} from "../Harness.sol";
 
 import "../types.sol";
 
@@ -205,14 +206,14 @@ library Senders {
         return InMemory.cast(_sender);
     }
 
-    // function harness(Sender storage _sender, address _target) internal view returns (address) {
-    //     address harness = registry().senderHarness[keccak256(abi.encodePacked(_sender.id))][_target];
-    //     if (harness == address(0)) {
-    //         new Harness(_sender.id, _target);
-    //         revert HarnessNotFound(_sender.name, _target);
-    //     }
-    //     return harness;
-    // }
+    function harness(Sender storage _sender, address _target) internal returns (address) {
+        address _harness = registry().senderHarness[_sender.id][_target];
+        if (_harness == address(0)) {
+            _harness = address(new Harness(_target, _sender.name, _sender.id, address(this)));
+            registry().senderHarness[_sender.id][_target] = _harness;
+        }
+        return _harness;
+    }
 
     function execute(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
         bundleTransactions = _sender.simulate(_transactions);

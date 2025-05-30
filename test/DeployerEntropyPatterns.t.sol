@@ -136,7 +136,7 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
     }
     
     // Test 6: Empty label behavior
-    function test_EmptyLabelBehavior() public {
+    function test_EmptyLabelBehavior() public view {
         // Artifact with empty label should be same as artifact-only
         address predicted1 = harness.predictCreate3ArtifactOnly(DEPLOYER, "Contract");
         address predicted2 = harness.predictCreate3WithLabel(DEPLOYER, "Contract", "");
@@ -244,7 +244,7 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
     }
     
     // Test 12: Entropy edge cases
-    function test_EntropyEdgeCases() public {
+    function test_EntropyEdgeCases() public view {
         // Empty entropy
         bytes32 emptySalt = harness._salt(DEPLOYER, "");
         assertTrue(emptySalt != bytes32(0));

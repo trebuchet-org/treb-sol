@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {Script, console} from "forge-std/Script.sol";
 import {Senders} from "./sender/Senders.sol";
 import {Deployer} from "./sender/Deployer.sol";
+import {Transaction, RichTransaction} from "./types.sol";
 
 contract Dispatcher is Script {
     error InvalidSenderConfigs();
@@ -54,5 +55,15 @@ contract Dispatcher is Script {
         }
 
         Senders.registry().broadcast();
+    }
+
+    function execute(bytes32 _senderId, Transaction[] memory _transactions) public returns (RichTransaction[] memory bundleTransactions) {
+        Senders.Sender storage _sender = Senders.registry().get(_senderId);
+        return _sender.execute(_transactions);
+    }
+
+    function execute(bytes32 _senderId, Transaction memory _transaction) public returns (RichTransaction memory bundleTransaction) {
+        Senders.Sender storage _sender = Senders.registry().get(_senderId);
+        return _sender.execute(_transaction);
     }
 }
