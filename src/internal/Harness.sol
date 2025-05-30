@@ -48,7 +48,7 @@ contract Harness is CommonBase {
             to: target,
             value: msg.value,
             data: msg.data,
-            label: ""
+            label: "harness:execute"
         });
 
         // Try to execute through dispatcher (for state-changing calls)

@@ -19,7 +19,6 @@ library Senders {
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
     error InvalidSenderType(string name, bytes8 senderType);
     error NoSenders();
-    error TransactionFailed(string label);
     error TransactionExecutionMismatch(string label, bytes returnData);
     error CannotBroadcastCustomSender(string name);
     error UnexpectedSenderBroadcast(string name, bytes8 senderType);
@@ -37,6 +36,20 @@ library Senders {
         bytes32 indexed bundleId,
         BundleStatus status,
         RichTransaction[] transactions
+    );
+
+    event TransactionFailed(
+        address indexed to,
+        uint256 value,
+        bytes data,
+        string label
+    );
+
+    event TransactionSimulated(
+        address indexed to,
+        uint256 value,
+        bytes data,
+        string label
     );
 
     struct SenderInitConfig {
@@ -235,8 +248,12 @@ library Senders {
         for (uint256 i = 0; i < _transactions.length; i++) {
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
+            emit TransactionSimulated( _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
             if (!success) {
-                revert TransactionFailed(_transactions[i].label);
+                emit TransactionFailed( _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
+                assembly {
+                    revert(add(returnData, 0x20), mload(returnData))
+                }
             }
             bundleTransactions[i] = RichTransaction({
                 transaction: _transactions[i],

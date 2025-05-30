@@ -215,8 +215,15 @@ contract SenderIntegrationTest is Test {
             value: 0
         });
         
-        // Execute should revert
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, "failing-tx"));
+        // Expect TransactionSimulated and TransactionFailed events
+        vm.expectEmit(true, true, true, true);
+        emit Senders.TransactionSimulated(address(target), 0, abi.encodeWithSelector(bytes4(0xdeadbeef)), "failing-tx");
+        
+        vm.expectEmit(true, true, true, true);
+        emit Senders.TransactionFailed(address(target), 0, abi.encodeWithSelector(bytes4(0xdeadbeef)), "failing-tx");
+        
+        // Execute should revert with the actual error (function does not exist)
+        vm.expectRevert();
         harness.execute(FAIL_SENDER, txn);
     }
     

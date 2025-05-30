@@ -235,8 +235,8 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     function test_HarnessRevertHandling() public {
         address harnessAddr = harness.getHarness(SENDER_NAME, address(counter));
         
-        // This should revert during simulation with TransactionFailed error
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
+        // This should revert with the actual error message from the contract
+        vm.expectRevert("Counter: cannot decrement below zero");
         Counter(harnessAddr).decrement();
     }
     
@@ -313,9 +313,9 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     function test_RevertWithDataPropagation() public {
         address harnessAddr = harness.getHarness(SENDER_NAME, address(counter));
         
-        // This should revert with a specific error message
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
-        Counter(harnessAddr).decrement(); // Will fail with "Counter: cannot decrement below zero"
+        // This should revert with the actual error message
+        vm.expectRevert("Counter: cannot decrement below zero");
+        Counter(harnessAddr).decrement();
         
         // Now test a custom error scenario
         // First, let's create a contract with custom errors
@@ -323,11 +323,11 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         address revertHarness = harness.getHarness(SENDER_NAME, address(revertContract));
         
         // This should propagate the custom error
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
+        vm.expectRevert(abi.encodeWithSelector(RevertTestContract.CustomError.selector, 123, "This is a custom error"));
         RevertTestContract(revertHarness).failWithCustomError();
         
         // This should propagate the require message
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
+        vm.expectRevert("This is a require message");
         RevertTestContract(revertHarness).failWithRequire();
     }
     
@@ -356,22 +356,28 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         address complexHarness = harness.getHarness(SENDER_NAME, address(complexContract));
         
         // Test revert with empty string (still has data due to string encoding)
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
+        vm.expectRevert(bytes(""));
         ComplexRevertContract(complexHarness).revertEmptyString();
         
         // Test revert with long message
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
+        vm.expectRevert("This is a very long error message that tests how the harness handles larger revert data when propagating errors through the system");
         ComplexRevertContract(complexHarness).revertLongMessage();
         
-        // Test panic (arithmetic overflow)
-        vm.expectRevert(abi.encodeWithSelector(Senders.TransactionFailed.selector, ""));
+        // Test panic (division by zero causes panic code 0x12)
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x12));
         ComplexRevertContract(complexHarness).causePanic();
+    }
+    
+    // Test 16: View function works after failures
+    function test_ViewFunctionAfterFailures() public {
+        ComplexRevertContract complexContract = new ComplexRevertContract();
+        address complexHarness = harness.getHarness(SENDER_NAME, address(complexContract));
         
-        // View function should still work
+        // View function should work even after the contract has methods that revert
         assertTrue(ComplexRevertContract(complexHarness).isViewFunction());
     }
     
-    // Test 14: Debug staticcall behavior
+    // Test 17: Debug staticcall behavior
     function test_StaticCallBehaviorDebug() public {
         // Create a simple test contract
         StaticCallDebugContract debugContract = new StaticCallDebugContract();
@@ -388,6 +394,47 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         // Test that state changes work
         StaticCallDebugContract(debugHarness).setSimpleValue(456);
         assertEq(debugContract.simpleValue(), 456);
+    }
+    
+    // Test 18: Verify transaction events are emitted
+    function test_TransactionEventsEmitted() public {
+        // Create a fresh counter for this test to ensure it starts at 0
+        Counter freshCounter = new Counter();
+        address harnessAddr = harness.getHarness(SENDER_NAME, address(freshCounter));
+        
+        // Test successful transaction emits TransactionSimulated
+        vm.expectEmit(true, true, true, true);
+        emit Senders.TransactionSimulated(
+            address(freshCounter),
+            0,
+            abi.encodeWithSelector(Counter.setNumber.selector, 100),
+            "harness:execute"
+        );
+        Counter(harnessAddr).setNumber(100);
+        
+        // Reset counter to 0 for failure test
+        Counter(harnessAddr).setNumber(0);
+        
+        // Test failed transaction emits both TransactionSimulated and TransactionFailed
+        vm.expectEmit(true, true, true, true);
+        emit Senders.TransactionSimulated(
+            address(freshCounter),
+            0,
+            abi.encodeWithSelector(Counter.decrement.selector),
+            "harness:execute"
+        );
+        
+        vm.expectEmit(true, true, true, true);
+        emit Senders.TransactionFailed(
+            address(freshCounter),
+            0,
+            abi.encodeWithSelector(Counter.decrement.selector),
+            "harness:execute"
+        );
+        
+        // This will revert with the actual error
+        vm.expectRevert("Counter: cannot decrement below zero");
+        Counter(harnessAddr).decrement();
     }
 }
 

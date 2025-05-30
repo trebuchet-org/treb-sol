@@ -35,7 +35,9 @@ library PrivateKey {
         for (uint256 i = 0; i < _queue.length; i++) {
             (bool _success, bytes memory data) = _queue[i].transaction.to.call{value: _queue[i].transaction.value}(_queue[i].transaction.data);
             if (!_success) {
-                revert Senders.TransactionFailed(_queue[i].transaction.label);
+                assembly {
+                    revert(add(data, 0x20), mload(data))
+                }
             }
             _queue[i].executedReturnData = data;
         }
