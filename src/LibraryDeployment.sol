@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {console} from "forge-std/console.sol";
-import {TrebScript} from "./TrebScript.sol";
-import {Deployer} from "./internal/Deployer.sol";
+import {TrebScript, Deployer, Senders} from "./TrebScript.sol";
 
 /**
  * @title LibraryDeployment
@@ -11,18 +9,21 @@ import {Deployer} from "./internal/Deployer.sol";
  * @dev Libraries are deployed globally (no environment) for cross-chain consistency
  */
 contract LibraryDeployment is TrebScript {
+    using Deployer for Senders.Sender;
+
+    error MissingLibraryArtifactPath();
+    
     string private constant LIBRARY_DEPLOYER = "libraries";
     string private artifactPath;
 
     constructor() {
-        artifactPath = vm.envString("LIBRARY_ARTIFACT_PATH");
+        artifactPath = vm.envOr("LIBRARY_ARTIFACT_PATH", string(""));
         if (bytes(artifactPath).length == 0) {
-            revert("LIBRARY_ARTIFACT_PATH is not set");
+            revert MissingLibraryArtifactPath();
         }
     }
 
-    function run() public virtual flush returns (address) {
-        Deployer deployer = sender(LIBRARY_DEPLOYER).deployer();
-        return deployer.deployCreate3(artifactPath);
+    function run() public broadcast returns (address) {
+        return sender(LIBRARY_DEPLOYER).deployCreate3(artifactPath);
     }
 }

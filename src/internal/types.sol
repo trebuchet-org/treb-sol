@@ -13,10 +13,20 @@ enum BundleStatus {
     EXECUTED
 }
 
-struct BundleTransaction {
-    bytes32 txId;
-    bytes32 bundleId;
+struct RichTransaction {
     Transaction transaction;
     bytes simulatedReturnData;
     bytes executedReturnData;
 }
+
+library SenderTypes {
+    bytes8 constant Custom = bytes8(keccak256("custom"));
+    bytes8 constant PrivateKey = bytes8(keccak256("private-key"));
+    bytes8 constant InMemory = bytes8(keccak256("in-memory")) | PrivateKey;
+    bytes8 constant Multisig = bytes8(keccak256("multisig"));
+    bytes8 constant GnosisSafe = Multisig | bytes8(keccak256("gnosis-safe"));
+    bytes8 constant HardwareWallet = bytes8(keccak256("hardware-wallet")) | PrivateKey;
+    bytes8 constant Ledger = bytes8(keccak256("ledger")) | HardwareWallet;
+    bytes8 constant Trezor = bytes8(keccak256("trezor")) | HardwareWallet;
+}
+

@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Sender} from "./Sender.sol";
+import {Senders} from "./sender/Senders.sol";
 import {CommonBase} from "forge-std/Base.sol";
-import {Transaction, BundleTransaction} from "./types.sol";
+import {Transaction, RichTransaction} from "./types.sol";
 
 contract Harness is CommonBase {
-    address private target;
-    Sender private sender;
+    using Senders for Senders.Sender;
 
-    constructor(address _target, Sender _sender) {
+    address private target;
+    string private sender;
+
+    constructor(address _target, string memory _sender) {
         target = _target;
         sender = _sender;
     }
@@ -19,11 +21,11 @@ contract Harness is CommonBase {
             to: target,
             value: msg.value,
             data: msg.data,
-            label: string.concat("harness:", vm.toString(target), ":", vm.toString(bytes4(msg.data)))
+            label: string.concat(sender, ":harness:", vm.toString(target), ":", vm.toString(bytes4(msg.data)))
         });
 
-        BundleTransaction memory bundleTransaction = sender.execute(transaction);
-        bytes memory returnData = bundleTransaction.simulatedReturnData;
+        RichTransaction memory richTransaction = Senders.get(sender).execute(transaction);
+        bytes memory returnData = richTransaction.simulatedReturnData;
 
         assembly {
             return(add(returnData, 0x20), mload(returnData))

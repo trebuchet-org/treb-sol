@@ -16,6 +16,7 @@ contract MockDispatcher is Dispatcher {
 
 contract DispatcherTest is Test {
     function setUp() public {
+        // Set test environment
         vm.setEnv("NAMESPACE", "default");
         vm.setEnv("DEPLOYMENTS_FILE", "test/fixtures/empty.json");
         vm.setEnv("NETWORK", "anvil");
@@ -56,17 +57,19 @@ contract DispatcherTest is Test {
     }
     
     function testDispatcherMissingSenderConfigs() public {
-        // Create a new test environment without SENDER_CONFIGS
-        // Use invalid env var name to ensure it's not set
-        vm.setEnv("SENDER_CONFIGS", "INVALID");
+        // Clear the SENDER_CONFIGS env var
+        vm.setEnv("SENDER_CONFIGS", "");
         
-        // This should revert because INVALID is not valid hex
-        vm.expectRevert();
-        new Dispatcher();
+        // Create dispatcher - should not revert on construction anymore (lazy loading)
+        Dispatcher dispatcher = new Dispatcher();
+        
+        // Should revert when trying to access a sender (lazy loading)
+        vm.expectRevert(abi.encodeWithSelector(Dispatcher.MissingSenderConfigs.selector));
+        dispatcher.sender("any");
     }
     
     function testDispatcherEmptyConfigs() public {
-        // Create empty configs
+        // Create empty sender configs
         Dispatcher.SenderConfigs memory configs;
         configs.ids = new string[](0);
         configs.artifacts = new string[](0);
@@ -75,64 +78,59 @@ contract DispatcherTest is Test {
         bytes memory encodedConfigs = abi.encode(configs);
         vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
         
+        // Deploy dispatcher
         Dispatcher dispatcher = new Dispatcher();
         
-        // Should deploy successfully but have no senders
-        vm.expectRevert(abi.encodeWithSelector(Dispatcher.SenderNotFound.selector, "anything"));
-        dispatcher.sender("anything");
+        // Should revert when trying to access a non-existent sender
+        vm.expectRevert(abi.encodeWithSelector(Dispatcher.SenderNotFound.selector, "nonexistent"));
+        dispatcher.sender("nonexistent");
     }
     
     function testSenderLookupById() public {
-        // Create empty configs for constructor
+        // Create sender configs with a PrivateKeySender
+        (address addr1, uint256 key1) = makeAddrAndKey("testsender");
+        
         Dispatcher.SenderConfigs memory configs;
-        configs.ids = new string[](0);
-        configs.artifacts = new string[](0);
-        configs.constructorArgs = new bytes[](0);
+        configs.ids = new string[](1);
+        configs.artifacts = new string[](1);
+        configs.constructorArgs = new bytes[](1);
+        
+        configs.ids[0] = "testsender";
+        configs.artifacts[0] = "out/PrivateKeySender.sol/PrivateKeySender.json";
+        configs.constructorArgs[0] = abi.encode(addr1, key1);
         
         bytes memory encodedConfigs = abi.encode(configs);
         vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
         
-        MockDispatcher dispatcher = new MockDispatcher();
+        // Deploy dispatcher
+        Dispatcher dispatcher = new Dispatcher();
         
-        // Generate address/key pairs
-        (address devAddr, uint256 devKey) = makeAddrAndKey("dev");
-        (address stagingAddr, uint256 stagingKey) = makeAddrAndKey("staging");
-        (address prodAddr, uint256 prodKey) = makeAddrAndKey("production");
-        
-        // Create and add senders
-        PrivateKeySender devSender = new PrivateKeySender(devAddr, devKey);
-        PrivateKeySender stagingSender = new PrivateKeySender(stagingAddr, stagingKey);
-        PrivateKeySender prodSender = new PrivateKeySender(prodAddr, prodKey);
-        
-        dispatcher.addSender("dev", devSender);
-        dispatcher.addSender("staging", stagingSender);
-        dispatcher.addSender("production", prodSender);
-        
-        // Test correct sender is returned for each ID
-        assertEq(dispatcher.sender("dev").senderAddress(), devAddr);
-        assertEq(dispatcher.sender("staging").senderAddress(), stagingAddr);
-        assertEq(dispatcher.sender("production").senderAddress(), prodAddr);
+        // Verify sender can be retrieved
+        Sender retrievedSender = dispatcher.sender("testsender");
+        assertTrue(address(retrievedSender) != address(0));
+        assertEq(retrievedSender.senderAddress(), addr1);
     }
     
     function testSenderNotFound() public {
-        // Create empty configs
+        // Create sender configs with one sender
         Dispatcher.SenderConfigs memory configs;
-        configs.ids = new string[](0);
-        configs.artifacts = new string[](0);
-        configs.constructorArgs = new bytes[](0);
+        configs.ids = new string[](1);
+        configs.artifacts = new string[](1);
+        configs.constructorArgs = new bytes[](1);
+        
+        configs.ids[0] = "existing";
+        configs.artifacts[0] = "out/PrivateKeySender.sol/PrivateKeySender.json";
+        configs.constructorArgs[0] = abi.encode(address(0x1), uint256(0x1));
         
         bytes memory encodedConfigs = abi.encode(configs);
         vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
         
-        MockDispatcher dispatcher = new MockDispatcher();
+        // Deploy dispatcher
+        Dispatcher dispatcher = new Dispatcher();
         
-        (address addr, uint256 key) = makeAddrAndKey("only-sender");
-        PrivateKeySender onlySender = new PrivateKeySender(addr, key);
-        dispatcher.addSender("only-sender", onlySender);
-        
-        // Try to get a non-existent sender
-        vm.expectRevert(abi.encodeWithSelector(Dispatcher.SenderNotFound.selector, "does-not-exist"));
-        dispatcher.sender("does-not-exist");
+        // Should revert when accessing non-existent sender
+        vm.expectRevert(abi.encodeWithSelector(Dispatcher.SenderNotFound.selector, "nonexistent"));
+        dispatcher.sender("nonexistent");
     }
     
     function testHashCollision() public pure {

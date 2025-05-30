@@ -2,67 +2,48 @@
 pragma solidity ^0.8.0;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Sender} from "./Sender.sol";
+import {Senders} from "./sender/Senders.sol";
+import {Deployer} from "./sender/Deployer.sol";
 
 contract Dispatcher is Script {
-    error MissingSenderConfigs();
+    error InvalidSenderConfigs();
     error SenderNotFound(string id);
 
-    struct SenderConfigs {
-        string[] ids;
-        string[] artifacts;
-        bytes[] constructorArgs;
-    }
+    using Senders for Senders.Registry;
+    using Senders for Senders.Sender;
 
-    modifier flush() {
+    modifier broadcast() {
+        uint256 snap = vm.snapshot();
         _;
-        _flush();
+        vm.revertTo(snap);
+        _broadcast();
     }
 
-    mapping(bytes32 => Sender) public senders;
+    bool private initialized;
 
-    uint256 immutable simulationForkId;
-    uint256 immutable executionForkId;
-
-
-    SenderConfigs private configs;
-
-    constructor() {
-        simulationForkId = vm.createFork(vm.envString("NETWORK"));
-        executionForkId = vm.createFork(vm.envString("NETWORK"));
-        vm.selectFork(simulationForkId);
-
+    function _initialize() internal {
+        Senders.SenderInitConfig[] memory configs;
         try vm.envBytes("SENDER_CONFIGS") returns (bytes memory rawConfigs) {
-            configs = abi.decode(rawConfigs, (SenderConfigs));
+            configs = abi.decode(rawConfigs, (Senders.SenderInitConfig[]));
         } catch {
-            revert MissingSenderConfigs();
+            revert InvalidSenderConfigs();
         }
-
-        for (uint256 i = 0; i < configs.ids.length; i++) {
-            bytes32 id = keccak256(abi.encodePacked(configs.ids[i]));
-            Sender _sender = Sender(vm.deployCode(configs.artifacts[i], configs.constructorArgs[i]));
-            senders[id] = _sender;
-            vm.allowCheatcodes(address(_sender));
-            vm.makePersistent(address(_sender));
-        }
+        Senders.registry().initialize(configs);
     }
 
-    function sender(string memory _id) public view returns (Sender) {
-        Sender _sender = senders[keccak256(abi.encodePacked(_id))];
-        if (address(_sender) == address(0)) {
-            revert SenderNotFound(_id);
+    function sender(string memory _name) internal returns (Senders.Sender storage) {
+        if (!initialized) {
+            _initialize();
+            initialized = true;
         }
-        return _sender;
+        return Senders.registry().get(_name);
     }
 
-    function _flush() internal {
+    function _broadcast() internal {
         if (vm.envOr("DRYRUN", false) == true) {
             return;
         }
 
-        vm.selectFork(executionForkId);
-        for (uint256 i = 0; i < configs.ids.length; i++) {
-            senders[keccak256(abi.encodePacked(configs.ids[i]))].flushBundle();
-        }
+        Senders.registry().broadcast();
     }
 }

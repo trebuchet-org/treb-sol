@@ -25,7 +25,7 @@ contract TestCounter {
 contract TestDeployer is Deployer {
     constructor(Sender _sender) Deployer(_sender) {}
     
-    function _checkPrediction() internal override pure returns (bool) {
+    function _checkPrediction() internal pure returns (bool) {
         return false;
     }
 }
