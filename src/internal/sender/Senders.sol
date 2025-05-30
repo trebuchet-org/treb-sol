@@ -12,12 +12,14 @@ import {Harness} from "../Harness.sol";
 import "../types.sol";
 
 library Senders {
-    // keccak256("senders.registry")
+    /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
+    /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
     bytes32 constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
     Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
     error InvalidSenderType(string name, bytes8 senderType);
+    error SenderNotInitialized(string name);
     error NoSenders();
     error TransactionExecutionMismatch(string label, bytes returnData);
     error CannotBroadcastCustomSender(string name);
@@ -31,15 +33,9 @@ library Senders {
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
 
-    event BundleSent(
-        address indexed sender,
-        bytes32 indexed bundleId,
-        BundleStatus status,
-        RichTransaction[] transactions
-    );
-
     event TransactionFailed(
-        bytes32 indexed bundleId,
+        bytes32 indexed transactionId,
+        address indexed sender,
         address indexed to,
         uint256 value,
         bytes data,
@@ -47,11 +43,13 @@ library Senders {
     );
 
     event TransactionSimulated(
-        bytes32 indexed bundleId,
+        bytes32 indexed transactionId,
+        address indexed sender,
         address indexed to,
         uint256 value,
         bytes data,
-        string label
+        string label,
+        bytes returnData
     );
 
     struct SenderInitConfig {
@@ -65,10 +63,14 @@ library Senders {
         mapping(bytes32 => Sender) senders;
         mapping(bytes32 => mapping(address => address)) senderHarness;
         bytes32[] ids;
-        uint256 snapshot;
-        bool broadcasted;
+        RichTransaction[] _globalQueue;
+
         string namespace;
         bool dryrun;
+
+        uint256 snapshot;
+        bool _broadcasted;
+        uint256 _transactionCounter;
     }
 
     struct Sender {
@@ -77,9 +79,6 @@ library Senders {
         address account;
         bytes8 senderType;
         bytes config;
-        RichTransaction[] queue;
-        bytes32 bundleId;
-        bool broadcasted;
     }
 
     function registry() internal pure returns (Registry storage _registry) {
@@ -88,21 +87,21 @@ library Senders {
         }
     }
 
-    // ************* Registry ************* //
-
-    function reset() internal {
+    /// @notice Generates a unique transaction ID for tracking
+    /// @dev Combines chain ID, timestamp, and an incrementing counter to ensure uniqueness
+    /// @return Unique transaction identifier
+    function generateTransactionId() internal returns (bytes32) {
         Registry storage _registry = registry();
-        // Clear all senders
-        for (uint256 i = 0; i < _registry.ids.length; i++) {
-            delete _registry.senders[_registry.ids[i]];
-        }
-        // Clear the registry
-        delete _registry.ids;
-        _registry.snapshot = 0;
-        _registry.broadcasted = false;
-        _registry.namespace = "";
-        _registry.dryrun = false;
+        _registry._transactionCounter++;
+        return keccak256(abi.encodePacked(
+            block.chainid, 
+            block.timestamp, 
+            msg.sender,
+            _registry._transactionCounter
+        ));
     }
+
+    // ************* Registry ************* //
 
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs) internal {
         _registry.namespace = vm.envOr("NAMESPACE", string("default"));
@@ -131,14 +130,16 @@ library Senders {
     }
 
     function get(Registry storage _registry, string memory _name) internal view returns (Sender storage) {
-        return _registry.senders[keccak256(abi.encodePacked(_name))];
+        Sender storage sender = _registry.senders[keccak256(abi.encodePacked(_name))];
+        if (sender.account == address(0)) {
+            revert SenderNotInitialized(_name);
+        }
+        return sender;
     }
 
     function get(Registry storage _registry, bytes32 _id) internal view returns (Sender storage) {
         return _registry.senders[_id];
     }
-
-
 
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
         _registry.namespace = _namespace;
@@ -151,37 +152,26 @@ library Senders {
     }
 
     function _initializeSenders(Registry storage _registry, SenderInitConfig[] memory _configs) private {
-
-        for (uint256 i = 0; i < _configs.length; i++) {
+        _registry.ids = new bytes32[](_configs.length);
+        unchecked {
+            for (uint256 i; i < _configs.length; ++i) {
             bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
             _registry.senders[senderId].id = senderId;
             _registry.senders[senderId].name = _configs[i].name;
             _registry.senders[senderId].account = _configs[i].account;
             _registry.senders[senderId].senderType = _configs[i].senderType;
             _registry.senders[senderId].config = _configs[i].config;
-            _registry.senders[senderId].bundleId = keccak256(abi.encodePacked(block.chainid, block.timestamp, senderId));
-            _registry.ids.push(senderId);
+            _registry.ids[i] = senderId;
+            }
         }
-
-        for (uint256 i = 0; i < _registry.ids.length; i++) {
-            _registry.senders[_registry.ids[i]].initialize();
+        
+        unchecked {
+            for (uint256 i; i < _registry.ids.length; ++i) {
+                _registry.senders[_registry.ids[i]].initialize();
+            }
         }
 
         _registry.snapshot = vm.snapshotState();
-    }
-
-    function broadcast(Registry storage _registry) internal {
-        if (_registry.broadcasted) {
-            revert BroadcastAlreadyCalled();
-        }
-
-        for (uint256 i = 0; i < _registry.ids.length; i++) {
-            Sender storage sender = _registry.senders[_registry.ids[i]];
-            if (sender.queue.length > 0) {
-                sender.broadcast();
-            }
-        }
-        _registry.broadcasted = true;
     }
 
     // ************* Sender ************* //
@@ -233,20 +223,17 @@ library Senders {
         return _harness;
     }
 
+    // ************* Sender Execute ************* //
+
     function execute(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
-        bundleTransactions = _sender.simulate(_transactions);
-        for (uint256 i = 0; i < bundleTransactions.length; i++) {
-            _sender.queue.push(bundleTransactions[i]);
+        require(_transactions.length > 0, "Empty transaction array");
+        for (uint256 i = 0; i < _transactions.length; i++) {
+            require(_transactions[i].to != address(0), "Invalid target address");
+            require(bytes(_transactions[i].label).length > 0, "Transaction label required");
         }
-        console.log("Queue length", _sender.queue.length);
-        _persistSender(_sender);
-        return bundleTransactions;
+        return _sender.simulate(_transactions);
     }
     
-    function _persistSender(Sender storage _sender) internal {
-        registry().senders[_sender.id] = _sender;
-    }
-
     function execute(Sender storage _sender, Transaction memory _transaction) internal returns (RichTransaction memory bundleTransaction) {
         Transaction[] memory transactions = new Transaction[](1);
         transactions[0] = _transaction;
@@ -255,65 +242,116 @@ library Senders {
     }
 
     function simulate(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
+        Registry storage _registry = registry();
         bundleTransactions = new RichTransaction[](_transactions.length);
+        
         for (uint256 i = 0; i < _transactions.length; i++) {
+            // Generate unique transaction ID
+            bytes32 transactionId = generateTransactionId();
+            
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
-            emit TransactionSimulated( _sender.bundleId, _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
+            emit TransactionSimulated(
+                transactionId,
+                _sender.account,
+                _transactions[i].to,
+                _transactions[i].value,
+                _transactions[i].data,
+                _transactions[i].label,
+                returnData
+            );
             if (!success) {
-                emit TransactionFailed( _sender.bundleId, _transactions[i].to, _transactions[i].value, _transactions[i].data, _transactions[i].label);
+                emit TransactionFailed(
+                    transactionId,
+                    _sender.account,
+                    _transactions[i].to,
+                    _transactions[i].value,
+                    _transactions[i].data,
+                    _transactions[i].label
+                );
+                // Bubble up the revert reason from the failed call
                 assembly {
-                    revert(add(returnData, 0x20), mload(returnData))
+                    let dataSize := mload(returnData)
+                    revert(add(returnData, 0x20), dataSize)
                 }
             }
-            bundleTransactions[i] = RichTransaction({
+            
+            RichTransaction memory richTx = RichTransaction({
                 transaction: _transactions[i],
+                transactionId: transactionId,
+                senderId: _sender.id,
+                status: TransactionStatus.PENDING,
                 simulatedReturnData: returnData,
                 executedReturnData: new bytes(0)
             });
+            
+            bundleTransactions[i] = richTx;
+            // Add to global queue in order
+            _registry._globalQueue.push(richTx);
         }
         return bundleTransactions;
     }
 
-    function broadcast(Sender storage _sender) internal returns (bytes32 bundleId) {
-        if (_sender.broadcasted) {
+    // ************* Registry Broadcast ************* //
+
+    /// @notice Broadcasts all queued transactions in the order they were submitted
+    /// @dev Processes transactions differently based on sender type:
+    ///      - PrivateKey: Immediate broadcast
+    ///      - GnosisSafe: Batched for multi-sig execution
+    ///      - Custom: Returned for external processing
+    /// @param _registry The sender registry containing all queued transactions
+    /// @return customQueue Array of custom sender transactions requiring external processing
+    function broadcast(Registry storage _registry) internal returns (RichTransaction[] memory customQueue) {
+        if (_registry._broadcasted) {
             revert BroadcastAlreadyCalled();
         }
-        if (_sender.isType(SenderTypes.Custom)) {
-            revert CannotBroadcastCustomSender(_sender.name);
+
+        if (_registry.dryrun) {
+            _registry._broadcasted = true;
+            return new RichTransaction[](0);
         }
 
-        if (registry().dryrun) {
-            return _sender.bundleId;
-        }
-        if (_sender.queue.length == 0) {
-            return _sender.bundleId;
-        }
 
         uint256 snap = vm.snapshotState();
-        RichTransaction[] memory queue = _sender.queue;
 
-        vm.revertToState(registry().snapshot);
+        customQueue = new RichTransaction[](_registry._globalQueue.length);
+        RichTransaction[] memory txs = _registry._globalQueue;
+        bytes32[] memory senderIds = _registry.ids;
 
-        BundleStatus status;
-        if (_sender.isType(SenderTypes.PrivateKey)) {
-            (status, queue) = _sender.privateKey().broadcast(queue);
-        } else if (_sender.isType(SenderTypes.GnosisSafe)) {
-            (status, queue) = _sender.gnosisSafe().broadcast(queue);
-        } else {
-            revert UnexpectedSenderBroadcast(_sender.name, _sender.senderType);
+        vm.revertToState(_registry.snapshot);
+        uint256 actualCustomQueueLength = 0;
+
+        // Process each transaction in global queue order
+        for (uint256 i = 0; i < txs.length; i++) {
+            RichTransaction memory richTx = txs[i];
+            Sender storage sender = _registry.senders[richTx.senderId];
+
+            if (sender.isType(SenderTypes.PrivateKey)) {
+                // Sync execution - broadcast immediately
+                sender.privateKey().broadcast(richTx);
+            } else if (sender.isType(SenderTypes.GnosisSafe)) {
+                // Async execution - accumulate for batch
+                sender.gnosisSafe().queue(richTx);
+            } else if (sender.isType(SenderTypes.Custom)) {
+                customQueue[actualCustomQueueLength] = richTx;
+                actualCustomQueueLength++;
+            }
         }
 
-        emit BundleSent(
-            _sender.account,
-            _sender.bundleId,
-            status,
-            queue
-        );
+        assembly {
+            mstore(customQueue, actualCustomQueueLength)
+        }
+
+        // Now broadcast accumulated async transactions as bundles
+        for (uint256 i = 0; i < senderIds.length; i++) {
+            Sender storage sender = _registry.senders[senderIds[i]];
+            if (sender.isType(SenderTypes.GnosisSafe)) {
+                sender.gnosisSafe().broadcast();
+            }
+        }
 
         vm.revertToState(snap);
-
-        _sender.broadcasted = true;
-        return _sender.bundleId;
+        _registry._broadcasted = true;
+        return customQueue;
     }
 }

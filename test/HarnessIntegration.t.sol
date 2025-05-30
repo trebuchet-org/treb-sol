@@ -86,9 +86,6 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     address senderAddr;
     
     function setUp() public withCreateX {
-        // Reset registry
-        Senders.reset();
-        
         // Setup test sender
         uint256 privateKey = 0x12345;
         senderAddr = vm.addr(privateKey);
@@ -120,14 +117,14 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     function test_BasicHarnessCreation() public {
         // Get the harness address for the ownable contract
         // Note: The harness is created with the test harness address as dispatcher
-        address harnessAddr = Senders.get(SENDER_NAME).harness(address(ownable));
+        address harnessAddr = harness.getHarness(SENDER_NAME, address(ownable));
         
         // Verify harness was created
         assertTrue(harnessAddr != address(0));
         assertTrue(harnessAddr != address(ownable));
         
         // Verify harness is cached (second call returns same address)
-        address harnessAddr2 = Senders.get(SENDER_NAME).harness(address(ownable));
+        address harnessAddr2 = harness.getHarness(SENDER_NAME, address(ownable));
         assertEq(harnessAddr, harnessAddr2);
     }
     
@@ -144,7 +141,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(ownable.getValue(), newValue);
         
         // Broadcast doesn't change anything since already executed
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         
         // Value remains the same
         assertEq(ownable.getValue(), newValue);
@@ -163,7 +160,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(counter.number(), 12);
         
         // Broadcast doesn't change anything since already executed
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         
         // Counter remains 12
         assertEq(counter.number(), 12);
@@ -187,7 +184,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(counter.number(), 200);
         
         // Broadcast doesn't change anything
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         
         // Values remain the same
         assertEq(ownable.getValue(), 100);
@@ -200,7 +197,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         
         // First, set a value through normal transaction
         Counter(harnessAddr).setNumber(50);
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         assertEq(counter.number(), 50);
         
         // Now test view function through harness
@@ -225,7 +222,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(ownable.owner(), newOwner);
         
         // Broadcast doesn't change anything
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         
         // Still new owner
         assertEq(ownable.owner(), newOwner);
@@ -251,7 +248,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         Counter(harnessAddr).setNumber(777);
         
         // Broadcast doesn't emit again
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
     }
     
     // Test 9: Complex staticcall scenario
@@ -278,7 +275,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(OwnableContract(harnessAddr).getValue(), 1000);
         
         // Broadcast doesn't change anything
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         assertEq(ownable.getValue(), 1000);
     }
     
@@ -305,7 +302,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(result.simulatedReturnData.length, 0);
         
         // Broadcast doesn't change anything since already executed
-        harness.broadcastSender(SENDER_NAME);
+        harness.broadcastAll();
         assertEq(counter.number(), 333);
     }
     
@@ -403,39 +400,14 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         address harnessAddr = harness.getHarness(SENDER_NAME, address(freshCounter));
         
         // Test successful transaction emits TransactionSimulated
-        bytes32 expectedBundleId = harness.get(SENDER_NAME).bundleId;
-        vm.expectEmit(true, true, true, true);
-        emit Senders.TransactionSimulated(
-            expectedBundleId,
-            address(freshCounter),
-            0,
-            abi.encodeWithSelector(Counter.setNumber.selector, 100),
-            "harness:execute"
-        );
+        // Note: Harness calls don't emit TransactionSimulated events anymore
+        // as they don't go through the normal simulate/broadcast flow
         Counter(harnessAddr).setNumber(100);
         
         // Reset counter to 0 for failure test
         Counter(harnessAddr).setNumber(0);
         
-        // Test failed transaction emits both TransactionSimulated and TransactionFailed
-        vm.expectEmit(true, true, true, true);
-        emit Senders.TransactionSimulated(
-            expectedBundleId,
-            address(freshCounter),
-            0,
-            abi.encodeWithSelector(Counter.decrement.selector),
-            "harness:execute"
-        );
-        
-        vm.expectEmit(true, true, true, true);
-        emit Senders.TransactionFailed(
-            expectedBundleId,
-            address(freshCounter),
-            0,
-            abi.encodeWithSelector(Counter.decrement.selector),
-            "harness:execute"
-        );
-        
+        // Test failed transaction - harness calls don't emit TransactionSimulated/Failed events
         // This will revert with the actual error
         vm.expectRevert("Counter: cannot decrement below zero");
         Counter(harnessAddr).decrement();

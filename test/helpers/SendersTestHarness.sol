@@ -61,11 +61,7 @@ contract SendersTestHarness is Dispatcher {
     }
 
     function broadcastAll() public {
-        return Senders.registry().broadcast();
-    }
-
-    function broadcastSender(string memory _name) public returns (bytes32) {
-        return Senders.get(_name).broadcast();
+        _broadcast();
     }
 
     function execute(string memory _name, Transaction memory _transaction) public returns (RichTransaction memory) {
@@ -78,6 +74,10 @@ contract SendersTestHarness is Dispatcher {
 
     function get(string memory _name) public view returns (Senders.Sender memory) {
         return Senders.get(_name);
+    }
+
+    function getSenderAccount(string memory _name) public view returns (address) {
+        return Senders.get(_name).account;
     }
 
     function getPrivateKey(string memory _name) public view returns (PrivateKey.Sender memory) {
@@ -103,12 +103,12 @@ contract SendersTestHarness is Dispatcher {
     // ************* Deployer Methods ************* //
 
     // Factory pattern methods only
-    function deployCreate3(string memory _name, string memory _artifact, bytes memory _args) public returns (address) {
+    function deployCreate3WithArtifact(string memory _name, string memory _artifact, bytes memory _args) public returns (address) {
         // Use factory pattern: create3 -> deploy
         return Senders.get(_name).create3(_artifact).deploy(_args);
     }
 
-    function deployCreate3(string memory _name, string memory _artifact, string memory _label, bytes memory _args) public returns (address) {
+    function deployCreate3WithArtifactAndLabel(string memory _name, string memory _artifact, string memory _label, bytes memory _args) public returns (address) {
         // Use factory pattern: create3 -> setLabel -> deploy
         return Senders.get(_name).create3(_artifact).setLabel(_label).deploy(_args);
     }
@@ -118,11 +118,22 @@ contract SendersTestHarness is Dispatcher {
         return Senders.get(_name).create3(_entropy, _bytecode).deploy(_args);
     }
 
-    function predictCreate3(string memory _name, string memory _entropy) public view returns (address) {
-        bytes32 salt = Senders.get(_name)._salt(_entropy);
-        return Senders.get(_name).predictCreate3(Senders.get(_name)._derivedSalt(salt));
+    // ************* Prediction Methods ************* //
+    
+    // Mirror deployCreate3WithArtifact
+    function predictCreate3WithArtifact(string memory _name, string memory _artifact, bytes memory _args) public returns (address) {
+        return Senders.get(_name).create3(_artifact).predict(_args);
     }
 
+    // Mirror deployCreate3WithArtifactAndLabel
+    function predictCreate3WithArtifactAndLabel(string memory _name, string memory _artifact, string memory _label, bytes memory _args) public returns (address) {
+        return Senders.get(_name).create3(_artifact).setLabel(_label).predict(_args);
+    }
+
+    // Mirror deployCreate3WithEntropy
+    function predictCreate3WithEntropy(string memory _name, string memory _entropy, bytes memory _bytecode, bytes memory _args) public returns (address) {
+        return Senders.get(_name).create3(_entropy, _bytecode).predict(_args);
+    }
 
     function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
         return Senders.get(_name)._salt(_entropy);
@@ -130,19 +141,6 @@ contract SendersTestHarness is Dispatcher {
     
     function _derivedSalt(string memory _name, bytes32 _baseSalt) public view returns (bytes32) {
         return Senders.get(_name)._derivedSalt(_baseSalt);
-    }
-    
-    // Factory pattern helpers for testing
-    function predictCreate3WithLabel(string memory _name, string memory _artifact, string memory _label) public view returns (address) {
-        // Manually construct the entropy as artifact:label
-        string memory entropy = string.concat(_artifact, ":", _label);
-        return predictCreate3(_name, entropy);
-    }
-    
-    function predictCreate3ArtifactOnly(string memory _name, string memory _artifact) public view returns (address) {
-        // For artifact only, entropy is artifact:
-        string memory entropy = string.concat(_artifact, ":");
-        return predictCreate3(_name, entropy);
     }
 
     // ************* Registry Helpers ************* //

@@ -8,13 +8,17 @@ struct Transaction {
     uint256 value;
 }
 
-enum BundleStatus {
-    QUEUED,
-    EXECUTED
+enum TransactionStatus {
+    PENDING,
+    EXECUTED,
+    QUEUED
 }
 
 struct RichTransaction {
     Transaction transaction;
+    bytes32 transactionId;
+    bytes32 senderId;
+    TransactionStatus status;
     bytes simulatedReturnData;
     bytes executedReturnData;
 }

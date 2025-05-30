@@ -5,17 +5,17 @@ import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "./Senders.sol";
 import {HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {Safe} from "safe-utils/Safe.sol";
-import {RichTransaction, BundleStatus, SenderTypes} from "../types.sol";
+import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
 
 library GnosisSafe {
     error SafeTransactionValueNotZero(string label);
     error InvalidGnosisSafeConfig(string name);
 
     event SafeTransactionQueued(
-        bytes32 indexed bundleId,
+        bytes32 indexed safeTxHash,
         address indexed safe,
         address indexed proposer,
-        bytes32 safeTxHash
+        RichTransaction[] transactions
     );
 
     using Senders for Senders.Sender;
@@ -28,11 +28,9 @@ library GnosisSafe {
         address account;
         bytes8 senderType;
         bytes config;
-        RichTransaction[] queue;
-        bytes32 bundleId;
-        bool broadcasted;
         // Gnosis safe specific fields:
         bytes32 proposerId;
+        RichTransaction[] txQueue;
     }
 
     function cast(Senders.Sender storage _sender) internal view returns (Sender storage _gnosisSafeSender) {
@@ -73,28 +71,33 @@ library GnosisSafe {
         }));
     }
 
-    function broadcast(Sender storage _sender, RichTransaction[] memory _queue) internal returns (BundleStatus status, RichTransaction[] memory _executedQueue) {
-        address[] memory targets = new address[](_queue.length);
-        bytes[] memory datas = new bytes[](_queue.length);
+    function queue(Sender storage _sender, RichTransaction memory _tx) internal {
+        _sender.txQueue.push(_tx);
+    }
 
-        for (uint256 i = 0; i < _sender.queue.length; i++) {
-            if (_sender.queue[i].transaction.value > 0) {
-                revert SafeTransactionValueNotZero(_sender.queue[i].transaction.label);
+    function broadcast(Sender storage _sender) internal {
+        address[] memory targets = new address[](_sender.txQueue.length);
+        bytes[] memory datas = new bytes[](_sender.txQueue.length);
+
+        for (uint256 i = 0; i < _sender.txQueue.length; i++) {
+            if (_sender.txQueue[i].transaction.value > 0) {
+                revert SafeTransactionValueNotZero(_sender.txQueue[i].transaction.label);
             }
-            targets[i] = _sender.queue[i].transaction.to;
-            datas[i] = _sender.queue[i].transaction.data;
+            targets[i] = _sender.txQueue[i].transaction.to;
+            datas[i] = _sender.txQueue[i].transaction.data;
+            _sender.txQueue[i].status = TransactionStatus.QUEUED;
         }
 
         bytes32 safeTxHash = _sender.safe().proposeTransactions(targets, datas);
 
         emit SafeTransactionQueued(
-            _sender.bundleId,
+            safeTxHash,
             _sender.account,
             _sender.proposer().account,
-            safeTxHash
+            _sender.txQueue
         );
 
-        return (BundleStatus.QUEUED, _queue);
+        delete _sender.txQueue;
     }
 
     function proposer(Sender storage _sender) internal view returns (Senders.Sender storage) {

@@ -33,9 +33,6 @@ contract DispatcherIntegrationTest is Test {
     function setUp() public {
         // Set required environment variables
         vm.setEnv("NETWORK", "http://localhost:8545");
-        
-        // Reset the Senders registry to avoid test pollution
-        Senders.reset();
     }
     
     function tearDown() public {

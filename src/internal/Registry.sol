@@ -13,6 +13,8 @@ contract Registry is Script {
     string public namespace;
     uint256 public chainId;
 
+    /// @dev Maps deployment identifiers to contract addresses
+    /// @dev Key format: "{chainId}/{namespace}/{identifier}" or "{identifier}"
     mapping(string => address) private deployments;
 
     constructor(string memory _namespace, string memory _deploymentsFile) {
@@ -31,13 +33,7 @@ contract Registry is Script {
         string memory identifier
     ) public view returns (address) {
         string memory fqId = _getFullyQualifiedId(identifier);
-        console.log("Registry lookup for:", fqId);
         address result = deployments[fqId];
-        if (result != address(0)) {
-            console.log("Found deployment at:", result);
-        } else {
-            console.log("No deployment found");
-        }
         return result;
     }
 
@@ -85,6 +81,9 @@ contract Registry is Script {
 
     /**
      * @dev Load deployments from JSON file into memory
+     * @dev Parses deployments.json and populates the deployments mapping with:
+     *      - Fully qualified IDs (fqid): {chainId}/{namespace}/{identifier}
+     *      - Short IDs (sid): {identifier} (only if not already taken)
      */
     function _loadDeployments() private {
         try vm.readFile(deploymentsFile) returns (string memory json) {
@@ -120,19 +119,15 @@ contract Registry is Script {
                     try
                         vm.parseJsonString(json, string.concat(path, ".sid"))
                     returns (string memory shortId) {
-                        if (deployments[shortId] != address(0)) {
-                            console.log(
-                                "Warning: Short ID already exists for",
-                                shortId,
-                                "at",
-                                deployments[shortId]
-                            );
-                            deployments[shortId] = address(0);
-                        } else {
+                        // Only register short ID if it's not already taken
+                        // This prevents conflicts when multiple contracts have the same short ID
+                        if (deployments[shortId] == address(0)) {
                             deployments[shortId] = parsedAddr;
                         }
+                        // Note: We silently skip duplicate short IDs rather than logging warnings
+                        // to avoid cluttering output in normal operation
                     } catch {
-                        console.log("Warning: Could not parse sid for", addr);
+                        // Short ID is optional, so we don't log warnings for missing values
                     }
                 }
             }

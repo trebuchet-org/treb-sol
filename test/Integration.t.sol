@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {Deployer} from "../src/internal/sender/Deployer.sol";
 import {Dispatcher} from "../src/internal/Dispatcher.sol";
-import {SenderTypes, Transaction, RichTransaction, BundleStatus} from "../src/internal/types.sol";
+import {SenderTypes, Transaction, RichTransaction, TransactionStatus} from "../src/internal/types.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 
@@ -81,8 +81,8 @@ contract IntegrationTest is Test, CreateXScript {
         
         s.execute(txn);
         
-        // Broadcast
-        s.broadcast();
+        // Broadcast through registry
+        Senders.registry().broadcast();
         
         // Verify
         TestContract tc = TestContract(deployed);

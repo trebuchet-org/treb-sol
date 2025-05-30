@@ -3,12 +3,22 @@ pragma solidity ^0.8.27;
 
 import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "./Senders.sol";
-import {RichTransaction, BundleStatus, SenderTypes} from "../types.sol";
+import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
 
 library PrivateKey {
     Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     using Senders for Senders.Sender;
+
+    event TransactionBroadcast(
+        bytes32 indexed transactionId,
+        address indexed sender,
+        address indexed to,
+        uint256 value,
+        bytes data,
+        string label,
+        bytes returnData
+    );
 
     struct Sender {
         bytes32 id;
@@ -16,9 +26,6 @@ library PrivateKey {
         address account;
         bytes8 senderType;
         bytes config;
-        RichTransaction[] queue;
-        bytes32 bundleId;
-        bool broadcasted;
     }
 
     function cast(Senders.Sender storage _sender) internal view returns (Sender storage _privateKeySender) {
@@ -30,19 +37,27 @@ library PrivateKey {
         }
     }
 
-    function broadcast(Sender storage _sender, RichTransaction[] memory _queue) internal returns (BundleStatus status, RichTransaction[] memory _executedQueue) {
+    function broadcast(Sender storage _sender, RichTransaction memory _tx) internal {
         vm.startBroadcast(_sender.account);
-        for (uint256 i = 0; i < _queue.length; i++) {
-            (bool _success, bytes memory data) = _queue[i].transaction.to.call{value: _queue[i].transaction.value}(_queue[i].transaction.data);
-            if (!_success) {
-                assembly {
-                    revert(add(data, 0x20), mload(data))
-                }
+        (bool _success, bytes memory returnData) = _tx.transaction.to.call{value: _tx.transaction.value}(_tx.transaction.data);
+        if (!_success) {
+            assembly {
+                revert(add(returnData, 0x20), mload(returnData))
             }
-            _queue[i].executedReturnData = data;
         }
+        _tx.executedReturnData = returnData;
+        _tx.status = TransactionStatus.EXECUTED;
         vm.stopBroadcast();
-        return (BundleStatus.EXECUTED, _queue);
+
+        emit TransactionBroadcast(
+            _tx.transactionId,
+            _sender.account,
+            _tx.transaction.to,
+            _tx.transaction.value,
+            _tx.transaction.data,
+            _tx.transaction.label,
+            returnData
+        );
     }
 }
 
@@ -60,9 +75,6 @@ library InMemory {
         address account;
         bytes8 senderType;
         bytes config;
-        RichTransaction[] queue;
-        bytes32 bundleId;
-        bool broadcasted;
         // Private key specific fields:
         uint256 privateKey;
     }
@@ -99,9 +111,6 @@ library HardwareWallet {
         address account;
         bytes8 senderType;
         bytes config;
-        RichTransaction[] queue;
-        bytes32 bundleId;
-        bool broadcasted;
         // Hardware wallet specific fields:
         string hardwareWalletType;
         string mnemonicDerivationPath;
@@ -136,6 +145,4 @@ library HardwareWallet {
             revert InvalidHardwareWalletConfig(_sender.name);
         }
     }
-
-
 }
