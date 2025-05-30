@@ -18,15 +18,26 @@ contract Dispatcher is Script {
     }
 
     bool private initialized;
+    bytes private rawConfigs;
+    string private namespace;
+    bool private dryrun;
+
+    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) {
+        rawConfigs = _rawConfigs;
+        namespace = _namespace;
+        dryrun = _dryrun;
+    }
 
     function _initialize() internal {
-        Senders.SenderInitConfig[] memory configs;
-        try vm.envBytes("SENDER_CONFIGS") returns (bytes memory rawConfigs) {
-            configs = abi.decode(rawConfigs, (Senders.SenderInitConfig[]));
-        } catch {
+        if (rawConfigs.length == 0) {
             revert InvalidSenderConfigs();
         }
-        Senders.registry().initialize(configs);
+        Senders.SenderInitConfig[] memory configs = abi.decode(rawConfigs, (Senders.SenderInitConfig[]));
+        if (configs.length == 0) {
+            revert InvalidSenderConfigs();
+        }
+
+        Senders.initialize(configs, namespace, dryrun);
     }
 
     function sender(string memory _name) internal returns (Senders.Sender storage) {
@@ -38,7 +49,7 @@ contract Dispatcher is Script {
     }
 
     function _broadcast() internal {
-        if (vm.envOr("DRYRUN", false) == true) {
+        if (Senders.registry().dryrun) {
             return;
         }
 

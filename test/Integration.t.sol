@@ -104,10 +104,10 @@ contract IntegrationTest is Test, CreateXScript {
         
         // Set environment
         vm.setEnv("NETWORK", "http://localhost:8545");
-        vm.setEnv("SENDER_CONFIGS", vm.toString(abi.encode(configs)));
         
         // Create custom dispatcher for testing
-        TestDispatcher disp = new TestDispatcher();
+        bytes memory encodedConfigs = abi.encode(configs);
+        TestDispatcher disp = new TestDispatcher(encodedConfigs, "default", false);
         
         // Use the sender
         TestContract tc = disp.deployTestContract(123, DISPATCHER_TEST);
@@ -167,6 +167,9 @@ contract IntegrationTest is Test, CreateXScript {
 contract TestDispatcher is Dispatcher {
     using Senders for Senders.Sender;
     using Deployer for Senders.Sender;
+    
+    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
+        Dispatcher(_rawConfigs, _namespace, _dryrun) {}
     
     function deployTestContract(uint256 value, string memory senderName) external returns (TestContract) {
         Senders.Sender storage s = sender(senderName);

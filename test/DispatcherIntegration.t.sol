@@ -6,7 +6,10 @@ import {Dispatcher} from "../src/internal/Dispatcher.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {SenderTypes} from "../src/internal/types.sol";
 
-contract TestDispatcher is Dispatcher {
+contract TestableDispatcher is Dispatcher {
+    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
+        Dispatcher(_rawConfigs, _namespace, _dryrun) {}
+    
     // Expose internal functions for testing
     function testGetSender(string memory name) external returns (Senders.Sender memory) {
         return sender(name);
@@ -18,7 +21,7 @@ contract TestDispatcher is Dispatcher {
 }
 
 contract DispatcherIntegrationTest is Test {
-    TestDispatcher dispatcher;
+    TestableDispatcher dispatcher;
     
     // Constants for sender names
     string constant SENDER1 = "sender1";
@@ -30,6 +33,16 @@ contract DispatcherIntegrationTest is Test {
     function setUp() public {
         // Set required environment variables
         vm.setEnv("NETWORK", "http://localhost:8545");
+        
+        // Reset the Senders registry to avoid test pollution
+        Senders.reset();
+    }
+    
+    function tearDown() public {
+        // Clean up environment variables
+        vm.setEnv("SENDER_CONFIGS", "");
+        vm.setEnv("DRYRUN", "");
+        vm.setEnv("NAMESPACE", "");
     }
     
     function test_DispatcherInitialization() public {
@@ -48,12 +61,9 @@ contract DispatcherIntegrationTest is Test {
             config: abi.encode(0x2222)
         });
         
-        // Set configs in environment
+        // Create dispatcher with configs
         bytes memory encodedConfigs = abi.encode(configs);
-        vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
-        
-        // Create dispatcher
-        dispatcher = new TestDispatcher();
+        dispatcher = new TestableDispatcher(encodedConfigs, "default", false);
         
         // Access sender (should trigger lazy initialization)
         Senders.Sender memory sender1 = dispatcher.testGetSender(SENDER1);
@@ -66,8 +76,9 @@ contract DispatcherIntegrationTest is Test {
     }
     
     function test_DispatcherMissingSenderConfigs() public {
-        // Don't set SENDER_CONFIGS
-        dispatcher = new TestDispatcher();
+        // Create dispatcher with empty configs
+        bytes memory emptyConfigs = "";
+        dispatcher = new TestableDispatcher(emptyConfigs, "default", false);
         
         // Should revert when trying to access sender
         vm.expectRevert(Dispatcher.InvalidSenderConfigs.selector);
@@ -75,13 +86,12 @@ contract DispatcherIntegrationTest is Test {
     }
     
     function test_DispatcherInvalidSenderConfigs() public {
-        // Set invalid configs
-        vm.setEnv("SENDER_CONFIGS", "0xdeadbeef");
-        
-        dispatcher = new TestDispatcher();
+        // Create dispatcher with invalid configs (can't decode as SenderInitConfig[])
+        bytes memory invalidConfigs = hex"deadbeef";
+        dispatcher = new TestableDispatcher(invalidConfigs, "default", false);
         
         // Should revert when trying to decode
-        vm.expectRevert(Dispatcher.InvalidSenderConfigs.selector);
+        vm.expectRevert();
         dispatcher.testGetSender("any");
     }
     
@@ -97,15 +107,13 @@ contract DispatcherIntegrationTest is Test {
         });
         
         bytes memory encodedConfigs = abi.encode(configs);
-        vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
         
-        dispatcher = new TestDispatcher();
-        
-        // Test broadcast with DRYRUN=false (default)
+        // Test broadcast with dryrun=false
+        dispatcher = new TestableDispatcher(encodedConfigs, "default", false);
         dispatcher.testBroadcast();
         
-        // Test with DRYRUN=true
-        vm.setEnv("DRYRUN", "true");
+        // Test with dryrun=true
+        dispatcher = new TestableDispatcher(encodedConfigs, "default", true);
         dispatcher.testBroadcast();
     }
     
@@ -120,10 +128,9 @@ contract DispatcherIntegrationTest is Test {
         });
         
         bytes memory encodedConfigs = abi.encode(configs);
-        vm.setEnv("SENDER_CONFIGS", vm.toString(encodedConfigs));
         
         // Create dispatcher
-        dispatcher = new TestDispatcher();
+        dispatcher = new TestableDispatcher(encodedConfigs, "default", false);
         
         // Registry should not be initialized yet
         // First access should initialize
