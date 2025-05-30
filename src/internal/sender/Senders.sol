@@ -306,12 +306,6 @@ library Senders {
             revert BroadcastAlreadyCalled();
         }
 
-        if (_registry.dryrun) {
-            _registry._broadcasted = true;
-            return new RichTransaction[](0);
-        }
-
-
         uint256 snap = vm.snapshotState();
 
         customQueue = new RichTransaction[](_registry._globalQueue.length);
@@ -328,7 +322,7 @@ library Senders {
 
             if (sender.isType(SenderTypes.PrivateKey)) {
                 // Sync execution - broadcast immediately
-                sender.privateKey().broadcast(richTx);
+                sender.privateKey().broadcast(richTx, _registry.dryrun);
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
                 sender.gnosisSafe().queue(richTx);
@@ -346,7 +340,7 @@ library Senders {
         for (uint256 i = 0; i < senderIds.length; i++) {
             Sender storage sender = _registry.senders[senderIds[i]];
             if (sender.isType(SenderTypes.GnosisSafe)) {
-                sender.gnosisSafe().broadcast();
+                sender.gnosisSafe().broadcast(_registry.dryrun);
             }
         }
 

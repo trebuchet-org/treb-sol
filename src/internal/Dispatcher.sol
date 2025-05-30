@@ -58,10 +58,6 @@ contract Dispatcher is Script {
     }
 
     function _broadcast() internal {
-        if (Senders.registry().dryrun) {
-            return;
-        }
-
         RichTransaction[] memory customQueue = Senders.registry().broadcast();
         processCustomQueue(customQueue);
     }

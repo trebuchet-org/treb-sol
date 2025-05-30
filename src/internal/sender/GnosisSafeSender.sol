@@ -76,6 +76,14 @@ library GnosisSafe {
     }
 
     function broadcast(Sender storage _sender) internal {
+        broadcast(_sender, false);
+    }
+
+    function broadcast(Sender storage _sender, bool dryrun) internal {
+        if (_sender.txQueue.length == 0) {
+            return;
+        }
+
         address[] memory targets = new address[](_sender.txQueue.length);
         bytes[] memory datas = new bytes[](_sender.txQueue.length);
 
@@ -88,7 +96,13 @@ library GnosisSafe {
             _sender.txQueue[i].status = TransactionStatus.QUEUED;
         }
 
-        bytes32 safeTxHash = _sender.safe().proposeTransactions(targets, datas);
+        bytes32 safeTxHash;
+        if (!dryrun) {
+            safeTxHash = _sender.safe().proposeTransactions(targets, datas);
+        } else {
+            // In dryrun mode, generate a mock transaction hash
+            safeTxHash = keccak256(abi.encode(targets, datas, block.timestamp));
+        }
 
         emit SafeTransactionQueued(
             safeTxHash,
