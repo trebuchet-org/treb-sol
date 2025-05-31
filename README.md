@@ -1,3 +1,5 @@
+![./docs/treb-sol.png]
+
 # treb-sol
 
 A powerful Solidity library for deterministic smart contract deployments with multi-sender coordination, hardware wallet support, and Safe multisig integration. Part of the [Trebuchet](https://github.com/trebuchet-org) deployment framework - because sometimes you need perfect ballistics for your contract launches.
