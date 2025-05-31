@@ -10,22 +10,22 @@ contract ExampleContract {
     address public owner;
     string public name;
     uint256 public value;
-    
+
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event NameSet(string newName);
     event ValueSet(uint256 newValue);
-    
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Not the owner");
         _;
     }
-    
+
     constructor(address _owner, string memory _name) {
         owner = _owner;
         name = _name;
         emit OwnershipTransferred(address(0), _owner);
     }
-    
+
     /**
      * @notice Transfer ownership to a new address
      * @param newOwner The address to transfer ownership to
@@ -36,7 +36,7 @@ contract ExampleContract {
         owner = newOwner;
         emit OwnershipTransferred(previousOwner, newOwner);
     }
-    
+
     /**
      * @notice Set the contract name (owner only)
      * @param _name The new name for the contract
@@ -45,7 +45,7 @@ contract ExampleContract {
         name = _name;
         emit NameSet(_name);
     }
-    
+
     /**
      * @notice Set a value (owner only)
      * @param _value The new value to set
@@ -54,7 +54,7 @@ contract ExampleContract {
         value = _value;
         emit ValueSet(_value);
     }
-    
+
     /**
      * @notice Get contract information
      * @return The current owner, name, and value

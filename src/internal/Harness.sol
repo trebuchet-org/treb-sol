@@ -17,38 +17,34 @@ contract Harness is CommonBase {
         target = _target;
         senderId = _senderId;
         senderCoordinator = SenderCoordinator(_senderCoordinator);
-        vm.label(address(this), string.concat("Harness[",_sender, "]"));
+        vm.label(address(this), string.concat("Harness[", _sender, "]"));
     }
 
     /**
      * @dev Fallback function that intercepts all calls to the harness.
-     * 
+     *
      * The harness serves two purposes:
      * 1. For state-changing calls: Queue transactions through the sender coordinator for batched execution
      * 2. For view/pure calls: Forward directly as staticcalls to get immediate results
-     * 
+     *
      * Staticcall detection mechanism:
      * - When this harness is called via staticcall (e.g., for view functions), the senderCoordinator.execute
      *   will fail because vm.prank attempts to modify state, which is not allowed in staticcall context
      * - This specific failure mode results in an empty revert (no error data)
      * - We detect this empty revert and fall back to forwarding the call as a staticcall
-     * 
+     *
      * Error handling:
      * - Empty revert data (length 0) → Indicates staticcall context, forward as staticcall
      * - Non-empty revert data → Real error (TransactionFailed, require, custom error), propagate it
-     * 
+     *
      * This approach ensures:
      * - View/pure functions work transparently through the harness
      * - Actual transaction failures are properly propagated with their error messages
      * - State-changing calls are queued for batch execution via the dispatcher
      */
     fallback(bytes calldata) external payable returns (bytes memory) {
-        Transaction memory transaction = Transaction({
-            to: target,
-            value: msg.value,
-            data: msg.data,
-            label: "harness:execute"
-        });
+        Transaction memory transaction =
+            Transaction({to: target, value: msg.value, data: msg.data, label: "harness:execute"});
 
         // Try to execute through senderCoordinator (for state-changing calls)
         try senderCoordinator.execute(senderId, transaction) returns (RichTransaction memory richTransaction) {

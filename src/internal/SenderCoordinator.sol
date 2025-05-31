@@ -80,14 +80,14 @@ contract SenderCoordinator is Script {
     modifier broadcast() {
         // Check if broadcast is already queued (nested call)
         bool broadcastAlreadyQueued = Senders.registry().broadcastQueued;
-        
+
         // If not already queued, mark as queued
         if (!broadcastAlreadyQueued) {
             Senders.registry().broadcastQueued = true;
         }
-        
+
         _;
-        
+
         // Only broadcast if this was the outermost call
         if (!broadcastAlreadyQueued) {
             Senders.registry().broadcastQueued = false;
@@ -133,12 +133,7 @@ contract SenderCoordinator is Script {
             revert NoSenderInitConfigs();
         }
 
-        Senders.initialize(
-            senderInitConfigs,
-            namespace,
-            dryrun,
-            quiet
-        );
+        Senders.initialize(senderInitConfigs, namespace, dryrun, quiet);
     }
 
     /**
@@ -156,9 +151,7 @@ contract SenderCoordinator is Script {
      * address newContract = deployer.deployCreate3("MyContract");
      * ```
      */
-    function sender(
-        string memory _name
-    ) internal returns (Senders.Sender storage) {
+    function sender(string memory _name) internal returns (Senders.Sender storage) {
         if (!initialized) {
             _initialize();
             initialized = true;
@@ -204,9 +197,7 @@ contract SenderCoordinator is Script {
      * }
      * ```
      */
-    function processCustomQueue(
-        RichTransaction[] memory _customQueue
-    ) internal virtual {
+    function processCustomQueue(RichTransaction[] memory _customQueue) internal virtual {
         if (_customQueue.length > 0) {
             /// @dev override this function to implement custom queue processing
             revert CustomQueueReceiverNotImplemented();
@@ -224,10 +215,10 @@ contract SenderCoordinator is Script {
      * @param _transactions Array of transactions to execute
      * @return bundleTransactions Array of executed transactions with results including status and return data
      */
-    function execute(
-        bytes32 _senderId,
-        Transaction[] memory _transactions
-    ) external returns (RichTransaction[] memory bundleTransactions) {
+    function execute(bytes32 _senderId, Transaction[] memory _transactions)
+        external
+        returns (RichTransaction[] memory bundleTransactions)
+    {
         Senders.Sender storage _sender = Senders.registry().get(_senderId);
         return _sender.execute(_transactions);
     }
@@ -243,12 +234,11 @@ contract SenderCoordinator is Script {
      * @param _transaction Transaction to execute
      * @return bundleTransaction Executed transaction with results including status and return data
      */
-    function execute(
-        bytes32 _senderId,
-        Transaction memory _transaction
-    ) external returns (RichTransaction memory bundleTransaction) {
+    function execute(bytes32 _senderId, Transaction memory _transaction)
+        external
+        returns (RichTransaction memory bundleTransaction)
+    {
         Senders.Sender storage _sender = Senders.registry().get(_senderId);
         return _sender.execute(_transaction);
     }
 }
-

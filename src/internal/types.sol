@@ -33,4 +33,3 @@ library SenderTypes {
     bytes8 internal constant Ledger = bytes8(keccak256("ledger")) | HardwareWallet;
     bytes8 internal constant Trezor = bytes8(keccak256("trezor")) | HardwareWallet;
 }
-

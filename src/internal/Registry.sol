@@ -38,13 +38,13 @@ import {Script, console} from "forge-std/Script.sol";
  *      Example usage in deployment scripts:
  *      ```solidity
  *      Registry registry = new Registry("default", ".treb/registry.json");
- *      
+ *
  *      // Look up in current namespace and chain
  *      address counter = registry.lookup("Counter");
- *      
+ *
  *      // Look up in specific environment
  *      address stagingCounter = registry.lookup("Counter", "staging");
- *      
+ *
  *      // Look up in specific environment and chain
  *      address mainnetCounter = registry.lookup("Counter", "production", "1");
  *      ```
@@ -52,10 +52,10 @@ import {Script, console} from "forge-std/Script.sol";
 contract Registry is Script {
     /// @notice The loaded registry JSON content
     string private registryJSON;
-    
+
     /// @notice The default namespace/environment for lookups
     string private namespace;
-    
+
     /// @notice The current chain ID as a string
     string private chainId;
 
@@ -83,21 +83,19 @@ contract Registry is Script {
      * @param _identifier The contract identifier to look up
      * @return The deployment address, or address(0) if not found
      * @dev This is the most common lookup method, using the namespace and chain ID from construction.
-     *      
+     *
      *      Contract identifiers can take several forms:
      *      - Simple name: "Counter"
      *      - Name with label: "Counter:V2"
      *      - Name with hash suffix: "CounterProxy#d241asf"
-     *      
+     *
      *      Example:
      *      ```solidity
      *      address counterAddr = registry.lookup("Counter");
      *      require(counterAddr != address(0), "Counter not deployed");
      *      ```
      */
-    function lookup(
-        string memory _identifier
-    ) public view returns (address) {
+    function lookup(string memory _identifier) public view returns (address) {
         return lookup(_identifier, namespace, chainId);
     }
 
@@ -107,17 +105,14 @@ contract Registry is Script {
      * @param _env The environment/namespace to search in (e.g., "default", "staging", "production")
      * @return The deployment address, or address(0) if not found
      * @dev Use this when you need to reference deployments from a different environment than the current one.
-     *      
+     *
      *      Example:
      *      ```solidity
      *      // Get the production version while deploying to staging
      *      address prodCounter = registry.lookup("Counter", "production");
      *      ```
      */
-    function lookup(
-        string memory _identifier,
-        string memory _env
-    ) public view returns (address) {
+    function lookup(string memory _identifier, string memory _env) public view returns (address) {
         return lookup(_identifier, _env, chainId);
     }
 
@@ -128,19 +123,19 @@ contract Registry is Script {
      * @param _chainId The chain ID to search in (as a string, e.g., "1" for mainnet, "11155111" for Sepolia)
      * @return The deployment address, or address(0) if not found
      * @dev This is the most flexible lookup method, allowing cross-chain and cross-environment lookups.
-     *      
+     *
      *      The lookup path in the JSON is: `.<chainId>.<env>.<identifier>`
-     *      
+     *
      *      Fallback behavior:
      *      - If the exact path is not found, returns address(0)
      *      - Logs the failed lookup for debugging
      *      - Does not throw, allowing scripts to handle missing deployments gracefully
-     *      
+     *
      *      Example:
      *      ```solidity
      *      // Reference a mainnet deployment while on testnet
      *      address mainnetToken = registry.lookup("Token", "production", "1");
-     *      
+     *
      *      // Check if a deployment exists before using it
      *      address maybeDeploy = registry.lookup("OptionalDep", "staging", "11155111");
      *      if (maybeDeploy != address(0)) {
@@ -148,12 +143,14 @@ contract Registry is Script {
      *      }
      *      ```
      */
-    function lookup(
-        string memory _identifier,
-        string memory _env,
-        string memory _chainId
-    ) public view returns (address) {
-        try vm.parseJsonAddress(registryJSON, string.concat(".", _chainId, ".", _env, ".", _identifier)) returns (address result) {
+    function lookup(string memory _identifier, string memory _env, string memory _chainId)
+        public
+        view
+        returns (address)
+    {
+        try vm.parseJsonAddress(registryJSON, string.concat(".", _chainId, ".", _env, ".", _identifier)) returns (
+            address result
+        ) {
             return result;
         } catch {
             console.log("Registry: lookup failed for", _chainId, _env, _identifier);

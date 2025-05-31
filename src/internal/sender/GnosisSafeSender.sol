@@ -9,10 +9,7 @@ import {console} from "forge-std/console.sol";
 
 library GnosisSafe {
     event SafeTransactionQueued(
-        bytes32 indexed safeTxHash,
-        address indexed safe,
-        address indexed proposer,
-        RichTransaction[] transactions
+        bytes32 indexed safeTxHash, address indexed safe, address indexed proposer, RichTransaction[] transactions
     );
 
     error SafeTransactionValueNotZero(string label);
@@ -33,15 +30,9 @@ library GnosisSafe {
         RichTransaction[] txQueue;
     }
 
-    function cast(
-        Senders.Sender storage _sender
-    ) internal view returns (Sender storage _gnosisSafeSender) {
+    function cast(Senders.Sender storage _sender) internal view returns (Sender storage _gnosisSafeSender) {
         if (!_sender.isType(SenderTypes.GnosisSafe)) {
-            revert Senders.InvalidCast(
-                _sender.name,
-                _sender.senderType,
-                SenderTypes.GnosisSafe
-            );
+            revert Senders.InvalidCast(_sender.name, _sender.senderType, SenderTypes.GnosisSafe);
         }
         assembly {
             _gnosisSafeSender.slot := _sender.slot
@@ -64,16 +55,10 @@ library GnosisSafe {
             privateKey = _sender.proposer().inMemory().privateKey;
         } else if (_sender.proposer().isType(SenderTypes.Ledger)) {
             signerType = Safe.SignerType.Ledger;
-            derivationPath = _sender
-                .proposer()
-                .hardwareWallet()
-                .mnemonicDerivationPath;
+            derivationPath = _sender.proposer().hardwareWallet().mnemonicDerivationPath;
         } else if (_sender.proposer().isType(SenderTypes.Trezor)) {
             signerType = Safe.SignerType.Trezor;
-            derivationPath = _sender
-                .proposer()
-                .hardwareWallet()
-                .mnemonicDerivationPath;
+            derivationPath = _sender.proposer().hardwareWallet().mnemonicDerivationPath;
         } else {
             revert InvalidGnosisSafeConfig(_sender.name);
         }
@@ -89,10 +74,7 @@ library GnosisSafe {
         );
     }
 
-    function queue(
-        Sender storage _sender,
-        RichTransaction memory _tx
-    ) internal {
+    function queue(Sender storage _sender, RichTransaction memory _tx) internal {
         _sender.txQueue.push(_tx);
     }
 
@@ -110,9 +92,7 @@ library GnosisSafe {
 
         for (uint256 i = 0; i < _sender.txQueue.length; i++) {
             if (_sender.txQueue[i].transaction.value > 0) {
-                revert SafeTransactionValueNotZero(
-                    _sender.txQueue[i].transaction.label
-                );
+                revert SafeTransactionValueNotZero(_sender.txQueue[i].transaction.label);
             }
             targets[i] = _sender.txQueue[i].transaction.to;
             datas[i] = _sender.txQueue[i].transaction.data;
@@ -129,32 +109,20 @@ library GnosisSafe {
 
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
-            emit SafeTransactionQueued(
-                safeTxHash,
-                _sender.account,
-                _sender.proposer().account,
-                _sender.txQueue
-            );
+            emit SafeTransactionQueued(safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue);
         }
 
         delete _sender.txQueue;
     }
 
-    function proposer(
-        Sender storage _sender
-    ) internal view returns (Senders.Sender storage) {
+    function proposer(Sender storage _sender) internal view returns (Senders.Sender storage) {
         return Senders.get(_sender.proposerId);
     }
 
-    function safe(
-        Sender storage _sender
-    ) internal view returns (Safe.Client storage _safe) {
-        bytes32 slot = bytes32(
-            uint256(keccak256(abi.encodePacked("safe.Client", _sender.account)))
-        );
+    function safe(Sender storage _sender) internal view returns (Safe.Client storage _safe) {
+        bytes32 slot = bytes32(uint256(keccak256(abi.encodePacked("safe.Client", _sender.account))));
         assembly {
             _safe.slot := slot
         }
     }
 }
-

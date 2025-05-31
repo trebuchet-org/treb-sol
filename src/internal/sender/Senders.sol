@@ -107,7 +107,6 @@ pragma solidity ^0.8.0;
  * Senders.broadcast(Senders.registry());
  * ```
  */
-
 import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
@@ -126,7 +125,7 @@ library Senders {
     /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
     /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
     bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
-    
+
     /// @dev Foundry VM interface for simulation and state management
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
@@ -163,11 +162,9 @@ library Senders {
         mapping(bytes32 => mapping(address => address)) senderHarness;
         bytes32[] ids;
         RichTransaction[] _globalQueue;
-
         string namespace;
         bool dryrun;
         bool quiet;
-
         bool initialized;
         uint256 preSimulationSnapshot;
         bool broadcasted;
@@ -231,31 +228,31 @@ library Senders {
 
     /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
-    
+
     /// @notice Thrown when a sender type is not recognized or supported
     error InvalidSenderType(string name, bytes8 senderType);
-    
+
     /// @notice Thrown when trying to access a sender that hasn't been initialized
     error SenderNotInitialized(string name);
-    
+
     /// @notice Thrown when attempting to initialize registry with empty sender array
     error NoSenders();
-    
+
     /// @notice Thrown when simulation and execution return data don't match
     error TransactionExecutionMismatch(string label, bytes returnData);
-    
+
     /// @notice Thrown when attempting to broadcast a custom sender through the standard mechanism
     error CannotBroadcastCustomSender(string name);
-    
+
     /// @notice Thrown when an unexpected sender type attempts to broadcast
     error UnexpectedSenderBroadcast(string name, bytes8 senderType);
-    
+
     /// @notice Thrown when broadcast() is called multiple times on the same registry
     error BroadcastAlreadyCalled();
-    
+
     /// @notice Thrown when execute() is called with an empty transaction array
     error EmptyTransactionArray();
-    
+
     /// @notice Thrown when a transaction has an invalid (zero) target address
     error InvalidTargetAddress(uint256 index);
 
@@ -281,12 +278,7 @@ library Senders {
     function generateTransactionId() internal returns (bytes32) {
         Registry storage _registry = registry();
         _registry.transactionCounter++;
-        return keccak256(abi.encodePacked(
-            block.chainid, 
-            block.timestamp, 
-            msg.sender,
-            _registry.transactionCounter
-        ));
+        return keccak256(abi.encodePacked(block.chainid, block.timestamp, msg.sender, _registry.transactionCounter));
     }
 
     // ************* Registry Management ************* //
@@ -298,19 +290,27 @@ library Senders {
      * @param _dryrun Whether to run in dry-run mode
      * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
+    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet)
+        internal
+    {
         initialize(registry(), _configs, _namespace, _dryrun, _quiet);
     }
 
     /**
      * @notice Initializes registry with sender configurations including quiet mode
-     * @param _registry Registry storage reference  
+     * @param _registry Registry storage reference
      * @param _configs Array of sender configurations to register
      * @param _namespace Deployment namespace
      * @param _dryrun Whether to run in dry-run mode
      * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
+    function initialize(
+        Registry storage _registry,
+        SenderInitConfig[] memory _configs,
+        string memory _namespace,
+        bool _dryrun,
+        bool _quiet
+    ) internal {
         if (_registry.initialized) {
             revert RegistryAlreadyInitialized();
         }
@@ -338,16 +338,16 @@ library Senders {
         _registry.ids = new bytes32[](_configs.length);
         unchecked {
             for (uint256 i; i < _configs.length; ++i) {
-            bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
-            _registry.senders[senderId].id = senderId;
-            _registry.senders[senderId].name = _configs[i].name;
-            _registry.senders[senderId].account = _configs[i].account;
-            _registry.senders[senderId].senderType = _configs[i].senderType;
-            _registry.senders[senderId].config = _configs[i].config;
-            _registry.ids[i] = senderId;
+                bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
+                _registry.senders[senderId].id = senderId;
+                _registry.senders[senderId].name = _configs[i].name;
+                _registry.senders[senderId].account = _configs[i].account;
+                _registry.senders[senderId].senderType = _configs[i].senderType;
+                _registry.senders[senderId].config = _configs[i].config;
+                _registry.ids[i] = senderId;
             }
         }
-        
+
         unchecked {
             for (uint256 i; i < _registry.ids.length; ++i) {
                 _registry.senders[_registry.ids[i]].initialize();
@@ -356,7 +356,6 @@ library Senders {
 
         _registry.preSimulationSnapshot = vm.snapshotState();
     }
-
 
     /**
      * @notice Retrieves a sender from the global registry by ID
@@ -503,14 +502,17 @@ library Senders {
      * @param _transactions Array of transactions to execute
      * @return bundleTransactions Array of rich transactions with simulation results and queue tracking
      */
-    function execute(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
+    function execute(Sender storage _sender, Transaction[] memory _transactions)
+        internal
+        returns (RichTransaction[] memory bundleTransactions)
+    {
         if (_transactions.length == 0) revert EmptyTransactionArray();
         for (uint256 i = 0; i < _transactions.length; i++) {
             if (_transactions[i].to == address(0)) revert InvalidTargetAddress(i);
         }
         return _sender.simulate(_transactions);
     }
-    
+
     /**
      * @notice Executes a single transaction through a sender
      * @dev Convenience wrapper for single transaction execution
@@ -518,7 +520,10 @@ library Senders {
      * @param _transaction Transaction to execute
      * @return bundleTransaction Rich transaction with simulation results and queue tracking
      */
-    function execute(Sender storage _sender, Transaction memory _transaction) internal returns (RichTransaction memory bundleTransaction) {
+    function execute(Sender storage _sender, Transaction memory _transaction)
+        internal
+        returns (RichTransaction memory bundleTransaction)
+    {
         Transaction[] memory transactions = new Transaction[](1);
         transactions[0] = _transaction;
         RichTransaction[] memory bundleTransactions = _sender.execute(transactions);
@@ -537,17 +542,21 @@ library Senders {
      * @param _transactions Array of transactions to simulate
      * @return bundleTransactions Array of rich transactions with simulation results
      */
-    function simulate(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
+    function simulate(Sender storage _sender, Transaction[] memory _transactions)
+        internal
+        returns (RichTransaction[] memory bundleTransactions)
+    {
         Registry storage _registry = registry();
         bundleTransactions = new RichTransaction[](_transactions.length);
-        
+
         for (uint256 i = 0; i < _transactions.length; i++) {
             // Generate unique transaction ID
             bytes32 transactionId = generateTransactionId();
-            
+
             vm.prank(_sender.account);
-            (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
-            
+            (bool success, bytes memory returnData) =
+                _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
+
             // Only emit events if not in quiet mode
             if (!registry().quiet) {
                 emit TransactionSimulated(
@@ -560,7 +569,7 @@ library Senders {
                     returnData
                 );
             }
-            
+
             if (!success) {
                 if (!registry().quiet) {
                     emit TransactionFailed(
@@ -578,7 +587,7 @@ library Senders {
                     revert(add(returnData, 0x20), dataSize)
                 }
             }
-            
+
             RichTransaction memory richTx = RichTransaction({
                 transaction: _transactions[i],
                 transactionId: transactionId,
@@ -587,7 +596,7 @@ library Senders {
                 simulatedReturnData: returnData,
                 executedReturnData: new bytes(0)
             });
-            
+
             bundleTransactions[i] = richTx;
             // Add to global queue in order
             _registry._globalQueue.push(richTx);

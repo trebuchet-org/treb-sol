@@ -56,7 +56,9 @@ contract SendersTest is Test {
         });
         initialize(configs);
 
-        vm.expectRevert(abi.encodeWithSelector(Senders.InvalidCast.selector, "sender1", SenderTypes.Ledger, SenderTypes.InMemory));
+        vm.expectRevert(
+            abi.encodeWithSelector(Senders.InvalidCast.selector, "sender1", SenderTypes.Ledger, SenderTypes.InMemory)
+        );
         harness.getInMemory("sender1");
     }
 }

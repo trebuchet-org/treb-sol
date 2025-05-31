@@ -34,20 +34,17 @@ abstract contract TrebScript is ConfigurableTrebScript {
      * @notice Initializes TrebScript by reading configuration from environment variables
      * @dev This constructor automatically reads all necessary configuration from environment variables,
      *      making it suitable for use with treb-cli which manages the environment setup.
-     *      
+     *
      *      Environment variables read:
      *      - SENDER_CONFIGS: ABI-encoded sender configurations for multi-sig/hardware wallet support
      *      - NAMESPACE: Deployment namespace (default: "default")
-     *      - REGISTRY_FILE: Registry file path (default: ".treb/registry.json") 
+     *      - REGISTRY_FILE: Registry file path (default: ".treb/registry.json")
      *      - DRYRUN: Whether to execute in dry-run mode (default: false)
      *      - QUIET: Whether to suppress internal treb-cli parsing logs (default: false)
      */
     constructor()
         ConfigurableTrebScript(
-            abi.decode(
-                vm.envBytes("SENDER_CONFIGS"),
-                (Senders.SenderInitConfig[])
-            ),
+            abi.decode(vm.envBytes("SENDER_CONFIGS"), (Senders.SenderInitConfig[])),
             vm.envOr("NAMESPACE", string("default")),
             vm.envOr("REGISTRY_FILE", string(".treb/registry.json")),
             vm.envOr("DRYRUN", false),

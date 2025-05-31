@@ -55,8 +55,5 @@ abstract contract ConfigurableTrebScript is SenderCoordinator, Registry {
         string memory registryFilename,
         bool dryrun,
         bool quiet
-    )
-        Registry(namespace, registryFilename)
-        SenderCoordinator(senderInitConfigs, namespace, dryrun, quiet)
-    {}
+    ) Registry(namespace, registryFilename) SenderCoordinator(senderInitConfigs, namespace, dryrun, quiet) {}
 }

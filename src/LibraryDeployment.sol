@@ -17,6 +17,7 @@ contract LibraryDeployment is TrebScript {
     string private constant LIBRARY_DEPLOYER = "libraries";
 
     error MissingLibraryArtifactPath();
+
     string private artifactPath;
 
     constructor() {

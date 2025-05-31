@@ -54,8 +54,9 @@ library Deployer {
      * @dev CREATE3 provides address independence from init code, CREATE2 includes init code in address calculation
      */
     enum CreateStrategy {
-        CREATE3,  // Address = f(deployer, salt) - init code independent
-        CREATE2   // Address = f(deployer, salt, initCodeHash) - init code dependent
+        CREATE3, // Address = f(deployer, salt) - init code independent
+        CREATE2 // Address = f(deployer, salt, initCodeHash) - init code dependent
+
     }
 
     /**
@@ -100,10 +101,7 @@ library Deployer {
      * @param deployment Comprehensive deployment details
      */
     event ContractDeployed(
-        address indexed deployer,
-        address indexed location,
-        bytes32 indexed transactionId,
-        EventDeployment deployment
+        address indexed deployer, address indexed location, bytes32 indexed transactionId, EventDeployment deployment
     );
 
     // *************** DEPLOYMENT *************** //
@@ -116,7 +114,7 @@ library Deployer {
      * @param sender The sender executing the deployment
      * @param bytecode The contract bytecode to deploy
      * @return deployment Storage pointer to the deployment configuration
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Create deployment and configure with label
@@ -125,13 +123,16 @@ library Deployer {
      *     .deploy();
      * ```
      */
-    function _deploy(Senders.Sender storage sender, bytes memory bytecode) internal returns (Deployment storage deployment) {
+    function _deploy(Senders.Sender storage sender, bytes memory bytecode)
+        internal
+        returns (Deployment storage deployment)
+    {
         // Generate unique storage slot to prevent collisions between multiple deployments
         bytes32 deploymentSlot = keccak256(abi.encode(sender.account, bytecode, Senders.registry().transactionCounter));
         assembly {
             deployment.slot := deploymentSlot
         }
-        
+
         // Clear all storage attributes for fresh deployment
         delete deployment.sender;
         delete deployment.strategy;
@@ -139,7 +140,7 @@ library Deployer {
         delete deployment.label;
         delete deployment.entropy;
         delete deployment.artifact;
-        
+
         // Set new values
         deployment.sender = sender;
         deployment.bytecode = bytecode;
@@ -153,7 +154,7 @@ library Deployer {
      * @param deployment The deployment configuration
      * @param _label Label string (e.g., "v2", "hotfix", "staging")
      * @return deployment The same deployment for chaining
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Deploy Counter with label "v2"
@@ -178,7 +179,7 @@ library Deployer {
      * @param deployment The deployment configuration
      * @param _entropy Custom entropy string
      * @return deployment The same deployment for chaining
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Deploy with custom entropy
@@ -236,20 +237,24 @@ library Deployer {
      * @param deployment The deployment configuration
      * @param _constructorArgs ABI-encoded constructor arguments
      * @return The deployed contract address
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Deploy with constructor args
      * address token = sender.create3("Token.sol:Token")
      *     .deploy(abi.encode("MyToken", "MTK", 18));
-     * 
+     *
      * // Deploy with label
      * address tokenV2 = sender.create3("Token.sol:Token")
      *     .setLabel("v2")
      *     .deploy(abi.encode("MyToken V2", "MTK2", 18));
      * ```
      */
-    function deploy(Deployment storage deployment, bytes memory _constructorArgs) internal verify(deployment) returns (address) {
+    function deploy(Deployment storage deployment, bytes memory _constructorArgs)
+        internal
+        verify(deployment)
+        returns (address)
+    {
         Senders.Sender storage sender = deployment.sender;
 
         bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
@@ -294,12 +299,7 @@ library Deployer {
 
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
-            emit ContractDeployed(
-                sender.account,
-                simulatedAddress,
-                createTxResult.transactionId,
-                eventDeployment
-            );
+            emit ContractDeployed(sender.account, simulatedAddress, createTxResult.transactionId, eventDeployment);
         }
 
         return simulatedAddress;
@@ -320,29 +320,33 @@ library Deployer {
      * @dev Address calculation depends on the strategy:
      *      - CREATE3: address = f(factory, deployer, salt)
      *      - CREATE2: address = f(factory, deployer, salt, initCodeHash)
-     *      
+     *
      *      The salt is derived from entropy and includes the sender address.
      *      This ensures different senders get different addresses even with same entropy.
      * @param deployment The deployment configuration
      * @param _constructorArgs ABI-encoded constructor arguments (only affects CREATE2)
      * @return The predicted contract address
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Predict address before deployment
      * address predicted = sender.create3("Token.sol:Token")
      *     .setLabel("v2")
      *     .predict(abi.encode("MyToken", "MTK", 18));
-     * 
+     *
      * // Deploy and verify address matches
      * address actual = sender.create3("Token.sol:Token")
      *     .setLabel("v2")
      *     .deploy(abi.encode("MyToken", "MTK", 18));
-     * 
+     *
      * assert(predicted == actual);
      * ```
      */
-    function predict(Deployment storage deployment, bytes memory _constructorArgs) internal verify(deployment) returns (address) {
+    function predict(Deployment storage deployment, bytes memory _constructorArgs)
+        internal
+        verify(deployment)
+        returns (address)
+    {
         Senders.Sender storage sender = deployment.sender;
         bytes32 salt = sender._salt(deployment.entropy);
 
@@ -358,7 +362,7 @@ library Deployer {
     }
 
     // *************** CREATE3 *************** //
-    
+
     /**
      * @notice Configures CREATE3 deployment with custom bytecode and entropy
      * @dev CREATE3 provides init code independence - the deployment address doesn't change
@@ -368,7 +372,7 @@ library Deployer {
      * @param _entropy Custom entropy string for salt generation
      * @param bytecode The contract bytecode to deploy
      * @return deployment The configured deployment (use .deploy() to execute)
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Deploy with custom bytecode and entropy
@@ -376,7 +380,10 @@ library Deployer {
      *     .deploy(abi.encode(implementationAddress));
      * ```
      */
-    function create3(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode) internal returns (Deployment storage deployment) {
+    function create3(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode)
+        internal
+        returns (Deployment storage deployment)
+    {
         deployment = sender._deploy(bytecode);
         deployment.artifact = "<user-provided-bytecode>";
         deployment.entropy = _entropy;
@@ -390,23 +397,26 @@ library Deployer {
      * @param sender The sender executing the deployment
      * @param _artifact The artifact path (e.g., "Counter.sol:Counter")
      * @return deployment The configured deployment (use .deploy() to execute)
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Basic deployment
      * address counter = sender.create3("Counter.sol:Counter").deploy();
-     * 
+     *
      * // Deployment with label for different version
      * address counterV2 = sender.create3("Counter.sol:Counter")
      *     .setLabel("v2")
      *     .deploy();
-     * 
+     *
      * // Different namespaces get different addresses
      * // (assuming NAMESPACE env var is set to "staging")
      * // entropy: "staging/Counter" vs "default/Counter"
      * ```
      */
-    function create3(Senders.Sender storage sender, string memory _artifact) internal returns (Deployment storage deployment) {
+    function create3(Senders.Sender storage sender, string memory _artifact)
+        internal
+        returns (Deployment storage deployment)
+    {
         try vm.getCode(_artifact) returns (bytes memory code) {
             deployment = sender._deploy(code);
             deployment.artifact = _artifact;
@@ -427,7 +437,7 @@ library Deployer {
      * @param _entropy Custom entropy string for salt generation
      * @param bytecode The contract bytecode to deploy
      * @return deployment The configured deployment (use .deploy() to execute)
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Deploy singleton with specific bytecode
@@ -435,7 +445,10 @@ library Deployer {
      *     .deploy(abi.encode(initParam));
      * ```
      */
-    function create2(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode) internal returns (Deployment storage deployment) {
+    function create2(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode)
+        internal
+        returns (Deployment storage deployment)
+    {
         deployment = sender._deploy(bytecode);
         deployment.artifact = "<user-provided-bytecode>";
         deployment.entropy = _entropy;
@@ -449,20 +462,23 @@ library Deployer {
      * @param sender The sender executing the deployment
      * @param _artifact The artifact path (e.g., "Counter.sol:Counter")
      * @return deployment The configured deployment (use .deploy() to execute)
-     * 
+     *
      * @custom:example
      * ```solidity
      * // CREATE2 deployment - address depends on constructor args
      * address token1 = sender.create2("Token.sol:Token")
      *     .deploy(abi.encode("Token1", "TK1"));
-     * 
+     *
      * address token2 = sender.create2("Token.sol:Token")
      *     .deploy(abi.encode("Token2", "TK2"));
-     * 
+     *
      * // token1 != token2 due to different constructor args
      * ```
      */
-    function create2(Senders.Sender storage sender, string memory _artifact) internal returns (Deployment storage deployment) {
+    function create2(Senders.Sender storage sender, string memory _artifact)
+        internal
+        returns (Deployment storage deployment)
+    {
         try vm.getCode(_artifact) returns (bytes memory code) {
             deployment = sender._deploy(code);
             deployment.artifact = _artifact;
@@ -478,7 +494,7 @@ library Deployer {
      * @notice Generates base salt for deterministic deployment
      * @dev Salt format ensures different senders get different addresses even with same entropy:
      *      [20 bytes: sender address][1 byte: flag (0x00)][11 bytes: entropy hash]
-     *      
+     *
      *      The entropy typically follows these patterns:
      *      - "namespace/artifact" (e.g., "default/Counter")
      *      - "namespace/artifact:label" (e.g., "staging/Counter:v2")
@@ -486,7 +502,7 @@ library Deployer {
      * @param sender The sender executing the deployment
      * @param _entropy String used to generate unique deployment address
      * @return Salt value for CREATE2/CREATE3 deployment
-     * 
+     *
      * @custom:entropy-patterns
      * Common entropy patterns and their effects on addresses:
      * - "default/Counter" → Different address per sender
@@ -502,27 +518,27 @@ library Deployer {
     /**
      * @notice Derives final salt based on CreateX salt derivation rules
      * @dev CreateX uses different salt derivation strategies based on salt format:
-     *      
+     *
      *      1. If salt contains deployer address with flag 0x00:
      *         derivedSalt = keccak256(deployer || salt)
-     *         
+     *
      *      2. If salt contains deployer address with flag 0x01:
      *         derivedSalt = keccak256(abi.encode(deployer, chainId, salt))
-     *         
+     *
      *      3. Otherwise (generic salt):
      *         derivedSalt = keccak256(abi.encode(salt))
-     *      
+     *
      *      Our salts use format #1 for consistent cross-chain addresses.
      * @param sender The sender executing the deployment
      * @param salt The base salt value from _salt()
      * @return derivedSalt Final salt value used by CreateX factory
-     * 
+     *
      * @custom:example
      * ```solidity
      * // Generate and derive salt
      * bytes32 baseSalt = sender._salt("default/Counter:v2");
      * bytes32 finalSalt = sender._derivedSalt(baseSalt);
-     * 
+     *
      * // Use with CreateX
      * address predicted = CREATEX.computeCreate3Address(finalSalt);
      * ```
@@ -546,12 +562,12 @@ library Deployer {
      * @dev ===============================================
      *      COMPREHENSIVE USAGE EXAMPLES & PATTERNS
      *      ===============================================
-     * 
+     *
      * This section demonstrates common deployment patterns and how entropy,
      * labels, and namespaces work together to create deterministic addresses.
-     * 
+     *
      * @custom:usage-patterns
-     * 
+     *
      * 1. BASIC DEPLOYMENT
      * ```solidity
      * contract DeployBasic is Script {
@@ -561,29 +577,29 @@ library Deployer {
      *     }
      * }
      * ```
-     * 
+     *
      * 2. LABELED DEPLOYMENTS (Multiple versions)
      * ```solidity
      * contract DeployVersions is Script {
      *     function run() public {
      *         // Deploy v1 - entropy: "default/Counter"
      *         address counterV1 = sender().create3("Counter.sol:Counter").deploy();
-     *         
+     *
      *         // Deploy v2 - entropy: "default/Counter:v2"
      *         address counterV2 = sender().create3("Counter.sol:Counter")
      *             .setLabel("v2")
      *             .deploy();
-     *         
+     *
      *         // Deploy hotfix - entropy: "default/Counter:hotfix-123"
      *         address counterHotfix = sender().create3("Counter.sol:Counter")
      *             .setLabel("hotfix-123")
      *             .deploy();
-     *         
+     *
      *         // All three have different addresses due to different entropy
      *     }
      * }
      * ```
-     * 
+     *
      * 3. NAMESPACE ENVIRONMENTS
      * ```solidity
      * // With NAMESPACE=staging environment variable:
@@ -591,7 +607,7 @@ library Deployer {
      *     function run() public {
      *         // entropy: "staging/Counter" (different from default/Counter)
      *         address counter = sender().create3("Counter.sol:Counter").deploy();
-     *         
+     *
      *         // entropy: "staging/Counter:v2"
      *         address counterV2 = sender().create3("Counter.sol:Counter")
      *             .setLabel("v2")
@@ -599,7 +615,7 @@ library Deployer {
      *     }
      * }
      * ```
-     * 
+     *
      * 4. CUSTOM ENTROPY (Advanced usage)
      * ```solidity
      * contract DeployCustom is Script {
@@ -608,25 +624,25 @@ library Deployer {
      *         address singleton = sender()
      *             .create3("production/UniswapV3Factory", factoryBytecode)
      *             .deploy();
-     *         
+     *
      *         // This address will be the same across all chains and environments
      *         // because entropy is hardcoded
      *     }
      * }
      * ```
-     * 
+     *
      * 5. CREATE2 vs CREATE3 DIFFERENCES
      * ```solidity
      * contract DeployComparison is Script {
      *     function run() public {
      *         bytes memory args1 = abi.encode("Token1", "TK1");
      *         bytes memory args2 = abi.encode("Token2", "TK2");
-     *         
+     *
      *         // CREATE3: Same address regardless of constructor args
      *         address token1_c3 = sender().create3("Token.sol:Token").deploy(args1);
      *         address token2_c3 = sender().create3("Token.sol:Token").deploy(args2);
      *         // token1_c3 == token2_c3 (same entropy, same sender)
-     *         
+     *
      *         // CREATE2: Different addresses due to different init code
      *         address token1_c2 = sender().create2("Token.sol:Token").deploy(args1);
      *         address token2_c2 = sender().create2("Token.sol:Token").deploy(args2);
@@ -634,30 +650,30 @@ library Deployer {
      *     }
      * }
      * ```
-     * 
+     *
      * 6. ADDRESS PREDICTION
      * ```solidity
      * contract PredictAndDeploy is Script {
      *     function run() public {
      *         bytes memory constructorArgs = abi.encode("MyToken", "MTK", 18);
-     *         
+     *
      *         // Predict address before deployment
      *         address predicted = sender().create3("Token.sol:Token")
      *             .setLabel("v2")
      *             .predict(constructorArgs);
-     *         
+     *
      *         console.log("Will deploy to:", predicted);
-     *         
+     *
      *         // Deploy and verify
      *         address actual = sender().create3("Token.sol:Token")
      *             .setLabel("v2")
      *             .deploy(constructorArgs);
-     *         
+     *
      *         require(predicted == actual, "Address mismatch");
      *     }
      * }
      * ```
-     * 
+     *
      * 7. MULTI-SENDER ISOLATION
      * ```solidity
      * contract MultiSenderExample is Script {
@@ -666,26 +682,26 @@ library Deployer {
      *         address addr1 = sender("deployer1").create3("Counter.sol:Counter").deploy();
      *         address addr2 = sender("deployer2").create3("Counter.sol:Counter").deploy();
      *         // addr1 != addr2 (different senders, same entropy)
-     *         
+     *
      *         // Same sender + same entropy = same address (deterministic)
      *         address addr3 = sender("deployer1").create3("Counter.sol:Counter").deploy();
      *         // addr1 == addr3 (same sender, same entropy)
      *     }
      * }
      * ```
-     * 
+     *
      * @custom:entropy-reference
-     * 
+     *
      * ENTROPY GENERATION RULES:
      * - If setEntropy() is called: use custom entropy directly
      * - If setLabel() is called: entropy = "namespace/artifact:label"
      * - If neither is called: entropy = "namespace/artifact"
      * - Namespace comes from NAMESPACE environment variable (default: "default")
-     * 
+     *
      * SALT FORMAT:
      * baseSalt = [sender(20)] + [0x00(1)] + [keccak256(entropy)[0:11](11)]
      * finalSalt = keccak256(sender || baseSalt)  // for CreateX
-     * 
+     *
      * ADDRESS CALCULATION:
      * CREATE3: address = CreateX.computeCreate3Address(finalSalt)
      * CREATE2: address = CreateX.computeCreate2Address(finalSalt, keccak256(initCode))

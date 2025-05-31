@@ -43,10 +43,11 @@ library PrivateKey {
 
     function broadcast(Sender storage _sender, RichTransaction memory _tx, bool dryrun) internal {
         bytes memory returnData = _tx.executedReturnData;
-        
+
         if (!dryrun) {
             vm.startBroadcast(_sender.account);
-            (bool _success, bytes memory _returnData) = _tx.transaction.to.call{value: _tx.transaction.value}(_tx.transaction.data);
+            (bool _success, bytes memory _returnData) =
+                _tx.transaction.to.call{value: _tx.transaction.value}(_tx.transaction.data);
             if (!_success) {
                 assembly {
                     revert(add(_returnData, 0x20), mload(_returnData))
@@ -75,7 +76,6 @@ library PrivateKey {
         }
     }
 }
-
 
 library InMemory {
     using Senders for Senders.Sender;
