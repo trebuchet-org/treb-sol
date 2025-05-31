@@ -157,15 +157,10 @@ library GnosisSafe {
         }
 
         bytes32 safeTxHash;
-        if (!dryrun) {
-            safeTxHash = _sender.safe().proposeTransactions(targets, datas);
-            // Only emit event if not in quiet mode
-            if (!Senders.registry().quiet) {
-                emit ITrebEvents.SafeTransactionQueued(safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue);
-            }
-        } else {
-            // In dryrun mode, no safeTxHash
-            safeTxHash = bytes32(0);
+        safeTxHash = _sender.safe().proposeTransactions(targets, datas);
+        // Only emit event if not in quiet mode
+        if (!Senders.registry().quiet) {
+            emit ITrebEvents.SafeTransactionQueued(safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue);
         }
 
         delete _sender.txQueue;

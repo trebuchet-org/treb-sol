@@ -69,35 +69,30 @@ library PrivateKey {
     function broadcast(Sender storage _sender, RichTransaction memory _tx, bool dryrun) internal {
         bytes memory returnData = _tx.executedReturnData;
 
-        if (!dryrun) {
-            vm.startBroadcast(_sender.account);
-            (bool _success, bytes memory _returnData) =
-                _tx.transaction.to.call{value: _tx.transaction.value}(_tx.transaction.data);
-            if (!_success) {
-                assembly {
-                    revert(add(_returnData, 0x20), mload(_returnData))
-                }
+        vm.startBroadcast(_sender.account);
+        (bool _success, bytes memory _returnData) =
+            _tx.transaction.to.call{value: _tx.transaction.value}(_tx.transaction.data);
+        if (!_success) {
+            assembly {
+                revert(add(_returnData, 0x20), mload(_returnData))
             }
-            returnData = _returnData;
-            _tx.executedReturnData = returnData;
-            _tx.status = TransactionStatus.EXECUTED;
-            vm.stopBroadcast();
+        }
+        returnData = _returnData;
+        _tx.executedReturnData = returnData;
+        _tx.status = TransactionStatus.EXECUTED;
+        vm.stopBroadcast();
 
-            // Only emit event if not in quiet mode
-            if (!Senders.registry().quiet) {
-                emit ITrebEvents.TransactionBroadcast(
-                    _tx.transactionId,
-                    _sender.account,
-                    _tx.transaction.to,
-                    _tx.transaction.value,
-                    _tx.transaction.data,
-                    _tx.transaction.label,
-                    returnData
-                );
-            }
-        } else {
-            // In dryrun mode, mark as executed without actually broadcasting
-            _tx.status = TransactionStatus.PENDING;
+        // Only emit event if not in quiet mode
+        if (!Senders.registry().quiet) {
+            emit ITrebEvents.TransactionBroadcast(
+                _tx.transactionId,
+                _sender.account,
+                _tx.transaction.to,
+                _tx.transaction.value,
+                _tx.transaction.data,
+                _tx.transaction.label,
+                returnData
+            );
         }
     }
 }
