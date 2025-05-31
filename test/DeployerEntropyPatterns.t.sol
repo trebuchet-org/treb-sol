@@ -121,10 +121,11 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
         bytes32 salt3 = harness._salt(DEPLOYER, "different-entropy");
         assertTrue(salt1 != salt3);
         
-        // Namespace affects salt
+        // With the new implementation, namespace does NOT affect salt
+        // when using direct entropy (user-provided)
         harness.setNamespace("production");
         bytes32 salt4 = harness._salt(DEPLOYER, "test-entropy");
-        assertTrue(salt1 != salt4);
+        assertEq(salt1, salt4); // Should be the same despite namespace change
     }
     
     // Test 6: Empty label behavior - DISABLED due to storage slot conflicts

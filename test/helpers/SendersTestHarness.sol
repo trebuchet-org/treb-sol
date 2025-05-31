@@ -11,9 +11,9 @@ import {Transaction, RichTransaction, SenderTypes} from "../../src/internal/type
 import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {Deployer} from "../../src/internal/sender/Deployer.sol";
-import {Dispatcher} from "../../src/internal/Dispatcher.sol";
+import {SenderCoordinator} from "../../src/internal/SenderCoordinator.sol";
 
-contract SendersTestHarness is Dispatcher {
+contract SendersTestHarness is SenderCoordinator {
     using Senders for Senders.Sender;
     using Senders for Senders.Registry;
     using Safe for Safe.Client;
@@ -22,9 +22,9 @@ contract SendersTestHarness is Dispatcher {
     using Deployer for Deployer.Deployment;
 
     constructor(Senders.SenderInitConfig[] memory _configs) 
-        Dispatcher(abi.encode(_configs), "default", false) 
+        SenderCoordinator(abi.encode(_configs), "default", false) 
     {
-        // Also initialize Senders directly (Dispatcher initializes lazily)
+        // Also initialize Senders directly (SenderCoordinator initializes lazily)
         Senders.initialize(_configs);
         
         // Deploy MultiSendCallOnly for testing (after initialize)

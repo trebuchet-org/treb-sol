@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Test} from "forge-std/Test.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {Deployer} from "../src/internal/sender/Deployer.sol";
-import {Dispatcher} from "../src/internal/Dispatcher.sol";
+import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
 import {SenderTypes, Transaction, RichTransaction, TransactionStatus} from "../src/internal/types.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
@@ -32,7 +32,7 @@ contract IntegrationTest is Test, CreateXScript {
     
     // Constants for sender names
     string constant TEST = "test";
-    string constant DISPATCHER_TEST = "dispatcher-test";
+    string constant COORDINATOR_TEST = "coordinator-test";
     string constant MEMORY = "memory";
     string constant LEDGER = "ledger";
     string constant SAFE = "safe";
@@ -89,7 +89,7 @@ contract IntegrationTest is Test, CreateXScript {
         assertEq(tc.value(), 100);
     }
     
-    function test_DispatcherWorkflow() public {
+    function test_SenderCoordinatorWorkflow() public {
         // Setup config
         uint256 pk = 0x54321;
         address senderAddr = vm.addr(pk);
@@ -97,7 +97,7 @@ contract IntegrationTest is Test, CreateXScript {
         
         Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
-            name: DISPATCHER_TEST,
+            name: COORDINATOR_TEST,
             account: senderAddr,
             senderType: SenderTypes.InMemory,
             config: abi.encode(pk)
@@ -106,12 +106,12 @@ contract IntegrationTest is Test, CreateXScript {
         // Set environment
         vm.setEnv("NETWORK", "http://localhost:8545");
         
-        // Create custom dispatcher for testing
+        // Create custom sender coordinator for testing
         bytes memory encodedConfigs = abi.encode(configs);
-        TestDispatcher disp = new TestDispatcher(encodedConfigs, "default", false);
+        TestSenderCoordinator disp = new TestSenderCoordinator(encodedConfigs, "default", false);
         
         // Use the sender
-        TestContract tc = disp.deployTestContract(123, DISPATCHER_TEST);
+        TestContract tc = disp.deployTestContract(123, COORDINATOR_TEST);
         assertEq(tc.value(), 123);
     }
     
@@ -164,14 +164,14 @@ contract IntegrationTest is Test, CreateXScript {
     }
 }
 
-// Test dispatcher that exposes internal functions
-contract TestDispatcher is Dispatcher {
+// Test sender coordinator that exposes internal functions
+contract TestSenderCoordinator is SenderCoordinator {
     using Senders for Senders.Sender;
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
     
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        Dispatcher(_rawConfigs, _namespace, _dryrun) {}
+        SenderCoordinator(_rawConfigs, _namespace, _dryrun) {}
     
     function deployTestContract(uint256 value, string memory senderName) external returns (TestContract) {
         Senders.Sender storage s = sender(senderName);

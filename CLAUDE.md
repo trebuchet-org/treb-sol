@@ -10,11 +10,12 @@ This is **treb-sol** - a Solidity library for deterministic smart contract deplo
 
 ### Core Components
 
-1. **Script Base Contract** (`src/Script.sol`): Combines CreateX functionality with deployment dispatch and registry capabilities
-2. **Deployer** (`src/internal/Deployer.sol`): Handles CREATE2/CREATE3 deployments via CreateX with salt generation
-3. **Registry** (`src/internal/Registry.sol`): Reads deployment addresses from `deployments.json` for cross-contract lookups
-4. **Sender System** (`src/internal/senders/`): Modular transaction execution supporting multiple sender types (private key, hardware wallet, Safe multisig)
-5. **LibraryDeployment** (`src/LibraryDeployment.sol`): Simplified deployment for Solidity libraries
+1. **Script Base Contract** (`src/TrebScript.sol`): Combines CreateX functionality with sender coordination and registry capabilities
+2. **Deployer** (`src/internal/sender/Deployer.sol`): Handles CREATE2/CREATE3 deployments via CreateX with salt generation
+3. **Registry** (`src/internal/Registry.sol`): Reads deployment addresses from `.treb/registry.json` for cross-contract lookups
+4. **Sender System** (`src/internal/sender/`): Modular transaction execution supporting multiple sender types (private key, hardware wallet, Safe multisig)
+5. **SenderCoordinator** (`src/internal/SenderCoordinator.sol`): Manages multiple transaction senders with lazy initialization
+6. **LibraryDeployment** (`src/LibraryDeployment.sol`): Simplified deployment for Solidity libraries
 
 ### Key Patterns
 
@@ -56,9 +57,9 @@ forge script script/deploy/DeployMyContract.s.sol --sig "predictAddress()"
 
 ## Core Contracts
 
-### Script.sol
+### TrebScript.sol
 Base contract that deployment scripts inherit from. Provides:
-- Dispatcher for sender management
+- SenderCoordinator for managing multiple transaction senders
 - Registry for deployment lookups
 - Integration with CreateX
 
@@ -88,7 +89,7 @@ Simplified on-chain registry for deployment lookups:
 The library expects these environment variables:
 
 ```bash
-# Required by Dispatcher
+# Required by SenderCoordinator
 SENDER_CONFIGS=<encoded configs>  # ABI-encoded sender configurations
 
 # Required by Registry
@@ -146,7 +147,7 @@ The `deployments.json` file structure:
 
 ## Common Usage Patterns
 
-### Inheriting from Script
+### Inheriting from TrebScript
 ```solidity
 contract DeployMyContract is Script {
     function run() public {

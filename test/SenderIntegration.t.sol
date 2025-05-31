@@ -7,7 +7,7 @@ import {PrivateKey, HardwareWallet, InMemory} from "../src/internal/sender/Priva
 import {GnosisSafe} from "../src/internal/sender/GnosisSafeSender.sol";
 import {SenderTypes, Transaction, RichTransaction, TransactionStatus} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
-import {Dispatcher} from "../src/internal/Dispatcher.sol";
+import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
 
 contract MockTarget {
     uint256 public value;
@@ -236,7 +236,7 @@ contract SenderIntegrationTest is Test {
         harness.execute(CUSTOM_SENDER, txn);
         
         // But broadcast should fail
-        vm.expectRevert(abi.encodeWithSelector(Dispatcher.CustomQueueReceiverNotImplemented.selector));
+        vm.expectRevert(abi.encodeWithSelector(SenderCoordinator.CustomQueueReceiverNotImplemented.selector));
         harness.broadcastAll();
     }
     

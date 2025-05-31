@@ -37,7 +37,6 @@ library Deployer {
         string label;
         string entropy;
         string artifact;
-        bytes constructorArgs;
     }
 
     struct EventDeployment {
@@ -79,7 +78,6 @@ library Deployer {
         delete deployment.label;
         delete deployment.entropy;
         delete deployment.artifact;
-        delete deployment.constructorArgs;
         
         // Set new values
         deployment.sender = sender;
@@ -109,7 +107,7 @@ library Deployer {
             if (bytes(deployment.artifact).length == 0) {
                 revert EntropyOrArtifactRequired();
             }
-            deployment.entropy = deployment.artifact;
+            deployment.entropy = string.concat(Senders.registry().namespace, "/", deployment.artifact);
             if (bytes(deployment.label).length > 0) {
                 deployment.entropy = string.concat(deployment.entropy, ":", deployment.label);
             }
@@ -122,16 +120,12 @@ library Deployer {
     }
 
     function deploy(Deployment storage deployment, bytes memory _constructorArgs) internal verify(deployment) returns (address) {
-        deployment.constructorArgs = _constructorArgs;
         Senders.Sender storage sender = deployment.sender;
 
-        bytes memory initCode = abi.encodePacked(deployment.bytecode, deployment.constructorArgs);
+        bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
         bytes32 salt = sender._salt(deployment.entropy);
         address predictedAddress = deployment.predict(_constructorArgs);
-        // Debug logs - should be removed or wrapped in a debug flag for production
-        // console.log("deploying with entropy", deployment.entropy);
-        // console.log("sender", sender.account);
-        // console.logBytes32(salt);
+
         Transaction memory createTx;
         if (deployment.strategy == CreateStrategy.CREATE3) {
             createTx = Transaction({
@@ -164,7 +158,7 @@ library Deployer {
             salt: salt,
             bytecodeHash: keccak256(deployment.bytecode),
             initCodeHash: keccak256(initCode),
-            constructorArgs: deployment.constructorArgs,
+            constructorArgs: _constructorArgs,
             createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
         });
 
@@ -186,14 +180,7 @@ library Deployer {
         Senders.Sender storage sender = deployment.sender;
         bytes32 salt = sender._salt(deployment.entropy);
 
-        // Debug logs - should be removed or wrapped in a debug flag for production
-        // console.log("deploying with entropy", deployment.entropy);
-        // console.log("sender", sender.account);
-        // console.logBytes32(salt);
-
         salt = sender._derivedSalt(salt);
-        // console.logBytes32(salt);
-
         if (deployment.strategy == CreateStrategy.CREATE3) {
             return CREATEX.computeCreate3Address(salt);
         } else if (deployment.strategy == CreateStrategy.CREATE2) {
@@ -208,7 +195,7 @@ library Deployer {
     
     function create3(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode) internal returns (Deployment storage deployment) {
         deployment = sender._deploy(bytecode);
-        deployment.artifact = "";
+        deployment.artifact = "<user-provided-bytecode>";
         deployment.entropy = _entropy;
         deployment.strategy = CreateStrategy.CREATE3;
     }
@@ -225,9 +212,10 @@ library Deployer {
 
     // *************** CREATE2 *************** //
 
-    function create2(Senders.Sender storage sender, bytes memory bytecode) internal returns (Deployment storage deployment) {
+    function create2(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode) internal returns (Deployment storage deployment) {
         deployment = sender._deploy(bytecode);
-        deployment.artifact = "";
+        deployment.artifact = "<user-provided-bytecode>";
+        deployment.entropy = _entropy;
         deployment.strategy = CreateStrategy.CREATE2;
     }
 
@@ -249,16 +237,8 @@ library Deployer {
     /// @param _entropy String used to generate unique deployment address
     /// @return Salt value for CREATE2/CREATE3 deployment
     function _salt(Senders.Sender storage sender, string memory _entropy) internal view returns (bytes32) {
-        string memory namespace = Senders.registry().namespace;
-        bytes32 entropy = keccak256(bytes(string.concat(namespace, ":", _entropy)));
-        return
-            bytes32(
-                abi.encodePacked(
-                    sender.account,
-                    hex"00",
-                    bytes11(uint88(uint256(entropy)))
-                )
-            );
+        bytes11 entropy = bytes11(keccak256(bytes(_entropy)));
+        return bytes32(abi.encodePacked(sender.account, hex"00", entropy));
     }
 
     /// @notice Derives final salt based on CreateX requirements

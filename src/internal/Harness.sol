@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Senders} from "./sender/Senders.sol";
 import {console} from "forge-std/console.sol";
-import {Dispatcher} from "./Dispatcher.sol";
+import {SenderCoordinator} from "./SenderCoordinator.sol";
 import {CommonBase} from "forge-std/Base.sol";
 import {Transaction, RichTransaction} from "./types.sol";
 
@@ -12,12 +12,12 @@ contract Harness is CommonBase {
 
     address private target;
     bytes32 private senderId;
-    Dispatcher private dispatcher;
+    SenderCoordinator private senderCoordinator;
 
-    constructor(address _target, string memory _sender, bytes32 _senderId, address _dispatcher) {
+    constructor(address _target, string memory _sender, bytes32 _senderId, address _senderCoordinator) {
         target = _target;
         senderId = _senderId;
-        dispatcher = Dispatcher(_dispatcher);
+        senderCoordinator = SenderCoordinator(_senderCoordinator);
         vm.label(address(this), string.concat("Harness[",_sender, "]"));
     }
 
@@ -25,11 +25,11 @@ contract Harness is CommonBase {
      * @dev Fallback function that intercepts all calls to the harness.
      * 
      * The harness serves two purposes:
-     * 1. For state-changing calls: Queue transactions through the dispatcher for batched execution
+     * 1. For state-changing calls: Queue transactions through the sender coordinator for batched execution
      * 2. For view/pure calls: Forward directly as staticcalls to get immediate results
      * 
      * Staticcall detection mechanism:
-     * - When this harness is called via staticcall (e.g., for view functions), the dispatcher.execute
+     * - When this harness is called via staticcall (e.g., for view functions), the senderCoordinator.execute
      *   will fail because vm.prank attempts to modify state, which is not allowed in staticcall context
      * - This specific failure mode results in an empty revert (no error data)
      * - We detect this empty revert and fall back to forwarding the call as a staticcall
@@ -51,8 +51,8 @@ contract Harness is CommonBase {
             label: "harness:execute"
         });
 
-        // Try to execute through dispatcher (for state-changing calls)
-        try dispatcher.execute(senderId, transaction) returns (RichTransaction memory richTransaction) {
+        // Try to execute through senderCoordinator (for state-changing calls)
+        try senderCoordinator.execute(senderId, transaction) returns (RichTransaction memory richTransaction) {
             // Success: This was a state-changing call that was queued
             // Return the simulated return data
             bytes memory returnData = richTransaction.simulatedReturnData;
@@ -69,7 +69,7 @@ contract Harness is CommonBase {
             }
 
             // Empty revert data (length 0) indicates this might be a staticcall
-            // The dispatcher.execute reverted because it detected staticcall context
+            // The senderCoordinator.execute reverted because it detected staticcall context
             // Now try to forward as a staticcall to get the view function result
             (bool success, bytes memory returnData) = target.staticcall(msg.data);
             if (success) {

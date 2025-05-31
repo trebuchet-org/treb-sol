@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Test} from "forge-std/Test.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
 import "../src/internal/sender/Senders.sol";
-import {Dispatcher} from "../src/internal/Dispatcher.sol";
+import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
 import {Harness} from "../src/internal/Harness.sol";
 import {SenderTypes, Transaction, RichTransaction} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
@@ -77,7 +77,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     using Senders for Senders.Sender;
     
     SendersTestHarness harness;
-    TestableDispatcher dispatcher;
+    TestableSenderCoordinator senderCoordinator;
     
     OwnableContract ownable;
     Counter counter;
@@ -102,9 +102,9 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         // Initialize harness
         harness = new SendersTestHarness(configs);
         
-        // Create dispatcher for testing
+        // Create senderCoordinator for testing
         bytes memory encodedConfigs = abi.encode(configs);
-        dispatcher = new TestableDispatcher(encodedConfigs, "default", false);
+        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", false);
         
         // Deploy test contracts from the sender account
         vm.startPrank(senderAddr);
@@ -116,7 +116,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     // Test 1: Basic harness creation and usage
     function test_BasicHarnessCreation() public {
         // Get the harness address for the ownable contract
-        // Note: The harness is created with the test harness address as dispatcher
+        // Note: The harness is created with the test harness address as senderCoordinator
         address harnessAddr = harness.getHarness(SENDER_NAME, address(ownable));
         
         // Verify harness was created
@@ -279,8 +279,8 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(ownable.getValue(), 1000);
     }
     
-    // Test 10: Direct execute through dispatcher
-    function test_DirectExecuteThroughDispatcher() public {
+    // Test 10: Direct execute through senderCoordinator
+    function test_DirectExecuteThroughSenderCoordinator() public {
         // Get sender ID
         bytes32 senderId = keccak256(abi.encodePacked(SENDER_NAME));
         
@@ -292,8 +292,8 @@ contract HarnessIntegrationTest is Test, CreateXScript {
             label: "setNumber(333)"
         });
         
-        // Execute through dispatcher - this simulates and queues
-        RichTransaction memory result = dispatcher.execute(senderId, txn);
+        // Execute through senderCoordinator - this simulates and queues
+        RichTransaction memory result = senderCoordinator.execute(senderId, txn);
         
         // Transaction is executed during simulation
         assertEq(counter.number(), 333);
@@ -414,10 +414,10 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     }
 }
 
-// Testable dispatcher that exposes execute functions
-contract TestableDispatcher is Dispatcher {
+// Testable senderCoordinator that exposes execute functions
+contract TestableSenderCoordinator is SenderCoordinator {
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        Dispatcher(_rawConfigs, _namespace, _dryrun) {}
+        SenderCoordinator(_rawConfigs, _namespace, _dryrun) {}
 }
 
 // Test contract for revert scenarios

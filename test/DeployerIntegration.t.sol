@@ -119,6 +119,9 @@ contract DeployerIntegrationTest is Test, CreateXScript {
     }
     
     function test_SaltGeneration() public {
+        // With the new implementation, _salt with user-provided entropy
+        // does not include namespace, so namespace changes won't affect it
+        
         // Set namespace to test-env
         harness.setNamespace("test-env");
         bytes32 salt1 = harness._salt(DEPLOYER, "MyContract");
@@ -127,11 +130,11 @@ contract DeployerIntegrationTest is Test, CreateXScript {
         harness.setNamespace("prod-env");
         bytes32 salt2 = harness._salt(DEPLOYER, "MyContract");
         
-        // Different namespaces should produce different salts
-        assertTrue(salt1 != salt2);
+        // Same entropy should produce same salt regardless of namespace
+        assertEq(salt1, salt2);
         
-        // Same namespace and entropy should produce same salt
-        bytes32 salt3 = harness._salt(DEPLOYER, "MyContract");
-        assertEq(salt2, salt3);
+        // Different entropy should produce different salt
+        bytes32 salt3 = harness._salt(DEPLOYER, "DifferentContract");
+        assertTrue(salt1 != salt3);
     }
 }

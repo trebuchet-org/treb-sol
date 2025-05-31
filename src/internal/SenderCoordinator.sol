@@ -6,7 +6,7 @@ import {Senders} from "./sender/Senders.sol";
 import {Deployer} from "./sender/Deployer.sol";
 import {Transaction, RichTransaction} from "./types.sol";
 
-contract Dispatcher is Script {
+contract SenderCoordinator is Script {
     error InvalidSenderConfigs();
     error SenderNotFound(string id);
     error CustomQueueReceiverNotImplemented();

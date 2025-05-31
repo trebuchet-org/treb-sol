@@ -25,7 +25,6 @@ contract LibraryDeployment is TrebScript {
     }
 
     function run() public broadcast returns (address) {
-        // Libraries typically don't have constructor args
-        return sender(LIBRARY_DEPLOYER).create3(artifactPath).deploy();
+        return sender(LIBRARY_DEPLOYER).create2(artifactPath).deploy();
     }
 }
