@@ -103,12 +103,15 @@ library GnosisSafe {
             safeTxHash = keccak256(abi.encode(targets, datas, block.timestamp));
         }
 
-        emit SafeTransactionQueued(
-            safeTxHash,
-            _sender.account,
-            _sender.proposer().account,
-            _sender.txQueue
-        );
+        // Only emit event if not in quiet mode
+        if (!Senders.registry().quiet) {
+            emit SafeTransactionQueued(
+                safeTxHash,
+                _sender.account,
+                _sender.proposer().account,
+                _sender.txQueue
+            );
+        }
 
         delete _sender.txQueue;
     }

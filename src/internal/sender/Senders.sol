@@ -166,6 +166,7 @@ library Senders {
 
         string namespace;
         bool dryrun;
+        bool quiet;
 
         uint256 snapshot;
         bool _broadcasted;
@@ -317,7 +318,18 @@ library Senders {
      * @param _dryrun Whether to run in simulation mode without actual execution
      */
     function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
-        initialize(registry(), _configs, _namespace, _dryrun);
+        initialize(registry(), _configs, _namespace, _dryrun, false);
+    }
+
+    /**
+     * @notice Initializes the global registry with explicit quiet mode setting
+     * @param _configs Array of sender configurations
+     * @param _namespace Deployment namespace
+     * @param _dryrun Whether to run in dry-run mode
+     * @param _quiet Whether to suppress internal event logs
+     */
+    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
+        initialize(registry(), _configs, _namespace, _dryrun, _quiet);
     }
 
     /**
@@ -371,8 +383,21 @@ library Senders {
      * @param _dryrun Simulation mode flag
      */
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
+        initialize(_registry, _configs, _namespace, _dryrun, false);
+    }
+
+    /**
+     * @notice Initializes registry with sender configurations including quiet mode
+     * @param _registry Registry storage reference  
+     * @param _configs Array of sender configurations to register
+     * @param _namespace Deployment namespace
+     * @param _dryrun Whether to run in dry-run mode
+     * @param _quiet Whether to suppress internal event logs
+     */
+    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
         _registry.namespace = _namespace;
         _registry.dryrun = _dryrun;
+        _registry.quiet = _quiet;
 
         if (_configs.length == 0) {
             revert NoSenders();
@@ -557,24 +582,31 @@ library Senders {
             
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) = _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
-            emit TransactionSimulated(
-                transactionId,
-                _sender.account,
-                _transactions[i].to,
-                _transactions[i].value,
-                _transactions[i].data,
-                _transactions[i].label,
-                returnData
-            );
-            if (!success) {
-                emit TransactionFailed(
+            
+            // Only emit events if not in quiet mode
+            if (!registry().quiet) {
+                emit TransactionSimulated(
                     transactionId,
                     _sender.account,
                     _transactions[i].to,
                     _transactions[i].value,
                     _transactions[i].data,
-                    _transactions[i].label
+                    _transactions[i].label,
+                    returnData
                 );
+            }
+            
+            if (!success) {
+                if (!registry().quiet) {
+                    emit TransactionFailed(
+                        transactionId,
+                        _sender.account,
+                        _transactions[i].to,
+                        _transactions[i].value,
+                        _transactions[i].data,
+                        _transactions[i].label
+                    );
+                }
                 // Bubble up the revert reason from the failed call
                 assembly {
                     let dataSize := mload(returnData)

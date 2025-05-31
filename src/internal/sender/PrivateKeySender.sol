@@ -61,15 +61,18 @@ library PrivateKey {
             _tx.status = TransactionStatus.EXECUTED;
         }
 
-        emit TransactionBroadcast(
-            _tx.transactionId,
-            _sender.account,
-            _tx.transaction.to,
-            _tx.transaction.value,
-            _tx.transaction.data,
-            _tx.transaction.label,
-            returnData
-        );
+        // Only emit event if not in quiet mode
+        if (!Senders.registry().quiet) {
+            emit TransactionBroadcast(
+                _tx.transactionId,
+                _sender.account,
+                _tx.transaction.to,
+                _tx.transaction.value,
+                _tx.transaction.data,
+                _tx.transaction.label,
+                returnData
+            );
+        }
     }
 }
 

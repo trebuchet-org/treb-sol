@@ -292,12 +292,15 @@ library Deployer {
             createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
         });
 
-        emit ContractDeployed(
-            sender.account,
-            simulatedAddress,
-            createTxResult.transactionId,
-            eventDeployment
-        );
+        // Only emit event if not in quiet mode
+        if (!Senders.registry().quiet) {
+            emit ContractDeployed(
+                sender.account,
+                simulatedAddress,
+                createTxResult.transactionId,
+                eventDeployment
+            );
+        }
 
         return simulatedAddress;
     }

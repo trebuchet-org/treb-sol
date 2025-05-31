@@ -25,7 +25,7 @@ contract SendersTestHarness is SenderCoordinator {
         SenderCoordinator(_configs, "default", false, false) 
     {
         // Also initialize Senders directly (SenderCoordinator initializes lazily)
-        Senders.initialize(_configs, "default", false);
+        Senders.initialize(_configs, "default", false, false);
         
         // Deploy MultiSendCallOnly for testing (after initialize)
         MultiSendCallOnly multiSendCallOnly = new MultiSendCallOnly();

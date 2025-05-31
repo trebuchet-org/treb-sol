@@ -136,7 +136,8 @@ contract SenderCoordinator is Script {
         Senders.initialize(
             senderInitConfigs,
             namespace,
-            dryrun
+            dryrun,
+            quiet
         );
     }
 
