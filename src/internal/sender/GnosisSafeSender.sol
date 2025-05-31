@@ -5,6 +5,7 @@ import {Senders} from "./Senders.sol";
 import {HardwareWallet} from "./PrivateKeySender.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
+import {console} from "forge-std/console.sol";
 
 library GnosisSafe {
     event SafeTransactionQueued(
@@ -32,9 +33,15 @@ library GnosisSafe {
         RichTransaction[] txQueue;
     }
 
-    function cast(Senders.Sender storage _sender) internal view returns (Sender storage _gnosisSafeSender) {
+    function cast(
+        Senders.Sender storage _sender
+    ) internal view returns (Sender storage _gnosisSafeSender) {
         if (!_sender.isType(SenderTypes.GnosisSafe)) {
-            revert Senders.InvalidCast(_sender.name, _sender.senderType, SenderTypes.GnosisSafe);
+            revert Senders.InvalidCast(
+                _sender.name,
+                _sender.senderType,
+                SenderTypes.GnosisSafe
+            );
         }
         assembly {
             _gnosisSafeSender.slot := _sender.slot
@@ -51,31 +58,46 @@ library GnosisSafe {
 
         Safe.SignerType signerType;
         string memory derivationPath;
+        uint256 privateKey;
         if (_sender.proposer().isType(SenderTypes.InMemory)) {
             signerType = Safe.SignerType.PrivateKey;
+            privateKey = _sender.proposer().inMemory().privateKey;
         } else if (_sender.proposer().isType(SenderTypes.Ledger)) {
             signerType = Safe.SignerType.Ledger;
-            derivationPath = _sender.proposer().hardwareWallet().mnemonicDerivationPath;
+            derivationPath = _sender
+                .proposer()
+                .hardwareWallet()
+                .mnemonicDerivationPath;
         } else if (_sender.proposer().isType(SenderTypes.Trezor)) {
             signerType = Safe.SignerType.Trezor;
-            derivationPath = _sender.proposer().hardwareWallet().mnemonicDerivationPath;
+            derivationPath = _sender
+                .proposer()
+                .hardwareWallet()
+                .mnemonicDerivationPath;
         } else {
             revert InvalidGnosisSafeConfig(_sender.name);
         }
 
-        _sender.safe().initialize(_sender.account, Safe.Signer({
-            signer: _sender.proposer().account,
-            signerType: signerType,
-            derivationPath: derivationPath
-        }));
+        _sender.safe().initialize(
+            _sender.account,
+            Safe.Signer({
+                signer: _sender.proposer().account,
+                signerType: signerType,
+                derivationPath: derivationPath,
+                privateKey: privateKey
+            })
+        );
     }
 
-    function queue(Sender storage _sender, RichTransaction memory _tx) internal {
+    function queue(
+        Sender storage _sender,
+        RichTransaction memory _tx
+    ) internal {
         _sender.txQueue.push(_tx);
     }
 
     function broadcast(Sender storage _sender) internal {
-        broadcast(_sender, false);
+        broadcast(_sender, Senders.registry().dryrun);
     }
 
     function broadcast(Sender storage _sender, bool dryrun) internal {
@@ -88,7 +110,9 @@ library GnosisSafe {
 
         for (uint256 i = 0; i < _sender.txQueue.length; i++) {
             if (_sender.txQueue[i].transaction.value > 0) {
-                revert SafeTransactionValueNotZero(_sender.txQueue[i].transaction.label);
+                revert SafeTransactionValueNotZero(
+                    _sender.txQueue[i].transaction.label
+                );
             }
             targets[i] = _sender.txQueue[i].transaction.to;
             datas[i] = _sender.txQueue[i].transaction.data;
@@ -116,14 +140,21 @@ library GnosisSafe {
         delete _sender.txQueue;
     }
 
-    function proposer(Sender storage _sender) internal view returns (Senders.Sender storage) {
+    function proposer(
+        Sender storage _sender
+    ) internal view returns (Senders.Sender storage) {
         return Senders.get(_sender.proposerId);
     }
 
-    function safe(Sender storage _sender) internal view returns (Safe.Client storage _safe) {
-        bytes32 slot = bytes32(uint256(keccak256(abi.encodePacked("safe.Client", _sender.id))));
+    function safe(
+        Sender storage _sender
+    ) internal view returns (Safe.Client storage _safe) {
+        bytes32 slot = bytes32(
+            uint256(keccak256(abi.encodePacked("safe.Client", _sender.account)))
+        );
         assembly {
             _safe.slot := slot
         }
     }
 }
+
