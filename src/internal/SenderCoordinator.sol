@@ -91,6 +91,7 @@ contract SenderCoordinator is Script, ITrebEvents {
 
         // Only broadcast if this was the outermost call
         if (!broadcastAlreadyQueued) {
+            emit BroadcastStarted();
             Senders.registry().broadcastQueued = false;
             _broadcast();
         }

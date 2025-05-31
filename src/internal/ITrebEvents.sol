@@ -15,6 +15,11 @@ import {Deployer} from "./sender/Deployer.sol";
  */
 interface ITrebEvents {
     // *************** TRANSACTION LIFECYCLE EVENTS *************** //
+
+    /**
+     * @notice Emitted when we start broadcasting transactions
+     */
+    event BroadcastStarted();
     
     /**
      * @notice Emitted when a transaction simulation fails during execution
