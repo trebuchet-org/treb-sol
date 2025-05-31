@@ -57,7 +57,7 @@ contract SendersTestHarness is SenderCoordinator {
         }
         
         // Update the snapshot to include our MultiSendCallOnly setup
-        Senders.registry().snapshot = vm.snapshotState();
+        Senders.registry().preSimulationSnapshot = vm.snapshotState();
     }
 
     function broadcastAll() public {

@@ -168,10 +168,11 @@ library Senders {
         bool dryrun;
         bool quiet;
 
-        uint256 snapshot;
-        bool _broadcasted;
+        bool initialized;
+        uint256 preSimulationSnapshot;
+        bool broadcasted;
         bool broadcastQueued;
-        uint256 _transactionCounter;
+        uint256 transactionCounter;
     }
 
     /**
@@ -258,6 +259,9 @@ library Senders {
     /// @notice Thrown when a transaction has an invalid (zero) target address
     error InvalidTargetAddress(uint256 index);
 
+    /// @notice Thrown when attempting to initialize a registry that has already been initialized
+    error RegistryAlreadyInitialized();
+
     /**
      * @notice Retrieves the singleton Registry instance using storage slots
      * @dev Uses assembly to access a deterministic storage slot, avoiding conflicts with inheriting contracts
@@ -276,26 +280,45 @@ library Senders {
      */
     function generateTransactionId() internal returns (bytes32) {
         Registry storage _registry = registry();
-        _registry._transactionCounter++;
+        _registry.transactionCounter++;
         return keccak256(abi.encodePacked(
             block.chainid, 
             block.timestamp, 
             msg.sender,
-            _registry._transactionCounter
+            _registry.transactionCounter
         ));
     }
 
     // ************* Registry Management ************* //
 
     /**
-     * @notice Initializes the sender registry with provided configurations
-     * @dev Reads namespace and dryrun settings from environment variables, then initializes all senders
-     * @param _registry The registry instance to initialize
+     * @notice Initializes registry with sender configurations including quiet mode
      * @param _configs Array of sender configurations to register
+     * @param _namespace Deployment namespace
+     * @param _dryrun Whether to run in dry-run mode
+     * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs) internal {
-        _registry.namespace = vm.envOr("NAMESPACE", string("default"));
-        _registry.dryrun = vm.envOr("DRYRUN", false);
+    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
+        initialize(registry(), _configs, _namespace, _dryrun, _quiet);
+    }
+
+    /**
+     * @notice Initializes registry with sender configurations including quiet mode
+     * @param _registry Registry storage reference  
+     * @param _configs Array of sender configurations to register
+     * @param _namespace Deployment namespace
+     * @param _dryrun Whether to run in dry-run mode
+     * @param _quiet Whether to suppress internal event logs
+     */
+    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
+        if (_registry.initialized) {
+            revert RegistryAlreadyInitialized();
+        }
+
+        _registry.namespace = _namespace;
+        _registry.initialized = true;
+        _registry.dryrun = _dryrun;
+        _registry.quiet = _quiet;
 
         if (_configs.length == 0) {
             revert NoSenders();
@@ -304,33 +327,36 @@ library Senders {
     }
 
     /**
-     * @notice Initializes the global registry with provided configurations
-     * @param _configs Array of sender configurations to register
-     */
-    function initialize(SenderInitConfig[] memory _configs) internal {
-        initialize(registry(), _configs);
-    }
-
-    /**
-     * @notice Initializes the global registry with explicit namespace and dryrun settings
-     * @param _configs Array of sender configurations to register
-     * @param _namespace Deployment namespace (default, staging, production)
-     * @param _dryrun Whether to run in simulation mode without actual execution
-     */
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
-        initialize(registry(), _configs, _namespace, _dryrun, false);
-    }
-
-    /**
-     * @notice Initializes the global registry with explicit quiet mode setting
+     * @notice Internal helper to set up all senders in the registry
+     * @dev Performs two-phase initialization:
+     *      1. Register all sender configurations
+     *      2. Initialize each sender's type-specific state
+     * @param _registry The registry to populate
      * @param _configs Array of sender configurations
-     * @param _namespace Deployment namespace
-     * @param _dryrun Whether to run in dry-run mode
-     * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
-        initialize(registry(), _configs, _namespace, _dryrun, _quiet);
+    function _initializeSenders(Registry storage _registry, SenderInitConfig[] memory _configs) private {
+        _registry.ids = new bytes32[](_configs.length);
+        unchecked {
+            for (uint256 i; i < _configs.length; ++i) {
+            bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
+            _registry.senders[senderId].id = senderId;
+            _registry.senders[senderId].name = _configs[i].name;
+            _registry.senders[senderId].account = _configs[i].account;
+            _registry.senders[senderId].senderType = _configs[i].senderType;
+            _registry.senders[senderId].config = _configs[i].config;
+            _registry.ids[i] = senderId;
+            }
+        }
+        
+        unchecked {
+            for (uint256 i; i < _registry.ids.length; ++i) {
+                _registry.senders[_registry.ids[i]].initialize();
+            }
+        }
+
+        _registry.preSimulationSnapshot = vm.snapshotState();
     }
+
 
     /**
      * @notice Retrieves a sender from the global registry by ID
@@ -373,67 +399,6 @@ library Senders {
      */
     function get(Registry storage _registry, bytes32 _id) internal view returns (Sender storage) {
         return _registry.senders[_id];
-    }
-
-    /**
-     * @notice Initializes a registry with explicit parameters
-     * @param _registry The registry instance to initialize
-     * @param _configs Array of sender configurations
-     * @param _namespace Deployment namespace
-     * @param _dryrun Simulation mode flag
-     */
-    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
-        initialize(_registry, _configs, _namespace, _dryrun, false);
-    }
-
-    /**
-     * @notice Initializes registry with sender configurations including quiet mode
-     * @param _registry Registry storage reference  
-     * @param _configs Array of sender configurations to register
-     * @param _namespace Deployment namespace
-     * @param _dryrun Whether to run in dry-run mode
-     * @param _quiet Whether to suppress internal event logs
-     */
-    function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet) internal {
-        _registry.namespace = _namespace;
-        _registry.dryrun = _dryrun;
-        _registry.quiet = _quiet;
-
-        if (_configs.length == 0) {
-            revert NoSenders();
-        }
-        _initializeSenders(_registry, _configs);
-    }
-
-    /**
-     * @notice Internal helper to set up all senders in the registry
-     * @dev Performs two-phase initialization:
-     *      1. Register all sender configurations
-     *      2. Initialize each sender's type-specific state
-     * @param _registry The registry to populate
-     * @param _configs Array of sender configurations
-     */
-    function _initializeSenders(Registry storage _registry, SenderInitConfig[] memory _configs) private {
-        _registry.ids = new bytes32[](_configs.length);
-        unchecked {
-            for (uint256 i; i < _configs.length; ++i) {
-            bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
-            _registry.senders[senderId].id = senderId;
-            _registry.senders[senderId].name = _configs[i].name;
-            _registry.senders[senderId].account = _configs[i].account;
-            _registry.senders[senderId].senderType = _configs[i].senderType;
-            _registry.senders[senderId].config = _configs[i].config;
-            _registry.ids[i] = senderId;
-            }
-        }
-        
-        unchecked {
-            for (uint256 i; i < _registry.ids.length; ++i) {
-                _registry.senders[_registry.ids[i]].initialize();
-            }
-        }
-
-        _registry.snapshot = vm.snapshotState();
     }
 
     // ************* Sender Operations ************* //
@@ -675,17 +640,17 @@ library Senders {
      * @return customQueue Array of custom sender transactions requiring external processing
      */
     function broadcast(Registry storage _registry) internal returns (RichTransaction[] memory customQueue) {
-        if (_registry._broadcasted) {
+        if (_registry.broadcasted) {
             revert BroadcastAlreadyCalled();
         }
 
-        uint256 snap = vm.snapshotState();
+        uint256 postSimulationSnapshot = vm.snapshotState();
 
         customQueue = new RichTransaction[](_registry._globalQueue.length);
         RichTransaction[] memory txs = _registry._globalQueue;
         bytes32[] memory senderIds = _registry.ids;
 
-        vm.revertToState(_registry.snapshot);
+        vm.revertToState(_registry.preSimulationSnapshot);
         uint256 actualCustomQueueLength = 0;
 
         // Process each transaction in global queue order
@@ -717,8 +682,8 @@ library Senders {
             }
         }
 
-        vm.revertToState(snap);
-        _registry._broadcasted = true;
+        vm.revertToState(postSimulationSnapshot);
+        _registry.broadcasted = true;
         return customQueue;
     }
 }

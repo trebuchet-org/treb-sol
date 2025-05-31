@@ -54,7 +54,7 @@ contract IntegrationTest is Test, CreateXScript {
         });
         
         // Initialize
-        Senders.initialize(configs);
+        Senders.initialize(configs, "default", false, false);
         
         // Get sender directly from registry
         Senders.Registry storage reg = Senders.registry();
@@ -144,7 +144,7 @@ contract IntegrationTest is Test, CreateXScript {
         });
         
         // Initialize all
-        Senders.initialize(configs);
+        Senders.initialize(configs, "default", false, false);
         
         // Verify all initialized correctly
         Senders.Registry storage reg = Senders.registry();

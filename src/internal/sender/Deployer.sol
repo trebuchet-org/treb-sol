@@ -127,7 +127,7 @@ library Deployer {
      */
     function _deploy(Senders.Sender storage sender, bytes memory bytecode) internal returns (Deployment storage deployment) {
         // Generate unique storage slot to prevent collisions between multiple deployments
-        bytes32 deploymentSlot = keccak256(abi.encode(sender.account, bytecode, Senders.registry()._transactionCounter));
+        bytes32 deploymentSlot = keccak256(abi.encode(sender.account, bytecode, Senders.registry().transactionCounter));
         assembly {
             deployment.slot := deploymentSlot
         }
