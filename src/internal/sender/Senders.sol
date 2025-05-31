@@ -1,6 +1,113 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+/**
+ * @title Senders
+ * @notice A comprehensive sender management library providing a unified abstraction for multiple transaction execution methods
+ * @dev This library implements a modular transaction execution system that supports various sender types including
+ *      private keys, hardware wallets, and Safe multisigs. It provides deterministic transaction ordering through
+ *      a global queue system and handles both simulation and broadcast phases.
+ *
+ * ## Architecture Overview
+ *
+ * The Senders library is built around three main concepts:
+ * 1. **Sender Abstraction**: Unified interface for different transaction execution methods
+ * 2. **Global Transaction Queue**: Ordered execution queue ensuring deterministic transaction processing
+ * 3. **Harness System**: Proxy contracts for secure execution context isolation
+ *
+ * ## Sender Types
+ *
+ * ### Private Key Senders
+ * - **InMemory**: Ephemeral keys stored in memory (testing/development)
+ * - **HardwareWallet**: Ledger/Trezor integration for production security
+ * - Both support immediate transaction broadcast
+ *
+ * ### Safe Multisig Senders
+ * - **GnosisSafe**: Safe multisig integration with transaction batching
+ * - Accumulates transactions for batch execution
+ * - Supports proposer patterns for multi-step workflows
+ *
+ * ### Custom Senders
+ * - Extensible pattern for custom transaction execution logic
+ * - Returns transactions for external processing
+ *
+ * ## Transaction Execution Flow
+ *
+ * 1. **Simulation Phase**: All transactions are simulated using vm.prank() to validate execution
+ * 2. **Queue Management**: Transactions are added to a global queue maintaining submission order
+ * 3. **Broadcast Phase**: Transactions are executed based on sender type:
+ *    - Sync: Immediate broadcast (private keys)
+ *    - Async: Batched execution (Safe multisig)
+ *    - Custom: External processing required
+ *
+ * ## Global Transaction Queue System
+ *
+ * The library maintains a global transaction queue (`_globalQueue`) that ensures deterministic ordering:
+ * - All transactions are queued in submission order regardless of sender
+ * - Sync senders (private keys) execute immediately during broadcast
+ * - Async senders (Safe) accumulate transactions for batch execution
+ * - Queue is processed linearly during the broadcast phase
+ *
+ * ## Harness System
+ *
+ * For each sender-target pair, the library creates a Harness proxy contract that:
+ * - Provides execution context isolation
+ * - Enables secure cross-contract calls
+ * - Maintains sender identity for access control
+ * - Supports complex deployment scenarios
+ *
+ * ## Configuration Examples
+ *
+ * ```solidity
+ * // Development setup with in-memory keys
+ * SenderInitConfig[] memory configs = new SenderInitConfig[](1);
+ * configs[0] = SenderInitConfig({
+ *     name: "deployer",
+ *     account: vm.addr(deployerKey),
+ *     senderType: SenderTypes.InMemory,
+ *     config: abi.encode(deployerKey)
+ * });
+ *
+ * // Production setup with hardware wallet + Safe
+ * configs = new SenderInitConfig[](2);
+ * configs[0] = SenderInitConfig({
+ *     name: "proposer",
+ *     account: ledgerAddress,
+ *     senderType: SenderTypes.HardwareWallet,
+ *     config: abi.encode(derivationPath)
+ * });
+ * configs[1] = SenderInitConfig({
+ *     name: "safe",
+ *     account: safeAddress,
+ *     senderType: SenderTypes.GnosisSafe,
+ *     config: abi.encode(SafeConfig({
+ *         safe: safeAddress,
+ *         proposer: "proposer",
+ *         threshold: 2
+ *     }))
+ * });
+ * ```
+ *
+ * ## Usage Pattern
+ *
+ * ```solidity
+ * // Initialize senders
+ * Senders.initialize(configs);
+ *
+ * // Execute transactions
+ * Sender storage deployer = Senders.get("deployer");
+ * deployer.execute(Transaction({
+ *     to: targetContract,
+ *     value: 0,
+ *     data: deploymentData,
+ *     label: "Deploy MyContract"
+ * }));
+ *
+ * // Broadcast all queued transactions
+ * Senders.broadcast(Senders.registry());
+ * ```
+ */
+
 import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
@@ -19,8 +126,17 @@ library Senders {
     /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
     /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
     bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
+    
+    /// @dev Foundry VM interface for simulation and state management
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
+    /**
+     * @notice Configuration structure for initializing a sender
+     * @param name Human-readable identifier for the sender (e.g., "deployer", "proposer")
+     * @param account Ethereum address associated with this sender
+     * @param senderType Type identifier from SenderTypes (InMemory, HardwareWallet, GnosisSafe, Custom)
+     * @param config ABI-encoded type-specific configuration data
+     */
     struct SenderInitConfig {
         string name;
         address account;
@@ -28,6 +144,19 @@ library Senders {
         bytes config;
     }
 
+    /**
+     * @notice Central registry managing all senders and transaction coordination
+     * @dev Uses storage slots to avoid conflicts with inheriting contracts
+     * @param senders Mapping of sender ID to Sender struct
+     * @param senderHarness Mapping of sender ID to target address to harness proxy address
+     * @param ids Array of all registered sender IDs for iteration
+     * @param _globalQueue Global transaction queue maintaining submission order across all senders
+     * @param namespace Current deployment namespace (default, staging, production)
+     * @param dryrun Whether to simulate transactions without actual execution
+     * @param snapshot VM state snapshot taken before transaction simulation
+     * @param _broadcasted Flag preventing multiple broadcast calls
+     * @param _transactionCounter Monotonic counter for generating unique transaction IDs
+     */
     struct Registry {
         mapping(bytes32 => Sender) senders;
         mapping(bytes32 => mapping(address => address)) senderHarness;
@@ -42,6 +171,14 @@ library Senders {
         uint256 _transactionCounter;
     }
 
+    /**
+     * @notice Individual sender configuration and state
+     * @param id Unique identifier derived from keccak256(name)
+     * @param name Human-readable sender name
+     * @param account Ethereum address for this sender
+     * @param senderType Type bitfield indicating sender capabilities
+     * @param config ABI-encoded type-specific configuration
+     */
     struct Sender {
         bytes32 id;
         string name;
@@ -50,6 +187,15 @@ library Senders {
         bytes config;
     }
 
+    /**
+     * @notice Emitted when a transaction simulation fails during execution
+     * @param transactionId Unique identifier for the failed transaction
+     * @param sender Address of the sender that attempted the transaction
+     * @param to Target contract address
+     * @param value Ether value sent with the transaction
+     * @param data Transaction calldata
+     * @param label Human-readable transaction description
+     */
     event TransactionFailed(
         bytes32 indexed transactionId,
         address indexed sender,
@@ -59,6 +205,16 @@ library Senders {
         string label
     );
 
+    /**
+     * @notice Emitted when a transaction is successfully simulated
+     * @param transactionId Unique identifier for the transaction
+     * @param sender Address of the sender executing the transaction
+     * @param to Target contract address
+     * @param value Ether value sent with the transaction
+     * @param data Transaction calldata
+     * @param label Human-readable transaction description
+     * @param returnData Return data from the successful simulation
+     */
     event TransactionSimulated(
         bytes32 indexed transactionId,
         address indexed sender,
@@ -69,26 +225,52 @@ library Senders {
         bytes returnData
     );
 
+    /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
+    
+    /// @notice Thrown when a sender type is not recognized or supported
     error InvalidSenderType(string name, bytes8 senderType);
+    
+    /// @notice Thrown when trying to access a sender that hasn't been initialized
     error SenderNotInitialized(string name);
+    
+    /// @notice Thrown when attempting to initialize registry with empty sender array
     error NoSenders();
+    
+    /// @notice Thrown when simulation and execution return data don't match
     error TransactionExecutionMismatch(string label, bytes returnData);
+    
+    /// @notice Thrown when attempting to broadcast a custom sender through the standard mechanism
     error CannotBroadcastCustomSender(string name);
+    
+    /// @notice Thrown when an unexpected sender type attempts to broadcast
     error UnexpectedSenderBroadcast(string name, bytes8 senderType);
+    
+    /// @notice Thrown when broadcast() is called multiple times on the same registry
     error BroadcastAlreadyCalled();
+    
+    /// @notice Thrown when execute() is called with an empty transaction array
     error EmptyTransactionArray();
+    
+    /// @notice Thrown when a transaction has an invalid (zero) target address
     error InvalidTargetAddress(uint256 index);
 
+    /**
+     * @notice Retrieves the singleton Registry instance using storage slots
+     * @dev Uses assembly to access a deterministic storage slot, avoiding conflicts with inheriting contracts
+     * @return _registry The global sender registry instance
+     */
     function registry() internal pure returns (Registry storage _registry) {
         assembly {
             _registry.slot := REGISTRY_STORAGE_SLOT
         }
     }
 
-    /// @notice Generates a unique transaction ID for tracking
-    /// @dev Combines chain ID, timestamp, and an incrementing counter to ensure uniqueness
-    /// @return Unique transaction identifier
+    /**
+     * @notice Generates a unique transaction ID for tracking and correlation
+     * @dev Combines chain ID, timestamp, sender address, and an incrementing counter to ensure uniqueness
+     * @return Unique transaction identifier used for event correlation and debugging
+     */
     function generateTransactionId() internal returns (bytes32) {
         Registry storage _registry = registry();
         _registry._transactionCounter++;
@@ -100,8 +282,14 @@ library Senders {
         ));
     }
 
-    // ************* Registry ************* //
+    // ************* Registry Management ************* //
 
+    /**
+     * @notice Initializes the sender registry with provided configurations
+     * @dev Reads namespace and dryrun settings from environment variables, then initializes all senders
+     * @param _registry The registry instance to initialize
+     * @param _configs Array of sender configurations to register
+     */
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs) internal {
         _registry.namespace = vm.envOr("NAMESPACE", string("default"));
         _registry.dryrun = vm.envOr("DRYRUN", false);
@@ -112,22 +300,49 @@ library Senders {
         _initializeSenders(_registry, _configs);
     }
 
+    /**
+     * @notice Initializes the global registry with provided configurations
+     * @param _configs Array of sender configurations to register
+     */
     function initialize(SenderInitConfig[] memory _configs) internal {
         initialize(registry(), _configs);
     }
 
+    /**
+     * @notice Initializes the global registry with explicit namespace and dryrun settings
+     * @param _configs Array of sender configurations to register
+     * @param _namespace Deployment namespace (default, staging, production)
+     * @param _dryrun Whether to run in simulation mode without actual execution
+     */
     function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
         initialize(registry(), _configs, _namespace, _dryrun);
     }
 
+    /**
+     * @notice Retrieves a sender from the global registry by ID
+     * @param _id Unique sender identifier
+     * @return Sender storage reference
+     */
     function get(bytes32 _id) internal view returns (Sender storage) {
         return get(registry(), _id);
     }
 
+    /**
+     * @notice Retrieves a sender from the global registry by name
+     * @param _name Human-readable sender name
+     * @return Sender storage reference
+     */
     function get(string memory _name) internal view returns (Sender storage) {
         return registry().get(_name);
     }
 
+    /**
+     * @notice Retrieves a sender from a specific registry by name
+     * @param _registry The registry to search in
+     * @param _name Human-readable sender name
+     * @return Sender storage reference
+     * @dev Reverts if sender is not initialized (account == address(0))
+     */
     function get(Registry storage _registry, string memory _name) internal view returns (Sender storage) {
         Sender storage sender = _registry.senders[keccak256(abi.encodePacked(_name))];
         if (sender.account == address(0)) {
@@ -136,10 +351,23 @@ library Senders {
         return sender;
     }
 
+    /**
+     * @notice Retrieves a sender from a specific registry by ID
+     * @param _registry The registry to search in
+     * @param _id Unique sender identifier
+     * @return Sender storage reference
+     */
     function get(Registry storage _registry, bytes32 _id) internal view returns (Sender storage) {
         return _registry.senders[_id];
     }
 
+    /**
+     * @notice Initializes a registry with explicit parameters
+     * @param _registry The registry instance to initialize
+     * @param _configs Array of sender configurations
+     * @param _namespace Deployment namespace
+     * @param _dryrun Simulation mode flag
+     */
     function initialize(Registry storage _registry, SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun) internal {
         _registry.namespace = _namespace;
         _registry.dryrun = _dryrun;
@@ -150,6 +378,14 @@ library Senders {
         _initializeSenders(_registry, _configs);
     }
 
+    /**
+     * @notice Internal helper to set up all senders in the registry
+     * @dev Performs two-phase initialization:
+     *      1. Register all sender configurations
+     *      2. Initialize each sender's type-specific state
+     * @param _registry The registry to populate
+     * @param _configs Array of sender configurations
+     */
     function _initializeSenders(Registry storage _registry, SenderInitConfig[] memory _configs) private {
         _registry.ids = new bytes32[](_configs.length);
         unchecked {
@@ -173,8 +409,13 @@ library Senders {
         _registry.snapshot = vm.snapshotState();
     }
 
-    // ************* Sender ************* //
+    // ************* Sender Operations ************* //
 
+    /**
+     * @notice Initializes a sender's type-specific state
+     * @dev Dispatches to the appropriate type-specific initialization function
+     * @param _sender The sender to initialize
+     */
     function initialize(Sender storage _sender) internal {
         if (_sender.isType(SenderTypes.InMemory)) {
             _sender.inMemory().initialize();
@@ -187,31 +428,70 @@ library Senders {
         }
     }
 
+    /**
+     * @notice Checks if a sender matches a specific type by string name
+     * @param _sender The sender to check
+     * @param _type Type name to check against (e.g., "InMemory", "HardwareWallet")
+     * @return True if the sender matches the specified type
+     */
     function isType(Sender storage _sender, string memory _type) internal view returns (bool) {
         bytes8 typeHash = bytes8(keccak256(abi.encodePacked(_type)));
         return _sender.isType(typeHash);
     }
 
+    /**
+     * @notice Checks if a sender matches a specific type by hash
+     * @param _sender The sender to check
+     * @param _type Type hash to check against
+     * @return True if the sender matches the specified type
+     */
     function isType(Sender storage _sender, bytes8 _type) internal view returns (bool) {
         return _sender.senderType & _type == _type;
     }
 
+    /**
+     * @notice Casts a sender to a PrivateKey sender type
+     * @param _sender The sender to cast
+     * @return PrivateKey.Sender storage reference
+     */
     function privateKey(Sender storage _sender) internal view returns (PrivateKey.Sender storage) {
         return PrivateKey.cast(_sender);
     }
 
+    /**
+     * @notice Casts a sender to a HardwareWallet sender type
+     * @param _sender The sender to cast
+     * @return HardwareWallet.Sender storage reference
+     */
     function hardwareWallet(Sender storage _sender) internal view returns (HardwareWallet.Sender storage) {
         return HardwareWallet.cast(_sender);
     }
 
+    /**
+     * @notice Casts a sender to a GnosisSafe sender type
+     * @param _sender The sender to cast
+     * @return GnosisSafe.Sender storage reference
+     */
     function gnosisSafe(Sender storage _sender) internal view returns (GnosisSafe.Sender storage) {
         return GnosisSafe.cast(_sender);
     }
 
+    /**
+     * @notice Casts a sender to an InMemory sender type
+     * @param _sender The sender to cast
+     * @return InMemory.Sender storage reference
+     */
     function inMemory(Sender storage _sender) internal view returns (InMemory.Sender storage) {
         return InMemory.cast(_sender);
     }
 
+    /**
+     * @notice Gets or creates a harness proxy contract for a sender-target pair
+     * @dev Harness contracts provide execution context isolation and enable secure cross-contract calls
+     * @param _sender The sender requiring a harness
+     * @param _target The target contract address
+     * @return Address of the harness proxy contract
+     */
     function harness(Sender storage _sender, address _target) internal returns (address) {
         Registry storage reg = registry();
         address _harness = reg.senderHarness[_sender.id][_target];
@@ -222,8 +502,15 @@ library Senders {
         return _harness;
     }
 
-    // ************* Sender Execute ************* //
+    // ************* Transaction Execution ************* //
 
+    /**
+     * @notice Executes an array of transactions through a sender
+     * @dev Validates transaction array and target addresses, then delegates to simulate()
+     * @param _sender The sender to execute transactions through
+     * @param _transactions Array of transactions to execute
+     * @return bundleTransactions Array of rich transactions with simulation results and queue tracking
+     */
     function execute(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
         if (_transactions.length == 0) revert EmptyTransactionArray();
         for (uint256 i = 0; i < _transactions.length; i++) {
@@ -232,6 +519,13 @@ library Senders {
         return _sender.simulate(_transactions);
     }
     
+    /**
+     * @notice Executes a single transaction through a sender
+     * @dev Convenience wrapper for single transaction execution
+     * @param _sender The sender to execute the transaction through
+     * @param _transaction Transaction to execute
+     * @return bundleTransaction Rich transaction with simulation results and queue tracking
+     */
     function execute(Sender storage _sender, Transaction memory _transaction) internal returns (RichTransaction memory bundleTransaction) {
         Transaction[] memory transactions = new Transaction[](1);
         transactions[0] = _transaction;
@@ -239,6 +533,18 @@ library Senders {
         return bundleTransactions[0];
     }
 
+    /**
+     * @notice Simulates transaction execution using vm.prank() and adds to global queue
+     * @dev This is the core transaction processing function that:
+     *      1. Generates unique transaction IDs for tracking
+     *      2. Simulates execution using vm.prank() to impersonate the sender
+     *      3. Emits events for successful simulation or failure
+     *      4. Creates RichTransaction objects with simulation results
+     *      5. Adds transactions to global queue in submission order
+     * @param _sender The sender to simulate transactions for
+     * @param _transactions Array of transactions to simulate
+     * @return bundleTransactions Array of rich transactions with simulation results
+     */
     function simulate(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
         Registry storage _registry = registry();
         bundleTransactions = new RichTransaction[](_transactions.length);
@@ -290,15 +596,50 @@ library Senders {
         return bundleTransactions;
     }
 
-    // ************* Registry Broadcast ************* //
+    // ************* Global Transaction Broadcasting ************* //
 
-    /// @notice Broadcasts all queued transactions in the order they were submitted
-    /// @dev Processes transactions differently based on sender type:
-    ///      - PrivateKey: Immediate broadcast
-    ///      - GnosisSafe: Batched for multi-sig execution
-    ///      - Custom: Returned for external processing
-    /// @param _registry The sender registry containing all queued transactions
-    /// @return customQueue Array of custom sender transactions requiring external processing
+    /**
+     * @notice Broadcasts all queued transactions maintaining their original submission order
+     * @dev Implements a sophisticated broadcast mechanism that handles different sender types:
+     *
+     * ## Broadcast Process
+     * 1. **State Management**: Captures current VM state and reverts to pre-simulation snapshot
+     * 2. **Order Preservation**: Processes transactions from global queue in submission order
+     * 3. **Type-Specific Handling**:
+     *    - **PrivateKey/HardwareWallet**: Immediate synchronous broadcast
+     *    - **GnosisSafe**: Queue for batch execution (async)
+     *    - **Custom**: Collect for external processing
+     * 4. **Batch Execution**: Execute accumulated async transactions as bundles
+     * 5. **State Restoration**: Restore VM state and mark broadcast as complete
+     *
+     * ## Sender Type Processing
+     *
+     * ### Synchronous Senders (PrivateKey)
+     * - Transactions are broadcast immediately when encountered in the queue
+     * - Suitable for development and single-signer production scenarios
+     * - No batching or accumulation occurs
+     *
+     * ### Asynchronous Senders (GnosisSafe)
+     * - Transactions are accumulated into sender-specific queues
+     * - After processing all transactions, each Safe executes its accumulated batch
+     * - Enables efficient multi-sig workflows with reduced gas costs
+     * - Supports complex proposer patterns
+     *
+     * ### Custom Senders
+     * - Transactions are collected and returned for external processing
+     * - Allows integration with custom execution environments
+     * - Caller is responsible for handling these transactions
+     *
+     * ## Global Queue Ordering
+     * The global queue ensures that regardless of sender type, transactions are processed
+     * in the exact order they were submitted. This is crucial for:
+     * - Deterministic deployments
+     * - Contract dependency resolution
+     * - State consistency across different execution contexts
+     *
+     * @param _registry The sender registry containing all queued transactions
+     * @return customQueue Array of custom sender transactions requiring external processing
+     */
     function broadcast(Registry storage _registry) internal returns (RichTransaction[] memory customQueue) {
         if (_registry._broadcasted) {
             revert BroadcastAlreadyCalled();
