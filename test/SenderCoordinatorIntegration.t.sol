@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 import {Test} from "forge-std/Test.sol";
 import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
-import {SenderTypes} from "../src/internal/types.sol";
+import {SenderTypes, Transaction} from "../src/internal/types.sol";
 
 contract TestableSenderCoordinator is SenderCoordinator {
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun) {}
+        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun, false) {}
     
     function _decodeConfigs(bytes memory _rawConfigs) private pure returns (Senders.SenderInitConfig[] memory) {
         if (_rawConfigs.length == 0) {
@@ -172,8 +172,10 @@ contract SenderCoordinatorIntegrationTest is Test {
 
 // Test contract to verify nested broadcast behavior
 contract NestedBroadcastTester is SenderCoordinator {
+    using Senders for Senders.Sender;
+
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun) {}
+        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun, false) {}
     
     function _decodeConfigs(bytes memory _rawConfigs) private pure returns (Senders.SenderInitConfig[] memory) {
         if (_rawConfigs.length == 0) {
@@ -191,6 +193,12 @@ contract NestedBroadcastTester is SenderCoordinator {
     function innerBroadcast() public broadcast {
         // This nested broadcast should not trigger duplicate broadcasts
         Senders.Sender storage testSender = sender("test");
+        testSender.execute(Transaction({
+            to: address(1),
+            value: 0,
+            data: hex"",
+            label: "test"
+        }));
         // Would normally queue transactions here
     }
     
@@ -202,6 +210,11 @@ contract NestedBroadcastTester is SenderCoordinator {
     function deeperBroadcast() public broadcast {
         // Even deeper nesting to ensure the flag works correctly
         Senders.Sender storage testSender = sender("test");
-        // Would normally queue transactions here
+        testSender.execute(Transaction({
+            to: address(1),
+            value: 0,
+            data: hex"",
+            label: "test"
+        }));
     }
 }

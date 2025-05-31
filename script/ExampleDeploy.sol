@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
-import {ConfigurableTrebScript} from "../src/TrebScript.sol";
+import {ConfigurableTrebScript} from "../src/ConfigurableTrebScript.sol";
 import {Deployer} from "../src/internal/sender/Deployer.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {SenderTypes} from "../src/internal/types.sol";
@@ -28,7 +28,8 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
             _getSenderConfigs(), // Custom sender configuration
             "example", // Namespace
             "example-registry.json", // Registry file
-            false // Not dry run
+            false, // Not dry run
+            false // Not quiet mode
         )
     {}
 

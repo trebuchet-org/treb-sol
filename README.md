@@ -64,7 +64,7 @@ contract DeployCounter is TrebScript {
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {ConfigurableTrebScript} from "treb-sol/TrebScript.sol";
+import {ConfigurableTrebScript} from "treb-sol/ConfigurableTrebScript.sol";
 import {Deployer} from "treb-sol/internal/sender/Deployer.sol";
 import {Senders} from "treb-sol/internal/sender/Senders.sol";
 import {SenderTypes} from "treb-sol/internal/types.sol";
@@ -76,7 +76,8 @@ contract StandaloneDeployment is ConfigurableTrebScript {
         _getSenderConfigs(),     // Custom sender configuration
         "production",            // Namespace
         "deployments.json",      // Registry file
-        false                    // Not dry run
+        false,                   // Not dry run
+        false                    // Not quiet mode
     ) {}
 
     function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
@@ -147,7 +148,8 @@ contract MyDeployment is ConfigurableTrebScript {
         _getSenderConfigs(),    // Define your own configs
         "production",          // Explicit namespace
         "registry.json",       // Explicit registry file
-        false                  // Explicit dry-run setting
+        false,                 // Explicit dry-run setting
+        false                  // Explicit quiet mode
     ) {}
 }
 ```

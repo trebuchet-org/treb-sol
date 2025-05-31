@@ -417,7 +417,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
 // Testable senderCoordinator that exposes execute functions
 contract TestableSenderCoordinator is SenderCoordinator {
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _dryrun) {}
+        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _dryrun, false) {}
 }
 
 // Test contract for revert scenarios

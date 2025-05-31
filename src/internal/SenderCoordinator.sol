@@ -48,20 +48,11 @@ contract SenderCoordinator is Script {
     /// @notice Thrown when custom sender transactions are queued but processCustomQueue is not implemented
     error CustomQueueReceiverNotImplemented();
 
-    /**
-     * @dev Internal state for lazy initialization and configuration.
-     * This struct stores the raw configuration data until first use,
-     * implementing a lazy initialization pattern to avoid unnecessary
-     * setup costs when senders are not used.
-     */
-    struct DispatcherConfig {
-        bool initialized; // Whether the senders have been initialized
-        Senders.SenderInitConfig[] senderInitConfigs; // Sender Configurations
-        string namespace; // Deployment namespace (e.g., "default", "staging", "production")
-        bool dryrun; // Whether to run in dry-run mode (no actual transactions)
-    }
-
-    DispatcherConfig private config;
+    bool private initialized; // Whether the senders have been initialized
+    Senders.SenderInitConfig[] private senderInitConfigs; // Sender Configurations
+    string private namespace; // Deployment namespace (e.g., "default", "staging", "production")
+    bool private dryrun; // Whether to run in dry-run mode (no actual transactions)
+    bool private quiet; // Whether to suppress internal logs
 
     /**
      * @notice Modifier that automatically broadcasts all queued transactions after function execution
@@ -114,14 +105,16 @@ contract SenderCoordinator is Script {
     constructor(
         Senders.SenderInitConfig[] memory _senderInitConfigs,
         string memory _namespace,
-        bool _dryrun
+        bool _dryrun,
+        bool _quiet
     ) {
         // Manually copy memory array to storage
         for (uint256 i = 0; i < _senderInitConfigs.length; i++) {
-            config.senderInitConfigs.push(_senderInitConfigs[i]);
+            senderInitConfigs.push(_senderInitConfigs[i]);
         }
-        config.namespace = _namespace;
-        config.dryrun = _dryrun;
+        namespace = _namespace;
+        dryrun = _dryrun;
+        quiet = _quiet;
     }
 
     /**
@@ -136,14 +129,14 @@ contract SenderCoordinator is Script {
      * - Decoding fails or results in empty array
      */
     function _initialize() internal {
-        if (config.senderInitConfigs.length == 0) {
+        if (senderInitConfigs.length == 0) {
             revert NoSenderInitConfigs();
         }
 
         Senders.initialize(
-            config.senderInitConfigs,
-            config.namespace,
-            config.dryrun
+            senderInitConfigs,
+            namespace,
+            dryrun
         );
     }
 
@@ -165,9 +158,9 @@ contract SenderCoordinator is Script {
     function sender(
         string memory _name
     ) internal returns (Senders.Sender storage) {
-        if (!config.initialized) {
+        if (!initialized) {
             _initialize();
-            config.initialized = true;
+            initialized = true;
         }
         return Senders.registry().get(_name);
     }
