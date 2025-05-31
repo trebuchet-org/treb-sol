@@ -6,9 +6,17 @@ import {Senders} from "./Senders.sol";
 import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
 
 library PrivateKey {
-    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-
     using Senders for Senders.Sender;
+
+    struct Sender {
+        bytes32 id;
+        string name;
+        address account;
+        bytes8 senderType;
+        bytes config;
+    }
+
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     event TransactionBroadcast(
         bytes32 indexed transactionId,
@@ -19,14 +27,6 @@ library PrivateKey {
         string label,
         bytes returnData
     );
-
-    struct Sender {
-        bytes32 id;
-        string name;
-        address account;
-        bytes8 senderType;
-        bytes config;
-    }
 
     function cast(Senders.Sender storage _sender) internal view returns (Sender storage _privateKeySender) {
         if (!_sender.isType(SenderTypes.PrivateKey)) {
@@ -75,11 +75,7 @@ library PrivateKey {
 
 
 library InMemory {
-    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-
     using Senders for Senders.Sender;
-
-    error InvalidPrivateKey(string name);
 
     struct Sender {
         bytes32 id;
@@ -90,6 +86,10 @@ library InMemory {
         // Private key specific fields:
         uint256 privateKey;
     }
+
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+
+    error InvalidPrivateKey(string name);
 
     function cast(Senders.Sender storage _sender) internal view returns (Sender storage _inMemorySender) {
         if (!_sender.isType(SenderTypes.InMemory)) {
@@ -113,10 +113,6 @@ library HardwareWallet {
     using Senders for Senders.Sender;
     using HardwareWallet for HardwareWallet.Sender;
 
-    error InvalidHardwareWalletConfig(string name);
-
-    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-
     struct Sender {
         bytes32 id;
         string name;
@@ -127,6 +123,10 @@ library HardwareWallet {
         string hardwareWalletType;
         string mnemonicDerivationPath;
     }
+
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+
+    error InvalidHardwareWalletConfig(string name);
 
     function cast(Senders.Sender storage _sender) internal view returns (Sender storage _hardwareWalletSender) {
         if (!_sender.isType(SenderTypes.HardwareWallet)) {

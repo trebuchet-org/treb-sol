@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {TrebScript, Deployer, Senders} from "./TrebScript.sol";
+import {TrebScript} from "./TrebScript.sol";
+import {Deployer} from "./internal/sender/Deployer.sol";
+import {Senders} from "./internal/sender/Senders.sol";
 
 /**
  * @title LibraryDeployment
@@ -12,9 +14,9 @@ contract LibraryDeployment is TrebScript {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    error MissingLibraryArtifactPath();
-    
     string private constant LIBRARY_DEPLOYER = "libraries";
+
+    error MissingLibraryArtifactPath();
     string private artifactPath;
 
     constructor() {

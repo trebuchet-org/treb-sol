@@ -2,18 +2,20 @@
 pragma solidity ^0.8.27;
 
 import {Vm} from "forge-std/Vm.sol";
-import {console} from "forge-std/console.sol";
 import {Senders} from "./Senders.sol";
 import {RichTransaction, Transaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {ICreateX} from "createx-forge/script/ICreateX.sol";
 
 library Deployer {
-    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-    ICreateX constant CREATEX = ICreateX(CREATEX_ADDRESS);
     using Senders for Senders.Sender;
     using Deployer for Senders.Sender;
     using Deployer for Deployment;
+
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+    ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
+
+    event DeployingContract(string what, string label, bytes32 initCodeHash);
 
     error ContractNotFound(string what);
     error PredictedAddressMismatch(address predicted, address actual);
@@ -22,8 +24,6 @@ library Deployer {
     error ConstructorArgsAlreadySet();
     error InvalidCreateStrategy(CreateStrategy strategy);
     error EntropyOrArtifactRequired();
-
-    event DeployingContract(string what, string label, bytes32 initCodeHash);
 
     enum CreateStrategy {
         CREATE3,

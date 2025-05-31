@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "./Senders.sol";
-import {HardwareWallet, InMemory} from "./PrivateKeySender.sol";
+import {HardwareWallet} from "./PrivateKeySender.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
 
 library GnosisSafe {
-    error SafeTransactionValueNotZero(string label);
-    error InvalidGnosisSafeConfig(string name);
-
     event SafeTransactionQueued(
         bytes32 indexed safeTxHash,
         address indexed safe,
         address indexed proposer,
         RichTransaction[] transactions
     );
+
+    error SafeTransactionValueNotZero(string label);
+    error InvalidGnosisSafeConfig(string name);
 
     using Senders for Senders.Sender;
     using GnosisSafe for GnosisSafe.Sender;

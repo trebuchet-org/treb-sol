@@ -2,30 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
-import {console} from "forge-std/console.sol";
-import {Safe} from "safe-utils/Safe.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
-import {Deployer} from "./Deployer.sol";
 import {Harness} from "../Harness.sol";
 
-import "../types.sol";
+import {Transaction, RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
 
 library Senders {
-    /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
-    /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
-    bytes32 constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
-    Vm constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-
-    error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
-    error InvalidSenderType(string name, bytes8 senderType);
-    error SenderNotInitialized(string name);
-    error NoSenders();
-    error TransactionExecutionMismatch(string label, bytes returnData);
-    error CannotBroadcastCustomSender(string name);
-    error UnexpectedSenderBroadcast(string name, bytes8 senderType);
-    error BroadcastAlreadyCalled();
-
     using Senders for Senders.Registry;
     using Senders for Senders.Sender;
     using PrivateKey for PrivateKey.Sender;
@@ -33,24 +16,10 @@ library Senders {
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
 
-    event TransactionFailed(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label
-    );
-
-    event TransactionSimulated(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label,
-        bytes returnData
-    );
+    /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
+    /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
+    bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     struct SenderInitConfig {
         string name;
@@ -80,6 +49,36 @@ library Senders {
         bytes8 senderType;
         bytes config;
     }
+
+    event TransactionFailed(
+        bytes32 indexed transactionId,
+        address indexed sender,
+        address indexed to,
+        uint256 value,
+        bytes data,
+        string label
+    );
+
+    event TransactionSimulated(
+        bytes32 indexed transactionId,
+        address indexed sender,
+        address indexed to,
+        uint256 value,
+        bytes data,
+        string label,
+        bytes returnData
+    );
+
+    error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
+    error InvalidSenderType(string name, bytes8 senderType);
+    error SenderNotInitialized(string name);
+    error NoSenders();
+    error TransactionExecutionMismatch(string label, bytes returnData);
+    error CannotBroadcastCustomSender(string name);
+    error UnexpectedSenderBroadcast(string name, bytes8 senderType);
+    error BroadcastAlreadyCalled();
+    error EmptyTransactionArray();
+    error InvalidTargetAddress(uint256 index);
 
     function registry() internal pure returns (Registry storage _registry) {
         assembly {
@@ -226,10 +225,9 @@ library Senders {
     // ************* Sender Execute ************* //
 
     function execute(Sender storage _sender, Transaction[] memory _transactions) internal returns (RichTransaction[] memory bundleTransactions) {
-        require(_transactions.length > 0, "Empty transaction array");
+        if (_transactions.length == 0) revert EmptyTransactionArray();
         for (uint256 i = 0; i < _transactions.length; i++) {
-            require(_transactions[i].to != address(0), "Invalid target address");
-            require(bytes(_transactions[i].label).length > 0, "Transaction label required");
+            if (_transactions[i].to == address(0)) revert InvalidTargetAddress(i);
         }
         return _sender.simulate(_transactions);
     }

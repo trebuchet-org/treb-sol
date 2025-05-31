@@ -1,25 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {Senders} from "./sender/Senders.sol";
-import {Deployer} from "./sender/Deployer.sol";
 import {Transaction, RichTransaction} from "./types.sol";
 
 contract SenderCoordinator is Script {
-    error InvalidSenderConfigs();
-    error SenderNotFound(string id);
-    error CustomQueueReceiverNotImplemented();
-
     using Senders for Senders.Registry;
     using Senders for Senders.Sender;
 
-    /// @notice Modifier that automatically broadcasts transactions after function execution
-    /// @dev Used to ensure all queued transactions are broadcast at the end of execution
-    modifier broadcast() {
-        _;
-        _broadcast();
-    }
+    error InvalidSenderConfigs();
+    error SenderNotFound(string id);
+    error CustomQueueReceiverNotImplemented();
 
     /// @dev Internal state for lazy initialization and configuration
     struct DispatcherConfig {
@@ -28,8 +20,15 @@ contract SenderCoordinator is Script {
         string namespace;
         bool dryrun;
     }
-    
+
     DispatcherConfig private config;
+
+    /// @notice Modifier that automatically broadcasts transactions after function execution
+    /// @dev Used to ensure all queued transactions are broadcast at the end of execution
+    modifier broadcast() {
+        _;
+        _broadcast();
+    }
 
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) {
         config.rawConfigs = _rawConfigs;

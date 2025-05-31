@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Senders} from "./sender/Senders.sol";
-import {console} from "forge-std/console.sol";
 import {SenderCoordinator} from "./SenderCoordinator.sol";
 import {CommonBase} from "forge-std/Base.sol";
 import {Transaction, RichTransaction} from "./types.sol";
