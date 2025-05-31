@@ -135,7 +135,7 @@ contract SenderCoordinator is Script, ITrebEvents {
             revert NoSenderInitConfigs();
         }
 
-        Senders.initialize(senderInitConfigs, namespace, dryrun, quiet);
+        Senders.initialize(senderInitConfigs, namespace, quiet);
     }
 
     /**

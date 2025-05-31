@@ -23,7 +23,7 @@ contract SendersTestHarness is SenderCoordinator {
 
     constructor(Senders.SenderInitConfig[] memory _configs) SenderCoordinator(_configs, "default", false, false) {
         // Also initialize Senders directly (SenderCoordinator initializes lazily)
-        Senders.initialize(_configs, "default", false, false);
+        Senders.initialize(_configs, "default", false);
 
         // Deploy MultiSendCallOnly for testing (after initialize)
         MultiSendCallOnly multiSendCallOnly = new MultiSendCallOnly();
@@ -177,13 +177,6 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.registry().namespace;
     }
 
-    function setDryrun(bool _dryrun) public {
-        Senders.registry().dryrun = _dryrun;
-    }
-
-    function getDryrun() public view returns (bool) {
-        return Senders.registry().dryrun;
-    }
 
     // ************* Harness Helpers ************* //
 

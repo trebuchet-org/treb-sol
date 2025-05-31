@@ -48,15 +48,6 @@ library PrivateKey {
         }
     }
 
-    /**
-     * @notice Broadcasts a transaction using the sender's private key
-     * @dev Delegates to the overloaded broadcast function with dryrun=false
-     * @param _sender The private key sender
-     * @param _tx The transaction to broadcast
-     */
-    function broadcast(Sender storage _sender, RichTransaction memory _tx) internal {
-        broadcast(_sender, _tx, false);
-    }
 
     /**
      * @notice Broadcasts a transaction with optional dry-run mode
@@ -64,9 +55,8 @@ library PrivateKey {
      *      In dry-run mode, marks the transaction as executed without broadcasting.
      * @param _sender The private key sender
      * @param _tx The transaction to broadcast
-     * @param dryrun If true, simulates execution without actual broadcasting
      */
-    function broadcast(Sender storage _sender, RichTransaction memory _tx, bool dryrun) internal {
+    function broadcast(Sender storage _sender, RichTransaction memory _tx) internal {
         bytes memory returnData = _tx.executedReturnData;
 
         vm.startBroadcast(_sender.account);

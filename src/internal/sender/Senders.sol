@@ -152,7 +152,6 @@ library Senders {
      * @param ids Array of all registered sender IDs for iteration
      * @param _globalQueue Global transaction queue maintaining submission order across all senders
      * @param namespace Current deployment namespace (default, staging, production)
-     * @param dryrun Whether to simulate transactions without actual execution
      * @param snapshot VM state snapshot taken before transaction simulation
      * @param _broadcasted Flag preventing multiple broadcast calls
      * @param broadcastQueued Flag preventing nested broadcast modifier issues - ensures only outermost broadcast triggers
@@ -164,7 +163,6 @@ library Senders {
         bytes32[] ids;
         RichTransaction[] _globalQueue;
         string namespace;
-        bool dryrun;
         bool quiet;
         bool initialized;
         uint256 preSimulationSnapshot;
@@ -251,13 +249,10 @@ library Senders {
      * @notice Initializes registry with sender configurations including quiet mode
      * @param _configs Array of sender configurations to register
      * @param _namespace Deployment namespace
-     * @param _dryrun Whether to run in dry-run mode
      * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _dryrun, bool _quiet)
-        internal
-    {
-        initialize(registry(), _configs, _namespace, _dryrun, _quiet);
+    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _quiet) internal {
+        initialize(registry(), _configs, _namespace, _quiet);
     }
 
     /**
@@ -265,14 +260,12 @@ library Senders {
      * @param _registry Registry storage reference
      * @param _configs Array of sender configurations to register
      * @param _namespace Deployment namespace
-     * @param _dryrun Whether to run in dry-run mode
      * @param _quiet Whether to suppress internal event logs
      */
     function initialize(
         Registry storage _registry,
         SenderInitConfig[] memory _configs,
         string memory _namespace,
-        bool _dryrun,
         bool _quiet
     ) internal {
         if (_registry.initialized) {
@@ -281,7 +274,6 @@ library Senders {
 
         _registry.namespace = _namespace;
         _registry.initialized = true;
-        _registry.dryrun = _dryrun;
         _registry.quiet = _quiet;
 
         if (_configs.length == 0) {
@@ -633,7 +625,7 @@ library Senders {
 
             if (sender.isType(SenderTypes.PrivateKey)) {
                 // Sync execution - broadcast immediately
-                sender.privateKey().broadcast(richTx, _registry.dryrun);
+                sender.privateKey().broadcast(richTx);
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
                 sender.gnosisSafe().queue(richTx);
@@ -651,7 +643,7 @@ library Senders {
         for (uint256 i = 0; i < senderIds.length; i++) {
             Sender storage sender = _registry.senders[senderIds[i]];
             if (sender.isType(SenderTypes.GnosisSafe)) {
-                sender.gnosisSafe().broadcast(_registry.dryrun);
+                sender.gnosisSafe().broadcast();
             }
         }
 

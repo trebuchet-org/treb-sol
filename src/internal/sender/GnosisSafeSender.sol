@@ -123,23 +123,13 @@ library GnosisSafe {
     }
 
     /**
-     * @notice Broadcasts all queued transactions as a Safe batch
-     * @dev Delegates to the overloaded broadcast function using the global dryrun setting
-     * @param _sender The Safe sender
-     */
-    function broadcast(Sender storage _sender) internal {
-        broadcast(_sender, Senders.registry().dryrun);
-    }
-
-    /**
      * @notice Broadcasts all queued transactions with optional dry-run mode
      * @dev Collects all queued transactions into a batch proposal for the Safe.
      *      Validates that transactions don't include ETH transfers (currently unsupported).
      *      In dry-run mode, generates a mock transaction hash without actual submission.
      * @param _sender The Safe sender
-     * @param dryrun If true, simulates the batch proposal without submission
      */
-    function broadcast(Sender storage _sender, bool dryrun) internal {
+    function broadcast(Sender storage _sender) internal {
         if (_sender.txQueue.length == 0) {
             return;
         }
