@@ -6,6 +6,7 @@ import {Senders} from "./Senders.sol";
 import {RichTransaction, Transaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {ICreateX} from "createx-forge/script/ICreateX.sol";
+import {ITrebEvents} from "../ITrebEvents.sol";
 
 /**
  * @title Deployer
@@ -32,13 +33,6 @@ library Deployer {
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
     ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
 
-    /**
-     * @notice Emitted when a contract deployment is initiated
-     * @param what The artifact path or contract name being deployed
-     * @param label Optional label for deployment categorization
-     * @param initCodeHash Hash of the initialization code (bytecode + constructor args)
-     */
-    event DeployingContract(string what, string label, bytes32 initCodeHash);
 
     // Custom errors for better gas efficiency and clarity
     error ContractNotFound(string what);
@@ -93,16 +87,6 @@ library Deployer {
         string createStrategy;
     }
 
-    /**
-     * @notice Emitted when a contract is successfully deployed
-     * @param deployer The address that initiated the deployment
-     * @param location The deployed contract address
-     * @param transactionId Unique identifier for the deployment transaction
-     * @param deployment Comprehensive deployment details
-     */
-    event ContractDeployed(
-        address indexed deployer, address indexed location, bytes32 indexed transactionId, EventDeployment deployment
-    );
 
     // *************** DEPLOYMENT *************** //
 
@@ -299,7 +283,7 @@ library Deployer {
 
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
-            emit ContractDeployed(sender.account, simulatedAddress, createTxResult.transactionId, eventDeployment);
+            emit ITrebEvents.ContractDeployed(sender.account, simulatedAddress, createTxResult.transactionId, eventDeployment);
         }
 
         return simulatedAddress;

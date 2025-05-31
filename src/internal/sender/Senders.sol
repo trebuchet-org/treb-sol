@@ -111,6 +111,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
 import {Harness} from "../Harness.sol";
+import {ITrebEvents} from "../ITrebEvents.sol";
 
 import {Transaction, RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
 
@@ -188,43 +189,6 @@ library Senders {
         bytes config;
     }
 
-    /**
-     * @notice Emitted when a transaction simulation fails during execution
-     * @param transactionId Unique identifier for the failed transaction
-     * @param sender Address of the sender that attempted the transaction
-     * @param to Target contract address
-     * @param value Ether value sent with the transaction
-     * @param data Transaction calldata
-     * @param label Human-readable transaction description
-     */
-    event TransactionFailed(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label
-    );
-
-    /**
-     * @notice Emitted when a transaction is successfully simulated
-     * @param transactionId Unique identifier for the transaction
-     * @param sender Address of the sender executing the transaction
-     * @param to Target contract address
-     * @param value Ether value sent with the transaction
-     * @param data Transaction calldata
-     * @param label Human-readable transaction description
-     * @param returnData Return data from the successful simulation
-     */
-    event TransactionSimulated(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label,
-        bytes returnData
-    );
 
     /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
@@ -559,7 +523,7 @@ library Senders {
 
             // Only emit events if not in quiet mode
             if (!registry().quiet) {
-                emit TransactionSimulated(
+                emit ITrebEvents.TransactionSimulated(
                     transactionId,
                     _sender.account,
                     _transactions[i].to,
@@ -572,7 +536,7 @@ library Senders {
 
             if (!success) {
                 if (!registry().quiet) {
-                    emit TransactionFailed(
+                    emit ITrebEvents.TransactionFailed(
                         transactionId,
                         _sender.account,
                         _transactions[i].to,
