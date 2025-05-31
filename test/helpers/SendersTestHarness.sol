@@ -22,7 +22,7 @@ contract SendersTestHarness is SenderCoordinator {
     using Deployer for Deployer.Deployment;
 
     constructor(Senders.SenderInitConfig[] memory _configs) 
-        SenderCoordinator(abi.encode(_configs), "default", false) 
+        SenderCoordinator(_configs, "default", false) 
     {
         // Also initialize Senders directly (SenderCoordinator initializes lazily)
         Senders.initialize(_configs);

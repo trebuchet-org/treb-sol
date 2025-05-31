@@ -8,7 +8,14 @@ import {SenderTypes} from "../src/internal/types.sol";
 
 contract TestableSenderCoordinator is SenderCoordinator {
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        SenderCoordinator(_rawConfigs, _namespace, _dryrun) {}
+        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun) {}
+    
+    function _decodeConfigs(bytes memory _rawConfigs) private pure returns (Senders.SenderInitConfig[] memory) {
+        if (_rawConfigs.length == 0) {
+            return new Senders.SenderInitConfig[](0);
+        }
+        return abi.decode(_rawConfigs, (Senders.SenderInitConfig[]));
+    }
     
     // Expose internal functions for testing
     function testGetSender(string memory name) external returns (Senders.Sender memory) {
@@ -78,18 +85,17 @@ contract SenderCoordinatorIntegrationTest is Test {
         senderCoordinator = new TestableSenderCoordinator(emptyConfigs, "default", false);
         
         // Should revert when trying to access sender
-        vm.expectRevert(SenderCoordinator.InvalidSenderConfigs.selector);
+        vm.expectRevert(SenderCoordinator.NoSenderInitConfigs.selector);
         senderCoordinator.testGetSender("any");
     }
     
     function test_SenderCoordinatorInvalidSenderConfigs() public {
         // Create senderCoordinator with invalid configs (can't decode as SenderInitConfig[])
         bytes memory invalidConfigs = hex"deadbeef";
-        senderCoordinator = new TestableSenderCoordinator(invalidConfigs, "default", false);
         
-        // Should revert when trying to decode
+        // Should revert during construction when trying to decode
         vm.expectRevert();
-        senderCoordinator.testGetSender("any");
+        senderCoordinator = new TestableSenderCoordinator(invalidConfigs, "default", false);
     }
     
     

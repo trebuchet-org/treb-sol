@@ -171,7 +171,7 @@ contract TestSenderCoordinator is SenderCoordinator {
     using Deployer for Deployer.Deployment;
     
     constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
-        SenderCoordinator(_rawConfigs, _namespace, _dryrun) {}
+        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _dryrun) {}
     
     function deployTestContract(uint256 value, string memory senderName) external returns (TestContract) {
         Senders.Sender storage s = sender(senderName);
