@@ -159,14 +159,13 @@ library GnosisSafe {
         bytes32 safeTxHash;
         if (!dryrun) {
             safeTxHash = _sender.safe().proposeTransactions(targets, datas);
+            // Only emit event if not in quiet mode
+            if (!Senders.registry().quiet) {
+                emit ITrebEvents.SafeTransactionQueued(safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue);
+            }
         } else {
-            // In dryrun mode, generate a mock transaction hash
-            safeTxHash = keccak256(abi.encode(targets, datas, block.timestamp));
-        }
-
-        // Only emit event if not in quiet mode
-        if (!Senders.registry().quiet) {
-            emit ITrebEvents.SafeTransactionQueued(safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue);
+            // In dryrun mode, no safeTxHash
+            safeTxHash = bytes32(0);
         }
 
         delete _sender.txQueue;

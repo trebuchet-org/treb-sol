@@ -82,22 +82,22 @@ library PrivateKey {
             _tx.executedReturnData = returnData;
             _tx.status = TransactionStatus.EXECUTED;
             vm.stopBroadcast();
+
+            // Only emit event if not in quiet mode
+            if (!Senders.registry().quiet) {
+                emit ITrebEvents.TransactionBroadcast(
+                    _tx.transactionId,
+                    _sender.account,
+                    _tx.transaction.to,
+                    _tx.transaction.value,
+                    _tx.transaction.data,
+                    _tx.transaction.label,
+                    returnData
+                );
+            }
         } else {
             // In dryrun mode, mark as executed without actually broadcasting
-            _tx.status = TransactionStatus.EXECUTED;
-        }
-
-        // Only emit event if not in quiet mode
-        if (!Senders.registry().quiet) {
-            emit ITrebEvents.TransactionBroadcast(
-                _tx.transactionId,
-                _sender.account,
-                _tx.transaction.to,
-                _tx.transaction.value,
-                _tx.transaction.data,
-                _tx.transaction.label,
-                returnData
-            );
+            _tx.status = TransactionStatus.PENDING;
         }
     }
 }
