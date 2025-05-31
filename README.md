@@ -1,4 +1,4 @@
-![./docs/treb-sol.png]
+![Developers deploying code with a trebuchet](./docs/treb-sol.png)
 
 # treb-sol
 
