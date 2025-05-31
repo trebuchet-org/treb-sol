@@ -155,6 +155,7 @@ library Senders {
      * @param dryrun Whether to simulate transactions without actual execution
      * @param snapshot VM state snapshot taken before transaction simulation
      * @param _broadcasted Flag preventing multiple broadcast calls
+     * @param broadcastQueued Flag preventing nested broadcast modifier issues - ensures only outermost broadcast triggers
      * @param _transactionCounter Monotonic counter for generating unique transaction IDs
      */
     struct Registry {
@@ -168,6 +169,7 @@ library Senders {
 
         uint256 snapshot;
         bool _broadcasted;
+        bool broadcastQueued;
         uint256 _transactionCounter;
     }
 

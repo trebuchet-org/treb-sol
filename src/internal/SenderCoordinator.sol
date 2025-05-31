@@ -17,6 +17,7 @@ import {Transaction, RichTransaction} from "./types.sol";
  * - Hardware wallet senders (Ledger, Trezor)
  * - Safe multisig senders
  * - Custom sender types via the processCustomQueue override
+ * - Safe nested broadcast handling via broadcastQueued flag
  *
  * Usage example:
  * ```solidity
@@ -68,6 +69,12 @@ contract SenderCoordinator is Script {
      * 1. All transactions queued during function execution are collected
      * 2. Transactions are broadcast in the correct order
      * 3. Custom sender types (e.g., Safe multisig) get their transactions processed
+     * 4. Nested broadcast calls are handled safely - only the outermost call triggers broadcast
+     *
+     * The modifier uses a `broadcastQueued` flag to prevent nested broadcast issues:
+     * - If no broadcast is queued, it sets the flag and will trigger broadcast at the end
+     * - If a broadcast is already queued (nested call), it does nothing
+     * - Only the outermost modifier call actually triggers `_broadcast()`
      *
      * Example usage:
      * ```solidity
@@ -80,8 +87,21 @@ contract SenderCoordinator is Script {
      * ```
      */
     modifier broadcast() {
+        // Check if broadcast is already queued (nested call)
+        bool broadcastAlreadyQueued = Senders.registry().broadcastQueued;
+        
+        // If not already queued, mark as queued
+        if (!broadcastAlreadyQueued) {
+            Senders.registry().broadcastQueued = true;
+        }
+        
         _;
-        _broadcast();
+        
+        // Only broadcast if this was the outermost call
+        if (!broadcastAlreadyQueued) {
+            Senders.registry().broadcastQueued = false;
+            _broadcast();
+        }
     }
 
     /**

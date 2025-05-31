@@ -13,12 +13,12 @@ import {Senders} from "./internal/sender/Senders.sol";
  * @dev This contract provides the same functionality as TrebScript but allows manual configuration
  *      of all parameters, making it suitable for use outside of treb-cli or in environments where
  *      you want explicit control over sender configurations and registry settings.
- *      
+ *
  *      Unlike TrebScript which reads from environment variables, ConfigurableTrebScript requires
  *      all configuration to be passed explicitly through constructor parameters. This makes it
  *      ideal for:
  *      - Standalone usage without treb-cli
- *      - Testing environments with custom configurations  
+ *      - Testing environments with custom configurations
  *      - Integration with other deployment frameworks
  *      - Scenarios where environment variables are not desired
  *
@@ -31,7 +31,7 @@ import {Senders} from "./internal/sender/Senders.sol";
  *              "deployments.json",      // Registry file
  *              false                    // Not dry run
  *          ) {}
- *          
+ *
  *          function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
  *              // Define your sender configurations here
  *          }

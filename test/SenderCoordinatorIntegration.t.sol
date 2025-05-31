@@ -146,4 +146,62 @@ contract SenderCoordinatorIntegrationTest is Test {
         assertEq(lazySender2.account, vm.addr(0x3333));
         assertEq(lazySender.id, lazySender2.id);
     }
+    
+    function test_NestedBroadcastModifier() public {
+        // Setup configs
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
+        configs[0] = Senders.SenderInitConfig({
+            name: TEST_SENDER,
+            account: vm.addr(0x1111),
+            senderType: SenderTypes.InMemory,
+            config: abi.encode(0x1111)
+        });
+        
+        bytes memory encodedConfigs = abi.encode(configs);
+        
+        // Create test coordinator that supports nested broadcasts
+        NestedBroadcastTester nestedTester = new NestedBroadcastTester(encodedConfigs, "default", false);
+        
+        // This should work without issues - outer broadcast should handle everything
+        nestedTester.outerBroadcast();
+        
+        // Verify the flag is properly reset after nested calls
+        assertFalse(Senders.registry().broadcastQueued);
+    }
+}
+
+// Test contract to verify nested broadcast behavior
+contract NestedBroadcastTester is SenderCoordinator {
+    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun) 
+        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun) {}
+    
+    function _decodeConfigs(bytes memory _rawConfigs) private pure returns (Senders.SenderInitConfig[] memory) {
+        if (_rawConfigs.length == 0) {
+            return new Senders.SenderInitConfig[](0);
+        }
+        return abi.decode(_rawConfigs, (Senders.SenderInitConfig[]));
+    }
+    
+    function outerBroadcast() public broadcast {
+        // This function has broadcast modifier
+        innerBroadcast();
+        anotherInnerBroadcast();
+    }
+    
+    function innerBroadcast() public broadcast {
+        // This nested broadcast should not trigger duplicate broadcasts
+        Senders.Sender storage testSender = sender("test");
+        // Would normally queue transactions here
+    }
+    
+    function anotherInnerBroadcast() public broadcast {
+        // Another nested broadcast to test multiple nesting levels
+        deeperBroadcast();
+    }
+    
+    function deeperBroadcast() public broadcast {
+        // Even deeper nesting to ensure the flag works correctly
+        Senders.Sender storage testSender = sender("test");
+        // Would normally queue transactions here
+    }
 }
