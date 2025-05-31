@@ -161,42 +161,111 @@ See `script/ExampleDeploy.sol` for a comprehensive example demonstrating:
 
 ## Sender Types
 
-### Development Setup (Private Keys)
+### Private Key Senders (Development)
 
 ```solidity
-// Environment variables
-SENDER_CONFIGS = <abi-encoded configs>
-NAMESPACE = "default"
-DRYRUN = false
-
-// Sender config for development
-{
-    name: "default",
-    account: 0x...,
-    senderType: "in-memory",
-    config: abi.encode(privateKey)
+function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+    Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
+    
+    // In-memory private key sender for development
+    configs[0] = Senders.SenderInitConfig({
+        name: "deployer",
+        account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
+        senderType: SenderTypes.InMemory,
+        config: abi.encode(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
+    });
+    
+    return configs;
 }
 ```
 
-### Production Setup (Hardware Wallet + Safe)
+### Hardware Wallet Senders
 
 ```solidity
-// Hardware wallet as proposer
-{
-    name: "proposer", 
-    account: 0x...,
-    senderType: "ledger",
-    config: abi.encode("m/44'/60'/0'/0/0")
-}
-
-// Safe multisig with hardware wallet proposer
-{
-    name: "default",
-    account: 0x..., // Safe address
-    senderType: "gnosis-safe", 
-    config: abi.encode("proposer") // references proposer sender
+function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+    Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
+    
+    // Ledger hardware wallet
+    configs[0] = Senders.SenderInitConfig({
+        name: "ledger-deployer",
+        account: 0x742d35Cc6448Bf4C7D2b6C7c8d9c2a51d4e2d98f,
+        senderType: SenderTypes.Ledger,
+        config: abi.encode("m/44'/60'/0'/0/0") // derivation path
+    });
+    
+    return configs;
 }
 ```
+
+### Safe Multisig with Hardware Wallet Proposer
+
+```solidity
+function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+    Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](2);
+    
+    // Hardware wallet as proposer
+    configs[0] = Senders.SenderInitConfig({
+        name: "proposer",
+        account: 0x742d35Cc6448Bf4C7D2b6C7c8d9c2a51d4e2d98f,
+        senderType: SenderTypes.Ledger,
+        config: abi.encode("m/44'/60'/0'/0/0")
+    });
+    
+    // Safe multisig that uses the proposer
+    configs[1] = Senders.SenderInitConfig({
+        name: "safe",
+        account: 0x1234567890123456789012345678901234567890, // Safe address
+        senderType: SenderTypes.GnosisSafe,
+        config: abi.encode("proposer") // references proposer by name
+    });
+    
+    return configs;
+}
+```
+
+### Multiple Senders for Complex Workflows
+
+```solidity
+function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+    Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](4);
+    
+    // Fast deployer for development contracts
+    configs[0] = Senders.SenderInitConfig({
+        name: "dev-deployer",
+        account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
+        senderType: SenderTypes.InMemory,
+        config: abi.encode(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
+    });
+    
+    // Hardware wallet for production deploys
+    configs[1] = Senders.SenderInitConfig({
+        name: "prod-deployer", 
+        account: 0x742d35Cc6448Bf4C7D2b6C7c8d9c2a51d4e2d98f,
+        senderType: SenderTypes.Ledger,
+        config: abi.encode("m/44'/60'/0'/0/0")
+    });
+    
+    // Proposer for Safe transactions
+    configs[2] = Senders.SenderInitConfig({
+        name: "proposer",
+        account: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8,
+        senderType: SenderTypes.InMemory,
+        config: abi.encode(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d)
+    });
+    
+    // Treasury Safe for holding assets
+    configs[3] = Senders.SenderInitConfig({
+        name: "treasury",
+        account: 0x1234567890123456789012345678901234567890,
+        senderType: SenderTypes.GnosisSafe,
+        config: abi.encode("proposer")
+    });
+    
+    return configs;
+}
+```
+
+> **Note**: When using **treb-cli**, sender configuration is managed automatically through environment variables and configuration files. The examples above are for standalone usage with `ConfigurableTrebScript`.
 
 ## Transaction Execution
 
