@@ -9,7 +9,7 @@ import {Senders} from "./internal/sender/Senders.sol";
 abstract contract TrebScript is Dispatcher, Registry {
     constructor() Registry(
         vm.envOr("NAMESPACE", string("default")), 
-        vm.envOr("DEPLOYMENTS_FILE", string("deployments.json"))
+        vm.envOr("DEPLOYMENTS_FILE", string(".treb/registry.json"))
     ) Dispatcher(
         vm.envBytes("SENDER_CONFIGS"),
         vm.envOr("NAMESPACE", string("default")),

@@ -71,11 +71,11 @@ Handles deployment logic:
 - Salt generation with sender-specific encoding
 
 ### Registry.sol
-On-chain registry for deployment lookups:
-- `getDeployment(string id)`: Get deployment by identifier
-- `getDeploymentByEnv(string id, string env)`: Get deployment with explicit environment
-- Loads from `deployments.json` at construction
-- Supports both fully qualified IDs (`chainId/namespace/contract`) and short IDs
+Simplified on-chain registry for deployment lookups:
+- `lookup(string identifier)`: Get deployment by identifier from current namespace
+- `lookup(string identifier, string env)`: Get deployment from specific environment
+- `lookup(string identifier, string env, string chainId)`: Full lookup with explicit chain ID
+- Loads from `.treb/registry.json` at construction with flattened JSON structure
 
 ### Sender Types
 - **PrivateKeySender**: Direct execution with private key
@@ -141,7 +141,7 @@ The `deployments.json` file structure:
 1. **No Direct Deployment**: This library is meant to be used through the treb CLI, not directly
 2. **Structured Output**: Uses `console.log` for treb CLI parsing - do not modify log formats
 3. **CreateX Dependency**: All deployments go through CreateX factory at `0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed`
-4. **Registry Loading**: Registry loads at construction - ensure `deployments.json` exists
+4. **Registry Loading**: Registry loads at construction - ensure `.treb/registry.json` exists
 5. **Sender Configuration**: Sender configs must be ABI-encoded and passed via environment variable
 
 ## Common Usage Patterns
@@ -154,7 +154,7 @@ contract DeployMyContract is Script {
         address deployed = sender("default").deployCreate3("MyContract");
         
         // Use registry to lookup dependencies
-        address dependency = getDeployment("MyDependency");
+        address dependency = lookup("MyDependency");
     }
 }
 ```
