@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.0;
 
 import {RichTransaction} from "./types.sol";
 import {Deployer} from "./sender/Deployer.sol";
