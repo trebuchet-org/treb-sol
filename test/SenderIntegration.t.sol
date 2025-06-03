@@ -51,6 +51,7 @@ contract SenderIntegrationTest is Test {
             name: TEST_SENDER,
             account: vm.addr(0x12345),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x12345)
         });
 
@@ -59,6 +60,7 @@ contract SenderIntegrationTest is Test {
             name: BATCH_SENDER,
             account: vm.addr(0x12345),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x12345)
         });
 
@@ -67,6 +69,7 @@ contract SenderIntegrationTest is Test {
             name: PROPOSER,
             account: vm.addr(0x54321),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x54321)
         });
 
@@ -75,6 +78,7 @@ contract SenderIntegrationTest is Test {
             name: SAFE_SENDER,
             account: makeAddr("safe"),
             senderType: SenderTypes.GnosisSafe,
+            canBroadcast: true,
             config: abi.encode(PROPOSER)
         });
 
@@ -83,6 +87,7 @@ contract SenderIntegrationTest is Test {
             name: LEDGER_SENDER,
             account: makeAddr("ledger"),
             senderType: SenderTypes.Ledger,
+            canBroadcast: false,
             config: abi.encode("m/44'/60'/0'/0/0")
         });
 
@@ -91,6 +96,7 @@ contract SenderIntegrationTest is Test {
             name: FAIL_SENDER,
             account: vm.addr(0x12345),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x12345)
         });
 
@@ -99,6 +105,7 @@ contract SenderIntegrationTest is Test {
             name: CUSTOM_SENDER,
             account: makeAddr("custom"),
             senderType: SenderTypes.Custom,
+            canBroadcast: true,
             config: ""
         });
 
@@ -107,6 +114,7 @@ contract SenderIntegrationTest is Test {
             name: SAFE_1,
             account: makeAddr("safe1"),
             senderType: SenderTypes.GnosisSafe,
+            canBroadcast: true,
             config: abi.encode(PROPOSER)
         });
 
@@ -243,6 +251,7 @@ contract SenderIntegrationTest is Test {
             name: MEMORY_1,
             account: vm.addr(0x1111),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x1111)
         });
 
@@ -250,6 +259,7 @@ contract SenderIntegrationTest is Test {
             name: LEDGER_1,
             account: makeAddr("ledger1"),
             senderType: SenderTypes.Ledger,
+            canBroadcast: false,
             config: abi.encode("m/44'/60'/0'/0/1")
         });
 

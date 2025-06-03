@@ -48,6 +48,7 @@ library GnosisSafe {
         string name;
         address account;
         bytes8 senderType;
+        bool canBroadcast;
         bytes config;
         // Gnosis safe specific fields:
         bytes32 proposerId;

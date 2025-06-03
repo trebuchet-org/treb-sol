@@ -50,7 +50,6 @@ contract SenderCoordinator is Script, ITrebEvents {
     error CustomQueueReceiverNotImplemented();
 
     bool private initialized; // Whether the senders have been initialized
-    Senders.SenderInitConfig[] private senderInitConfigs; // Sender Configurations
     string private namespace; // Deployment namespace (e.g., "default", "staging", "production")
     bool private dryrun; // Whether to run in dry-run mode (no actual transactions)
     bool private quiet; // Whether to suppress internal logs
@@ -110,32 +109,10 @@ contract SenderCoordinator is Script, ITrebEvents {
         bool _dryrun,
         bool _quiet
     ) {
-        // Manually copy memory array to storage
-        for (uint256 i = 0; i < _senderInitConfigs.length; i++) {
-            senderInitConfigs.push(_senderInitConfigs[i]);
-        }
+        Senders.initialize(_senderInitConfigs, _namespace, _quiet);
         namespace = _namespace;
         dryrun = _dryrun;
         quiet = _quiet;
-    }
-
-    /**
-     * @notice Initializes all configured senders from the raw configuration data
-     * @dev This function implements the lazy initialization pattern:
-     * - Only called when the first sender is requested
-     * - Decodes the raw configs and initializes all senders at once
-     * - Sets the initialized flag to prevent re-initialization
-     *
-     * The function will revert if:
-     * - rawConfigs is empty
-     * - Decoding fails or results in empty array
-     */
-    function _initialize() internal {
-        if (senderInitConfigs.length == 0) {
-            revert NoSenderInitConfigs();
-        }
-
-        Senders.initialize(senderInitConfigs, namespace, quiet);
     }
 
     /**
@@ -154,10 +131,6 @@ contract SenderCoordinator is Script, ITrebEvents {
      * ```
      */
     function sender(string memory _name) internal returns (Senders.Sender storage) {
-        if (!initialized) {
-            _initialize();
-            initialized = true;
-        }
         return Senders.registry().get(_name);
     }
 

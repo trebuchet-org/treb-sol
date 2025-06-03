@@ -141,6 +141,7 @@ library Senders {
         string name;
         address account;
         bytes8 senderType;
+        bool canBroadcast;
         bytes config;
     }
 
@@ -184,6 +185,7 @@ library Senders {
         string name;
         address account;
         bytes8 senderType;
+        bool canBroadcast;
         bytes config;
     }
 
@@ -220,6 +222,9 @@ library Senders {
 
     /// @notice Thrown when attempting to initialize a registry that has already been initialized
     error RegistryAlreadyInitialized();
+
+    /// @notice Thrown when attempting to broadcast a sender that cannot broadcast
+    error CannotBroadcast(string name);
 
     /**
      * @notice Retrieves the singleton Registry instance using storage slots
@@ -299,6 +304,7 @@ library Senders {
                 _registry.senders[senderId].name = _configs[i].name;
                 _registry.senders[senderId].account = _configs[i].account;
                 _registry.senders[senderId].senderType = _configs[i].senderType;
+                _registry.senders[senderId].canBroadcast = _configs[i].canBroadcast;
                 _registry.senders[senderId].config = _configs[i].config;
                 _registry.ids[i] = senderId;
             }
@@ -462,6 +468,7 @@ library Senders {
         internal
         returns (RichTransaction[] memory bundleTransactions)
     {
+        if (!_sender.canBroadcast) revert CannotBroadcast(_sender.name);
         if (_transactions.length == 0) revert EmptyTransactionArray();
         for (uint256 i = 0; i < _transactions.length; i++) {
             if (_transactions[i].to == address(0)) revert InvalidTargetAddress(i);

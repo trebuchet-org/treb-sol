@@ -77,7 +77,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     using Senders for Senders.Sender;
 
     SendersTestHarness harness;
-    TestableSenderCoordinator senderCoordinator;
+    SenderCoordinator senderCoordinator;
 
     OwnableContract ownable;
     Counter counter;
@@ -96,6 +96,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
             name: SENDER_NAME,
             account: senderAddr,
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(privateKey)
         });
 
@@ -103,8 +104,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         harness = new SendersTestHarness(configs);
 
         // Create senderCoordinator for testing
-        bytes memory encodedConfigs = abi.encode(configs);
-        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", false);
+        senderCoordinator = new SenderCoordinator(configs, "default", false, false);
 
         // Deploy test contracts from the sender account
         vm.startPrank(senderAddr);
@@ -414,13 +414,6 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         vm.expectRevert("Counter: cannot decrement below zero");
         Counter(harnessAddr).decrement();
     }
-}
-
-// Testable senderCoordinator that exposes execute functions
-contract TestableSenderCoordinator is SenderCoordinator {
-    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun)
-        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _dryrun, false)
-    {}
 }
 
 // Test contract for revert scenarios

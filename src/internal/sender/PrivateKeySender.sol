@@ -28,6 +28,7 @@ library PrivateKey {
         string name;
         address account;
         bytes8 senderType;
+        bool canBroadcast;
         bytes config;
     }
 
@@ -109,6 +110,7 @@ library InMemory {
         string name;
         address account;
         bytes8 senderType;
+        bool canBroadcast;
         bytes config;
         // Private key specific fields:
         uint256 privateKey;
@@ -176,6 +178,7 @@ library HardwareWallet {
         string name;
         address account;
         bytes8 senderType;
+        bool canBroadcast;
         bytes config;
         // Hardware wallet specific fields:
         string hardwareWalletType;

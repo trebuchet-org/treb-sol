@@ -51,6 +51,7 @@ contract IntegrationTest is Test, CreateXScript {
             name: TEST,
             account: senderAddr,
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(pk)
         });
 
@@ -101,6 +102,7 @@ contract IntegrationTest is Test, CreateXScript {
             name: COORDINATOR_TEST,
             account: senderAddr,
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(pk)
         });
 
@@ -125,6 +127,7 @@ contract IntegrationTest is Test, CreateXScript {
             name: MEMORY,
             account: vm.addr(0x1111),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x1111)
         });
 
@@ -133,6 +136,7 @@ contract IntegrationTest is Test, CreateXScript {
             name: LEDGER,
             account: makeAddr("ledger"),
             senderType: SenderTypes.Ledger,
+            canBroadcast: false,
             config: abi.encode("m/44'/60'/0'/0/0")
         });
 
@@ -141,6 +145,7 @@ contract IntegrationTest is Test, CreateXScript {
             name: SAFE,
             account: makeAddr("safe"),
             senderType: SenderTypes.GnosisSafe,
+            canBroadcast: true,
             config: abi.encode(MEMORY) // Use memory sender as proposer
         });
 

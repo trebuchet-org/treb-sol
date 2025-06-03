@@ -57,12 +57,14 @@ contract SenderCoordinatorIntegrationTest is Test {
             name: SENDER1,
             account: vm.addr(0x1111),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x1111)
         });
         configs[1] = Senders.SenderInitConfig({
             name: SENDER2,
             account: vm.addr(0x2222),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x2222)
         });
 
@@ -83,11 +85,8 @@ contract SenderCoordinatorIntegrationTest is Test {
     function test_SenderCoordinatorMissingSenderConfigs() public {
         // Create senderCoordinator with empty configs
         bytes memory emptyConfigs = "";
+        vm.expectRevert(Senders.NoSenders.selector);
         senderCoordinator = new TestableSenderCoordinator(emptyConfigs, "default", false);
-
-        // Should revert when trying to access sender
-        vm.expectRevert(SenderCoordinator.NoSenderInitConfigs.selector);
-        senderCoordinator.testGetSender("any");
     }
 
     function test_SenderCoordinatorInvalidSenderConfigs() public {
@@ -106,6 +105,7 @@ contract SenderCoordinatorIntegrationTest is Test {
             name: TEST_SENDER,
             account: vm.addr(0x1111),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x1111)
         });
 
@@ -127,6 +127,7 @@ contract SenderCoordinatorIntegrationTest is Test {
             name: LAZY_SENDER,
             account: vm.addr(0x3333),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x3333)
         });
 
@@ -154,6 +155,7 @@ contract SenderCoordinatorIntegrationTest is Test {
             name: TEST_SENDER,
             account: vm.addr(0x1111),
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0x1111)
         });
 

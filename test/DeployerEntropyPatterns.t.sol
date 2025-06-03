@@ -36,6 +36,7 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
             name: DEPLOYER,
             account: senderAddr,
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(privateKey)
         });
 
