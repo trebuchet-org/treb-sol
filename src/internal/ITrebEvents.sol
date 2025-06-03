@@ -9,7 +9,7 @@ import {Deployer} from "./sender/Deployer.sol";
  * @notice Centralized interface for all Trebuchet internal events
  * @dev This interface consolidates all event definitions used throughout the Trebuchet library
  *      to ensure they appear properly in ABIs and provide a single source of truth for event signatures.
- *      
+ *
  *      All internal contracts that emit events should reference this interface rather than
  *      defining events inline. This enables better tooling integration and ABI generation.
  */
@@ -20,7 +20,7 @@ interface ITrebEvents {
      * @notice Emitted when we start broadcasting transactions
      */
     event BroadcastStarted();
-    
+
     /**
      * @notice Emitted when a transaction simulation fails during execution
      * @param transactionId Unique identifier for the failed transaction
@@ -97,9 +97,9 @@ interface ITrebEvents {
      * @param deployment Comprehensive deployment details
      */
     event ContractDeployed(
-        address indexed deployer, 
-        address indexed location, 
-        bytes32 indexed transactionId, 
+        address indexed deployer,
+        address indexed location,
+        bytes32 indexed transactionId,
         Deployer.EventDeployment deployment
     );
 
@@ -113,9 +113,6 @@ interface ITrebEvents {
      * @param transactions Array of transactions queued for execution
      */
     event SafeTransactionQueued(
-        bytes32 indexed safeTxHash,
-        address indexed safe,
-        address indexed proposer,
-        RichTransaction[] transactions
+        bytes32 indexed safeTxHash, address indexed safe, address indexed proposer, RichTransaction[] transactions
     );
 }

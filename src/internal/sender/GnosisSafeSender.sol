@@ -25,7 +25,6 @@ import {ITrebEvents} from "../ITrebEvents.sol";
  * - Ensuring value transfers are handled correctly (currently restricted)
  */
 library GnosisSafe {
-
     error SafeTransactionValueNotZero(string label);
     error InvalidGnosisSafeConfig(string name);
 
@@ -151,7 +150,9 @@ library GnosisSafe {
         safeTxHash = _sender.safe().proposeTransactions(targets, datas);
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
-            emit ITrebEvents.SafeTransactionQueued(safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue);
+            emit ITrebEvents.SafeTransactionQueued(
+                safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue
+            );
         }
 
         delete _sender.txQueue;

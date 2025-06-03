@@ -189,7 +189,6 @@ library Senders {
         bytes config;
     }
 
-
     /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
 

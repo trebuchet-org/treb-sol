@@ -33,7 +33,6 @@ library Deployer {
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
     ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
 
-
     // Custom errors for better gas efficiency and clarity
     error ContractNotFound(string what);
     error PredictedAddressMismatch(address predicted, address actual);
@@ -86,7 +85,6 @@ library Deployer {
         bytes constructorArgs;
         string createStrategy;
     }
-
 
     // *************** DEPLOYMENT *************** //
 
@@ -283,7 +281,9 @@ library Deployer {
 
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
-            emit ITrebEvents.ContractDeployed(sender.account, simulatedAddress, createTxResult.transactionId, eventDeployment);
+            emit ITrebEvents.ContractDeployed(
+                sender.account, simulatedAddress, createTxResult.transactionId, eventDeployment
+            );
         }
 
         return simulatedAddress;
