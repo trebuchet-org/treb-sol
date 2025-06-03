@@ -89,6 +89,7 @@ contract StandaloneDeployment is ConfigurableTrebScript {
             name: "deployer",
             account: 0xYourDeployerAddress,
             senderType: SenderTypes.InMemory,
+            canBroadcast: true,
             config: abi.encode(0xYourPrivateKey)
         });
         
@@ -176,6 +177,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "deployer",
         account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
         senderType: SenderTypes.InMemory,
+        canBroadcast: true,
         config: abi.encode(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
     });
     
@@ -194,6 +196,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "ledger-deployer",
         account: 0x742d35Cc6448Bf4C7D2b6C7c8d9c2a51d4e2d98f,
         senderType: SenderTypes.Ledger,
+        canBroadcast: true,  // Set to false if using as Safe signer
         config: abi.encode("m/44'/60'/0'/0/0") // derivation path
     });
     
@@ -212,6 +215,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "proposer",
         account: 0x742d35Cc6448Bf4C7D2b6C7c8d9c2a51d4e2d98f,
         senderType: SenderTypes.Ledger,
+        canBroadcast: false,  // Cannot broadcast when used as Safe signer
         config: abi.encode("m/44'/60'/0'/0/0")
     });
     
@@ -220,6 +224,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "safe",
         account: 0x1234567890123456789012345678901234567890, // Safe address
         senderType: SenderTypes.GnosisSafe,
+        canBroadcast: true,
         config: abi.encode("proposer") // references proposer by name
     });
     
@@ -238,6 +243,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "dev-deployer",
         account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
         senderType: SenderTypes.InMemory,
+        canBroadcast: true,
         config: abi.encode(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
     });
     
@@ -246,6 +252,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "prod-deployer", 
         account: 0x742d35Cc6448Bf4C7D2b6C7c8d9c2a51d4e2d98f,
         senderType: SenderTypes.Ledger,
+        canBroadcast: true,
         config: abi.encode("m/44'/60'/0'/0/0")
     });
     
@@ -254,6 +261,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "proposer",
         account: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8,
         senderType: SenderTypes.InMemory,
+        canBroadcast: true,
         config: abi.encode(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d)
     });
     
@@ -262,6 +270,7 @@ function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] m
         name: "treasury",
         account: 0x1234567890123456789012345678901234567890,
         senderType: SenderTypes.GnosisSafe,
+        canBroadcast: true,
         config: abi.encode("proposer")
     });
     
@@ -469,6 +478,93 @@ SENDER_CONFIGS=<complex-abi-encoded-safe-config>
 NAMESPACE=production
 DEPLOYER_DERIVATION_PATH=m/44'/60'/0'/0/0
 SAFE_ADDRESS=0x32CB58b145d3f7e28c45cE4B2Cc31fa94248b23F
+```
+
+## Current Limitations
+
+### Hardware Wallet Transaction Signing
+
+Due to current limitations in Foundry's hardware wallet integration, there is a restriction when using hardware wallets (Ledger/Trezor) in deployment scripts:
+
+**You can either:**
+- Sign Safe multisig transactions with a hardware wallet (when the hardware wallet is a Safe owner/proposer)
+- Broadcast transactions directly from a hardware wallet
+
+**But NOT both in the same script execution.**
+
+This limitation exists because:
+- When running `forge script` with `--ledger --mnemonic-derivation-path "<path>"`, Foundry takes exclusive control of the hardware wallet for broadcasting
+- The Safe integration uses `cast` commands via FFI to sign transactions, which cannot access the hardware wallet while Foundry is using it
+- There is ongoing work in Foundry to add async cheatcodes that would allow `vm.sign` to work with hardware wallets, eliminating the need for FFI calls
+
+#### The `canBroadcast` Flag
+
+To handle this limitation, the library introduces a `canBroadcast` flag in the sender configuration:
+
+```solidity
+Senders.SenderInitConfig({
+    name: "ledger-signer",
+    account: 0x...,
+    senderType: SenderTypes.Ledger,
+    canBroadcast: false,  // Cannot broadcast when used as Safe signer
+    config: abi.encode("m/44'/60'/0'/0/0")
+})
+```
+
+When `canBroadcast` is `false`, the sender can only be used for signing Safe transactions, not for direct broadcasting.
+
+#### Using with treb-cli
+
+When using the treb CLI, you must declare which senders should broadcast using the `@custom:senders` natspec annotation:
+
+```solidity
+contract MyDeployment is TrebScript {
+    // Only "deployer" and "treasury" senders will broadcast
+    /// @custom:senders deployer,treasury
+    function run() broadcst {
+    }
+}
+```
+
+The CLI validates that:
+- All specified senders exist and have `canBroadcast = true`
+- There are no conflicts (e.g., trying to broadcast from both a Ledger and a Safe that uses the same Ledger as a signer)
+
+#### Example: Safe with Hardware Wallet Signer
+
+```solidity
+function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+    Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](3);
+    
+    // Hardware wallet that ONLY signs Safe transactions
+    configs[0] = Senders.SenderInitConfig({
+        name: "ledger-signer",
+        account: 0x742d35Cc6634Eb89C11c4c8D0cA746e842507208,
+        senderType: SenderTypes.Ledger,
+        canBroadcast: false,  // Cannot broadcast
+        config: abi.encode("m/44'/60'/0'/0/0")
+    });
+    
+    // Safe that uses the hardware wallet as a signer
+    configs[1] = Senders.SenderInitConfig({
+        name: "treasury-safe",
+        account: 0x1234567890123456789012345678901234567890,
+        senderType: SenderTypes.GnosisSafe,
+        canBroadcast: true,  // Safe can "broadcast" (propose transactions)
+        config: abi.encode("ledger-signer")
+    });
+    
+    // Regular deployer for other operations
+    configs[2] = Senders.SenderInitConfig({
+        name: "deployer",
+        account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
+        senderType: SenderTypes.InMemory,
+        canBroadcast: true,
+        config: abi.encode(privateKey)
+    });
+    
+    return configs;
+}
 ```
 
 ## Integration with treb CLI
