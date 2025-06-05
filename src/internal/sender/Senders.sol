@@ -448,7 +448,7 @@ library Senders {
         Registry storage reg = registry();
         address _harness = reg.senderHarness[_sender.id][_target];
         if (_harness == address(0)) {
-            _harness = address(new Harness(_target, _sender.name, _sender.id, address(this)));
+            _harness = address(new Harness(_target, _sender.name, _sender.id));
             reg.senderHarness[_sender.id][_target] = _harness;
         }
         return _harness;
@@ -521,19 +521,17 @@ library Senders {
 
             // Only emit events if not in quiet mode
             if (!registry().quiet) {
-                emit ITrebEvents.TransactionSimulated(
-                    transactionId,
-                    _sender.account,
-                    _transactions[i].to,
-                    _transactions[i].value,
-                    _transactions[i].data,
-                    _transactions[i].label,
-                    returnData
-                );
-            }
-
-            if (!success) {
-                if (!registry().quiet) {
+                if (success) {
+                    emit ITrebEvents.TransactionSimulated(
+                        transactionId,
+                        _sender.account,
+                        _transactions[i].to,
+                        _transactions[i].value,
+                        _transactions[i].data,
+                        _transactions[i].label,
+                        returnData
+                    );
+                } else {
                     emit ITrebEvents.TransactionFailed(
                         transactionId,
                         _sender.account,
@@ -543,6 +541,9 @@ library Senders {
                         _transactions[i].label
                     );
                 }
+            }
+
+            if (!success) {
                 // Bubble up the revert reason from the failed call
                 assembly {
                     let dataSize := mload(returnData)

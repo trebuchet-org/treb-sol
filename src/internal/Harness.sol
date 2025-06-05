@@ -13,10 +13,10 @@ contract Harness is CommonBase {
     bytes32 private senderId;
     SenderCoordinator private senderCoordinator;
 
-    constructor(address _target, string memory _sender, bytes32 _senderId, address _senderCoordinator) {
+    constructor(address _target, string memory _sender, bytes32 _senderId) {
         target = _target;
         senderId = _senderId;
-        senderCoordinator = SenderCoordinator(_senderCoordinator);
+        senderCoordinator = SenderCoordinator(msg.sender);
         vm.label(address(this), string.concat("Harness[", _sender, "]"));
     }
 
