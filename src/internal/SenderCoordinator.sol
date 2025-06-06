@@ -130,7 +130,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      * address newContract = deployer.deployCreate3("MyContract");
      * ```
      */
-    function sender(string memory _name) internal returns (Senders.Sender storage) {
+    function sender(string memory _name) internal view returns (Senders.Sender storage) {
         return Senders.registry().get(_name);
     }
 
