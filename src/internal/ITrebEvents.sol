@@ -19,9 +19,7 @@ interface ITrebEvents {
      * @notice Emitted when a transaction is successfully simulated
      * @param simulatedTx Simulated transaction details
      */
-    event TransactionSimulated(
-        SimulatedTransaction simulatedTx
-    );
+    event TransactionSimulated(SimulatedTransaction simulatedTx);
 
     // *************** DEPLOYMENT EVENTS *************** //
 
@@ -56,10 +54,7 @@ interface ITrebEvents {
      * @param deployment Comprehensive deployment details
      */
     event ContractDeployed(
-        address indexed deployer,
-        address indexed location,
-        bytes32 indexed transactionId,
-        DeploymentDetails deployment
+        address indexed deployer, address indexed location, bytes32 indexed transactionId, DeploymentDetails deployment
     );
 
     // *************** MULTISIG EVENTS *************** //
@@ -72,9 +67,6 @@ interface ITrebEvents {
      * @param transactionIds Array of transaction IDs queued for execution
      */
     event SafeTransactionQueued(
-        bytes32 indexed safeTxHash,
-        address indexed safe,
-        address indexed proposer,
-        bytes32[] transactionIds
+        bytes32 indexed safeTxHash, address indexed safe, address indexed proposer, bytes32[] transactionIds
     );
 }

@@ -43,10 +43,7 @@ contract QuietModeTest is Test {
         // Should have TransactionSimulated event
         bool foundTransactionSimulated = false;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].topics[0]
-                    == ITrebEvents.TransactionSimulated.selector
-            ) {
+            if (logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector) {
                 foundTransactionSimulated = true;
                 break;
             }
@@ -67,10 +64,7 @@ contract QuietModeTest is Test {
         // Should NOT have TransactionSimulated event
         bool foundTransactionSimulated = false;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].topics[0]
-                    == ITrebEvents.TransactionSimulated.selector
-            ) {
+            if (logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector) {
                 foundTransactionSimulated = true;
                 break;
             }
@@ -91,10 +85,7 @@ contract QuietModeTest is Test {
         // Should NOT have ContractDeployed event
         bool foundContractDeployed = false;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].topics[0]
-                    == ITrebEvents.ContractDeployed.selector
-            ) {
+            if (logs[i].topics[0] == ITrebEvents.ContractDeployed.selector) {
                 foundContractDeployed = true;
                 break;
             }
@@ -116,10 +107,8 @@ contract QuietModeTest is Test {
         bool foundEvent = false;
         for (uint256 i = 0; i < logs.length; i++) {
             if (
-                logs[i].topics[0]
-                    == ITrebEvents.ContractDeployed.selector
-                    || logs[i].topics[0]
-                        == ITrebEvents.TransactionSimulated.selector
+                logs[i].topics[0] == ITrebEvents.ContractDeployed.selector
+                    || logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector
             ) {
                 foundEvent = true;
                 break;

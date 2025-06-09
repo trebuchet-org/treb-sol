@@ -56,7 +56,10 @@ contract SendersTestHarness is SenderCoordinator {
         _broadcast();
     }
 
-    function execute(string memory _name, Transaction memory _transaction) public returns (SimulatedTransaction memory) {
+    function execute(string memory _name, Transaction memory _transaction)
+        public
+        returns (SimulatedTransaction memory)
+    {
         return Senders.get(_name).execute(_transaction);
     }
 

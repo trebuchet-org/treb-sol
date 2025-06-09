@@ -540,7 +540,6 @@ library Senders {
                 emit ITrebEvents.TransactionSimulated(simulatedTx);
             }
 
-
             simulatedTransactions[i] = simulatedTx;
             // Add to global queue in order
             _registry._globalQueue.push(simulatedTx);
