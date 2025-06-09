@@ -39,6 +39,15 @@ contract SenderCoordinator is Script, ITrebEvents {
     using Senders for Senders.Registry;
     using Senders for Senders.Sender;
 
+    /// @notice Whether the senders have been initialized
+    bool private initialized;
+    /// @notice Deployment namespace (e.g., "default", "staging", "production")
+    string private namespace;
+    /// @notice Whether to run in dry-run mode (no actual transactions)
+    bool private dryrun;
+    /// @notice Whether to suppress internal logs
+    bool private quiet;
+
     /// @notice Thrown when sender configurations are empty
     error NoSenderInitConfigs();
 
@@ -48,11 +57,6 @@ contract SenderCoordinator is Script, ITrebEvents {
 
     /// @notice Thrown when custom sender transactions are queued but processCustomQueue is not implemented
     error CustomQueueReceiverNotImplemented();
-
-    bool private initialized; // Whether the senders have been initialized
-    string private namespace; // Deployment namespace (e.g., "default", "staging", "production")
-    bool private dryrun; // Whether to run in dry-run mode (no actual transactions)
-    bool private quiet; // Whether to suppress internal logs
 
     /**
      * @notice Modifier that automatically broadcasts all queued transactions after function execution
@@ -115,22 +119,41 @@ contract SenderCoordinator is Script, ITrebEvents {
     }
 
     /**
-     * @notice Retrieves a sender by name, initializing the registry if needed
-     * @param _name The name/ID of the sender to retrieve (e.g., "default", "staging")
-     * @return The requested sender instance
-     * @dev This function implements lazy initialization:
-     * 1. Checks if senders have been initialized
-     * 2. If not, calls _initialize() to set up all senders
-     * 3. Returns the requested sender from the registry
+     * @notice Execute multiple transactions through a specific sender
+     * @dev This function is primarily used by the harness proxy system to execute
+     * transactions with proper sender context. It bypasses the broadcast modifier
+     * for immediate execution, which is necessary for the harness to provide
+     * seamless contract interaction. Also useful for testing and debugging.
      *
-     * Example usage:
-     * ```solidity
-     * Senders.Sender storage deployer = sender("default");
-     * address newContract = deployer.deployCreate3("MyContract");
-     * ```
+     * @param _senderId The ID of the sender to use (typically provided by harness)
+     * @param _transactions Array of transactions to execute
+     * @return simulatedTransactions Array of executed transactions with results including status and return data
      */
-    function sender(string memory _name) internal view returns (Senders.Sender storage) {
-        return Senders.registry().get(_name);
+    function execute(bytes32 _senderId, Transaction[] memory _transactions)
+        external
+        returns (SimulatedTransaction[] memory simulatedTransactions)
+    {
+        Senders.Sender storage _sender = Senders.registry().get(_senderId);
+        return _sender.execute(_transactions);
+    }
+
+    /**
+     * @notice Execute a single transaction through a specific sender
+     * @dev This function is primarily used by the harness proxy system for
+     * single transaction execution. It provides immediate execution bypassing
+     * the broadcast modifier, enabling the harness to proxy individual function
+     * calls with the correct sender context. Also useful for testing.
+     *
+     * @param _senderId The ID of the sender to use (typically provided by harness)
+     * @param _transaction Transaction to execute
+     * @return simulatedTransaction Executed transaction with results including status and return data
+     */
+    function execute(bytes32 _senderId, Transaction memory _transaction)
+        external
+        returns (SimulatedTransaction memory simulatedTransaction)
+    {
+        Senders.Sender storage _sender = Senders.registry().get(_senderId);
+        return _sender.execute(_transaction);
     }
 
     /**
@@ -179,40 +202,21 @@ contract SenderCoordinator is Script, ITrebEvents {
     }
 
     /**
-     * @notice Execute multiple transactions through a specific sender
-     * @dev This function is primarily used by the harness proxy system to execute
-     * transactions with proper sender context. It bypasses the broadcast modifier
-     * for immediate execution, which is necessary for the harness to provide
-     * seamless contract interaction. Also useful for testing and debugging.
+     * @notice Retrieves a sender by name, initializing the registry if needed
+     * @param _name The name/ID of the sender to retrieve (e.g., "default", "staging")
+     * @return The requested sender instance
+     * @dev This function implements lazy initialization:
+     * 1. Checks if senders have been initialized
+     * 2. If not, calls _initialize() to set up all senders
+     * 3. Returns the requested sender from the registry
      *
-     * @param _senderId The ID of the sender to use (typically provided by harness)
-     * @param _transactions Array of transactions to execute
-     * @return simulatedTransactions Array of executed transactions with results including status and return data
+     * Example usage:
+     * ```solidity
+     * Senders.Sender storage deployer = sender("default");
+     * address newContract = deployer.deployCreate3("MyContract");
+     * ```
      */
-    function execute(bytes32 _senderId, Transaction[] memory _transactions)
-        external
-        returns (SimulatedTransaction[] memory simulatedTransactions)
-    {
-        Senders.Sender storage _sender = Senders.registry().get(_senderId);
-        return _sender.execute(_transactions);
-    }
-
-    /**
-     * @notice Execute a single transaction through a specific sender
-     * @dev This function is primarily used by the harness proxy system for
-     * single transaction execution. It provides immediate execution bypassing
-     * the broadcast modifier, enabling the harness to proxy individual function
-     * calls with the correct sender context. Also useful for testing.
-     *
-     * @param _senderId The ID of the sender to use (typically provided by harness)
-     * @param _transaction Transaction to execute
-     * @return simulatedTransaction Executed transaction with results including status and return data
-     */
-    function execute(bytes32 _senderId, Transaction memory _transaction)
-        external
-        returns (SimulatedTransaction memory simulatedTransaction)
-    {
-        Senders.Sender storage _sender = Senders.registry().get(_senderId);
-        return _sender.execute(_transaction);
+    function sender(string memory _name) internal view returns (Senders.Sender storage) {
+        return Senders.registry().get(_name);
     }
 }

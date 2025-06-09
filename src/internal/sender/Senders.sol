@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
+// solhint-disable ordering
 pragma solidity ^0.8.0;
 
 /**
  * @title Senders
- * @notice A comprehensive sender management library providing a unified abstraction for multiple transaction execution methods
+ * @notice Library providing an unified abstraction for multiple transaction execution methods.
  * @dev This library implements a modular transaction execution system that supports various sender types including
  *      private keys, hardware wallets, and Safe multisigs. It provides deterministic transaction ordering through
  *      a global queue system and handles both simulation and broadcast phases.
@@ -123,13 +124,6 @@ library Senders {
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
 
-    /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
-    /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
-    bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
-
-    /// @dev Foundry VM interface for simulation and state management
-    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-
     /**
      * @notice Configuration structure for initializing a sender
      * @param name Human-readable identifier for the sender (e.g., "deployer", "proposer")
@@ -155,7 +149,7 @@ library Senders {
      * @param namespace Current deployment namespace (default, staging, production)
      * @param snapshot VM state snapshot taken before transaction simulation
      * @param _broadcasted Flag preventing multiple broadcast calls
-     * @param broadcastQueued Flag preventing nested broadcast modifier issues - ensures only outermost broadcast triggers
+     * @param broadcastQueued Flag preventing nested broadcast - only outermost broadcast triggers
      * @param _transactionCounter Monotonic counter for generating unique transaction IDs
      */
     struct Registry {
@@ -188,6 +182,14 @@ library Senders {
         bool canBroadcast;
         bytes config;
     }
+
+    /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
+    /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
+    bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
+
+    /// @dev Foundry VM interface for simulation and state management
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+
 
     /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
@@ -244,6 +246,7 @@ library Senders {
     function generateTransactionId() internal returns (bytes32) {
         Registry storage _registry = registry();
         _registry.transactionCounter++;
+        // solhint-disable-next-line not-rely-on-time
         return keccak256(abi.encodePacked(block.chainid, block.timestamp, msg.sender, _registry.transactionCounter));
     }
 

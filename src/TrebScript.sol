@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Script} from "forge-std/Script.sol";
 import {ConfigurableTrebScript} from "./ConfigurableTrebScript.sol";
 import {Senders} from "./internal/sender/Senders.sol";
 
 /**
  * @title TrebScript
  * @author Trebuchet
- * @notice Base contract for all Trebuchet deployment scripts, providing unified access to sender coordination and registry lookups
- * @dev Extends SenderCoordinator for multi-sig and hardware wallet support, and Registry for deployment address lookups.
- *      Deployment scripts should inherit from this contract to gain access to coordinated transaction execution
+ * @notice Base contract for all Treb deployment scripts, providing access to sender coordination and registry lookups
+ * @dev Deployment scripts should inherit from this contract to gain access to coordinated transaction execution
  *      and the ability to reference previously deployed contracts through the registry.
  *
  *      This contract reads configuration from environment variables, making it suitable for use with treb-cli.

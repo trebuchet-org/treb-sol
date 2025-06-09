@@ -30,18 +30,6 @@ library Deployer {
     using Deployer for Senders.Sender;
     using Deployer for Deployment;
 
-    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-    ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
-
-    // Custom errors for better gas efficiency and clarity
-    error ContractNotFound(string what);
-    error PredictedAddressMismatch(address predicted, address actual);
-    error EntropyAlreadySet();
-    error LabelAlreadySet();
-    error ConstructorArgsAlreadySet();
-    error InvalidCreateStrategy(CreateStrategy strategy);
-    error EntropyOrArtifactRequired();
-
     /**
      * @notice Deployment strategy for deterministic deployments
      * @dev CREATE3 provides address independence from init code, CREATE2 includes init code in address calculation
@@ -69,6 +57,39 @@ library Deployer {
         string label;
         string entropy;
         string artifact;
+    }
+
+    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+    ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
+
+    // Custom errors for better gas efficiency and clarity
+    error ContractNotFound(string what);
+    error PredictedAddressMismatch(address predicted, address actual);
+    error EntropyAlreadySet();
+    error LabelAlreadySet();
+    error ConstructorArgsAlreadySet();
+    error InvalidCreateStrategy(CreateStrategy strategy);
+    error EntropyOrArtifactRequired();
+
+    /**
+     * @notice Ensures deployment has valid entropy before execution
+     * @dev If no entropy is set, derives it from: namespace/artifact[:label]
+     *      Examples:
+     *      - "default/Counter" (no label)
+     *      - "staging/Counter:v2" (with label)
+     *      - "production/UniswapV3Factory" (custom entropy)
+     */
+    modifier verify(Deployment storage deployment) {
+        if (bytes(deployment.entropy).length == 0) {
+            if (bytes(deployment.artifact).length == 0) {
+                revert EntropyOrArtifactRequired();
+            }
+            deployment.entropy = string.concat(Senders.registry().namespace, "/", deployment.artifact);
+            if (bytes(deployment.label).length > 0) {
+                deployment.entropy = string.concat(deployment.entropy, ":", deployment.label);
+            }
+        }
+        _;
     }
 
     // *************** DEPLOYMENT *************** //
@@ -163,27 +184,6 @@ library Deployer {
     }
 
     /**
-     * @notice Ensures deployment has valid entropy before execution
-     * @dev If no entropy is set, derives it from: namespace/artifact[:label]
-     *      Examples:
-     *      - "default/Counter" (no label)
-     *      - "staging/Counter:v2" (with label)
-     *      - "production/UniswapV3Factory" (custom entropy)
-     */
-    modifier verify(Deployment storage deployment) {
-        if (bytes(deployment.entropy).length == 0) {
-            if (bytes(deployment.artifact).length == 0) {
-                revert EntropyOrArtifactRequired();
-            }
-            deployment.entropy = string.concat(Senders.registry().namespace, "/", deployment.artifact);
-            if (bytes(deployment.label).length > 0) {
-                deployment.entropy = string.concat(deployment.entropy, ":", deployment.label);
-            }
-        }
-        _;
-    }
-
-    /**
      * @notice Deploys a contract without constructor arguments
      * @dev Convenience function that calls deploy with empty constructor args
      * @param deployment The deployment configuration
@@ -253,25 +253,53 @@ library Deployer {
             revert PredictedAddressMismatch(predictedAddress, simulatedAddress);
         }
 
+        if (!Senders.registry().quiet) {
+            _emitDeploymentEvent(
+                deployment, 
+                createTxResult.transactionId, 
+                simulatedAddress, 
+                salt, 
+                keccak256(initCode), 
+                _constructorArgs
+            );
+        }
+
+        return simulatedAddress;
+    }
+
+
+    /**
+     * @notice Emits the deployment event
+     * @dev Emits the deployment event with the deployment details
+     * @param deployment The deployment configuration
+     * @param transactionId The transaction ID of the deployment
+     * @param simulatedAddress The simulated address of the deployed contract
+     * @param salt The salt used for the deployment
+     * @param initCodeHash The init code hash used for the deployment        
+     * @param _constructorArgs The constructor arguments used for the deployment
+     */
+    function _emitDeploymentEvent(
+        Deployment storage deployment, 
+        bytes32 transactionId, 
+        address simulatedAddress, 
+        bytes32 salt, 
+        bytes32 initCodeHash, 
+        bytes memory _constructorArgs
+    ) internal {
         ITrebEvents.DeploymentDetails memory deploymentDetails = ITrebEvents.DeploymentDetails({
             artifact: deployment.artifact,
             label: deployment.label,
             entropy: deployment.entropy,
             salt: salt,
             bytecodeHash: keccak256(deployment.bytecode),
-            initCodeHash: keccak256(initCode),
+            initCodeHash: initCodeHash,
             constructorArgs: _constructorArgs,
             createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
         });
 
-        // Only emit event if not in quiet mode
-        if (!Senders.registry().quiet) {
-            emit ITrebEvents.ContractDeployed(
-                sender.account, simulatedAddress, createTxResult.transactionId, deploymentDetails
-            );
-        }
-
-        return simulatedAddress;
+        emit ITrebEvents.ContractDeployed(
+            deployment.sender.account, simulatedAddress, transactionId, deploymentDetails
+        );
     }
 
     /**

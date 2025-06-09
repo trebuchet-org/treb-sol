@@ -13,24 +13,6 @@ import {SimulatedTransaction} from "./types.sol";
  *      defining events inline. This enables better tooling integration and ABI generation.
  */
 interface ITrebEvents {
-    // *************** TRANSACTION LIFECYCLE EVENTS *************** //
-
-    /**
-     * @notice Emitted when a transaction is successfully simulated
-     * @param simulatedTx Simulated transaction details
-     */
-    event TransactionSimulated(SimulatedTransaction simulatedTx);
-
-    // *************** DEPLOYMENT EVENTS *************** //
-
-    /**
-     * @notice Emitted when a contract deployment is initiated
-     * @param what The artifact path or contract name being deployed
-     * @param label Optional label for deployment categorization
-     * @param initCodeHash Hash of the initialization code (bytecode + constructor args)
-     */
-    event DeployingContract(string what, string label, bytes32 initCodeHash);
-
     /**
      * @notice Event data structure for deployment tracking
      * @dev Emitted in ContractDeployed event for comprehensive deployment auditing
@@ -47,6 +29,12 @@ interface ITrebEvents {
     }
 
     /**
+     * @notice Emitted when a transaction is successfully simulated
+     * @param simulatedTx Simulated transaction details
+     */
+    event TransactionSimulated(SimulatedTransaction simulatedTx);
+
+    /**
      * @notice Emitted when a contract is successfully deployed
      * @param deployer The address that initiated the deployment
      * @param location The deployed contract address
@@ -56,8 +44,6 @@ interface ITrebEvents {
     event ContractDeployed(
         address indexed deployer, address indexed location, bytes32 indexed transactionId, DeploymentDetails deployment
     );
-
-    // *************** MULTISIG EVENTS *************** //
 
     /**
      * @notice Emitted when transactions are queued for Safe multisig execution

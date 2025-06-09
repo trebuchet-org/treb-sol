@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "./Senders.sol";
 import {SimulatedTransaction, SenderTypes} from "../types.sol";
-import {ITrebEvents} from "../ITrebEvents.sol";
 
 /**
  * @title PrivateKey
@@ -35,21 +34,6 @@ library PrivateKey {
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     /**
-     * @notice Casts a generic Sender to a PrivateKey.Sender
-     * @dev Validates that the sender is of PrivateKey type before casting
-     * @param _sender The generic sender to cast
-     * @return _privateKeySender The casted PrivateKey sender
-     */
-    function cast(Senders.Sender storage _sender) internal view returns (Sender storage _privateKeySender) {
-        if (!_sender.isType(SenderTypes.PrivateKey)) {
-            revert Senders.InvalidCast(_sender.name, _sender.senderType, SenderTypes.PrivateKey);
-        }
-        assembly {
-            _privateKeySender.slot := _sender.slot
-        }
-    }
-
-    /**
      * @notice Broadcasts a transaction
      * @dev Uses Foundry's vm.broadcast to execute the transaction on-chain.
      * @param _sender The private key sender
@@ -65,6 +49,21 @@ library PrivateKey {
             }
         }
         vm.stopBroadcast();
+    }
+
+    /**
+     * @notice Casts a generic Sender to a PrivateKey.Sender
+     * @dev Validates that the sender is of PrivateKey type before casting
+     * @param _sender The generic sender to cast
+     * @return _privateKeySender The casted PrivateKey sender
+     */
+    function cast(Senders.Sender storage _sender) internal view returns (Sender storage _privateKeySender) {
+        if (!_sender.isType(SenderTypes.PrivateKey)) {
+            revert Senders.InvalidCast(_sender.name, _sender.senderType, SenderTypes.PrivateKey);
+        }
+        assembly {
+            _privateKeySender.slot := _sender.slot
+        }
     }
 }
 
@@ -101,6 +100,20 @@ library InMemory {
     error InvalidPrivateKey(string name);
 
     /**
+     * @notice Initializes an InMemory sender with its private key
+     * @dev Decodes the private key from config, validates it's non-zero,
+     *      and registers it with Foundry's key management system
+     * @param _sender The InMemory sender to initialize
+     */
+    function initialize(Sender storage _sender) internal {
+        _sender.privateKey = abi.decode(_sender.config, (uint256));
+        if (_sender.privateKey == 0) {
+            revert InvalidPrivateKey(_sender.name);
+        }
+        vm.rememberKey(_sender.privateKey);
+    }
+
+    /**
      * @notice Casts a generic Sender to an InMemory.Sender
      * @dev Validates that the sender is of InMemory type before casting
      * @param _sender The generic sender to cast
@@ -113,20 +126,6 @@ library InMemory {
         assembly {
             _inMemorySender.slot := _sender.slot
         }
-    }
-
-    /**
-     * @notice Initializes an InMemory sender with its private key
-     * @dev Decodes the private key from config, validates it's non-zero,
-     *      and registers it with Foundry's key management system
-     * @param _sender The InMemory sender to initialize
-     */
-    function initialize(Sender storage _sender) internal {
-        _sender.privateKey = abi.decode(_sender.config, (uint256));
-        if (_sender.privateKey == 0) {
-            revert InvalidPrivateKey(_sender.name);
-        }
-        vm.rememberKey(_sender.privateKey);
     }
 }
 
@@ -170,6 +169,28 @@ library HardwareWallet {
     error InvalidHardwareWalletConfig(string name);
 
     /**
+     * @notice Initializes a hardware wallet sender
+     * @dev Decodes the derivation path from config and determines the wallet type
+     *      (Ledger or Trezor) based on the sender's type flags. Validates that
+     *      the derivation path is non-empty.
+     * @param _sender The hardware wallet sender to initialize
+     */
+    function initialize(Sender storage _sender) internal {
+        _sender.mnemonicDerivationPath = abi.decode(_sender.config, (string));
+        if (_sender.base().isType(SenderTypes.Ledger)) {
+            _sender.hardwareWalletType = "ledger";
+        } else if (_sender.base().isType(SenderTypes.Trezor)) {
+            _sender.hardwareWalletType = "trezor";
+        } else {
+            revert InvalidHardwareWalletConfig(_sender.name);
+        }
+
+        if (bytes(_sender.mnemonicDerivationPath).length == 0) {
+            revert InvalidHardwareWalletConfig(_sender.name);
+        }
+    }
+
+    /**
      * @notice Casts a generic Sender to a HardwareWallet.Sender
      * @dev Validates that the sender is of HardwareWallet type before casting
      * @param _sender The generic sender to cast
@@ -193,28 +214,6 @@ library HardwareWallet {
     function base(Sender storage _sender) internal pure returns (Senders.Sender storage _baseSender) {
         assembly {
             _baseSender.slot := _sender.slot
-        }
-    }
-
-    /**
-     * @notice Initializes a hardware wallet sender
-     * @dev Decodes the derivation path from config and determines the wallet type
-     *      (Ledger or Trezor) based on the sender's type flags. Validates that
-     *      the derivation path is non-empty.
-     * @param _sender The hardware wallet sender to initialize
-     */
-    function initialize(Sender storage _sender) internal {
-        _sender.mnemonicDerivationPath = abi.decode(_sender.config, (string));
-        if (_sender.base().isType(SenderTypes.Ledger)) {
-            _sender.hardwareWalletType = "ledger";
-        } else if (_sender.base().isType(SenderTypes.Trezor)) {
-            _sender.hardwareWalletType = "trezor";
-        } else {
-            revert InvalidHardwareWalletConfig(_sender.name);
-        }
-
-        if (bytes(_sender.mnemonicDerivationPath).length == 0) {
-            revert InvalidHardwareWalletConfig(_sender.name);
         }
     }
 }

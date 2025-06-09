@@ -2,10 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {Senders} from "./Senders.sol";
-import {HardwareWallet} from "./PrivateKeySender.sol";
 import {Safe} from "safe-utils/Safe.sol";
-import {SimulatedTransaction, Transaction, SenderTypes} from "../types.sol";
-import {console} from "forge-std/console.sol";
+import {SimulatedTransaction, SenderTypes} from "../types.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
 /**
@@ -25,9 +23,6 @@ import {ITrebEvents} from "../ITrebEvents.sol";
  * - Ensuring value transfers are handled correctly (currently restricted)
  */
 library GnosisSafe {
-    error SafeTransactionValueNotZero(string label);
-    error InvalidGnosisSafeConfig(string name);
-
     using Senders for Senders.Sender;
     using GnosisSafe for GnosisSafe.Sender;
     using Safe for Safe.Client;
@@ -54,20 +49,8 @@ library GnosisSafe {
         SimulatedTransaction[] txQueue;
     }
 
-    /**
-     * @notice Casts a generic Sender to a GnosisSafe.Sender
-     * @dev Validates that the sender is of GnosisSafe type before casting
-     * @param _sender The generic sender to cast
-     * @return _gnosisSafeSender The casted GnosisSafe sender
-     */
-    function cast(Senders.Sender storage _sender) internal view returns (Sender storage _gnosisSafeSender) {
-        if (!_sender.isType(SenderTypes.GnosisSafe)) {
-            revert Senders.InvalidCast(_sender.name, _sender.senderType, SenderTypes.GnosisSafe);
-        }
-        assembly {
-            _gnosisSafeSender.slot := _sender.slot
-        }
-    }
+    error SafeTransactionValueNotZero(string label);
+    error InvalidGnosisSafeConfig(string name);
 
     /**
      * @notice Initializes a Safe sender with its proposer configuration
@@ -181,6 +164,21 @@ library GnosisSafe {
         bytes32 slot = bytes32(uint256(keccak256(abi.encodePacked("safe.Client", _sender.account))));
         assembly {
             _safe.slot := slot
+        }
+    }
+
+    /**
+     * @notice Casts a generic Sender to a GnosisSafe.Sender
+     * @dev Validates that the sender is of GnosisSafe type before casting
+     * @param _sender The generic sender to cast
+     * @return _gnosisSafeSender The casted GnosisSafe sender
+     */
+    function cast(Senders.Sender storage _sender) internal view returns (Sender storage _gnosisSafeSender) {
+        if (!_sender.isType(SenderTypes.GnosisSafe)) {
+            revert Senders.InvalidCast(_sender.name, _sender.senderType, SenderTypes.GnosisSafe);
+        }
+        assembly {
+            _gnosisSafeSender.slot := _sender.slot
         }
     }
 }
