@@ -8,7 +8,7 @@ import {Senders} from "./internal/sender/Senders.sol";
 /**
  * @title LibraryDeployment
  * @notice Base contract for deploying libraries with deterministic addresses
- * @dev Libraries are deployed globally (no environment) for cross-chain consistency
+ * @dev Libraries are deployed in the "libs" namespace
  */
 contract LibraryDeployment is TrebScript {
     using Deployer for Senders.Sender;
