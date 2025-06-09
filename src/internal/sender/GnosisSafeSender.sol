@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Senders} from "./Senders.sol";
 import {HardwareWallet} from "./PrivateKeySender.sol";
 import {Safe} from "safe-utils/Safe.sol";
-import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
+import {SimulatedTransaction, Transaction, SenderTypes} from "../types.sol";
 import {console} from "forge-std/console.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
@@ -51,7 +51,7 @@ library GnosisSafe {
         bytes config;
         // Gnosis safe specific fields:
         bytes32 proposerId;
-        RichTransaction[] txQueue;
+        SimulatedTransaction[] txQueue;
     }
 
     /**
@@ -118,7 +118,7 @@ library GnosisSafe {
      * @param _sender The Safe sender
      * @param _tx The transaction to queue
      */
-    function queue(Sender storage _sender, RichTransaction memory _tx) internal {
+    function queue(Sender storage _sender, SimulatedTransaction memory _tx) internal {
         _sender.txQueue.push(_tx);
     }
 
@@ -143,15 +143,18 @@ library GnosisSafe {
             }
             targets[i] = _sender.txQueue[i].transaction.to;
             datas[i] = _sender.txQueue[i].transaction.data;
-            _sender.txQueue[i].status = TransactionStatus.QUEUED;
         }
 
         bytes32 safeTxHash;
         safeTxHash = _sender.safe().proposeTransactions(targets, datas);
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
+            bytes32[] memory transactionIds = new bytes32[](_sender.txQueue.length);
+            for (uint256 i = 0; i < _sender.txQueue.length; i++) {
+                transactionIds[i] = _sender.txQueue[i].transactionId;
+            }
             emit ITrebEvents.SafeTransactionQueued(
-                safeTxHash, _sender.account, _sender.proposer().account, _sender.txQueue
+                safeTxHash, _sender.account, _sender.proposer().account, transactionIds
             );
         }
 

@@ -6,7 +6,7 @@ import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
 import "../src/internal/sender/Senders.sol";
 import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
 import {Harness} from "../src/internal/Harness.sol";
-import {SenderTypes, Transaction, RichTransaction} from "../src/internal/types.sol";
+import {SenderTypes, Transaction, SimulatedTransaction} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
 // Simple ownable contract for testing
@@ -293,13 +293,13 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         });
 
         // Execute through senderCoordinator - this simulates and queues
-        RichTransaction memory result = senderCoordinator.execute(senderId, txn);
+        SimulatedTransaction memory result = senderCoordinator.execute(senderId, txn);
 
         // Transaction is executed during simulation
         assertEq(counter.number(), 333);
 
-        // setNumber doesn't return anything, so simulatedReturnData should be empty
-        assertEq(result.simulatedReturnData.length, 0);
+        // setNumber doesn't return anything, so returnData should be empty
+        assertEq(result.returnData.length, 0);
 
         // Broadcast doesn't change anything since already executed
         harness.broadcastAll();

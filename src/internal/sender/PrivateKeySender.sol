@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "./Senders.sol";
-import {RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
+import {SimulatedTransaction, SenderTypes} from "../types.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
 /**
@@ -50,15 +50,12 @@ library PrivateKey {
     }
 
     /**
-     * @notice Broadcasts a transaction with optional dry-run mode
+     * @notice Broadcasts a transaction
      * @dev Uses Foundry's vm.broadcast to execute the transaction on-chain.
-     *      In dry-run mode, marks the transaction as executed without broadcasting.
      * @param _sender The private key sender
-     * @param _tx The transaction to broadcast
+     * @param _tx The simulated transaction to broadcast
      */
-    function broadcast(Sender storage _sender, RichTransaction memory _tx) internal {
-        bytes memory returnData = _tx.executedReturnData;
-
+    function broadcast(Sender storage _sender, SimulatedTransaction memory _tx) internal {
         vm.startBroadcast(_sender.account);
         (bool _success, bytes memory _returnData) =
             _tx.transaction.to.call{value: _tx.transaction.value}(_tx.transaction.data);
@@ -67,23 +64,7 @@ library PrivateKey {
                 revert(add(_returnData, 0x20), mload(_returnData))
             }
         }
-        returnData = _returnData;
-        _tx.executedReturnData = returnData;
-        _tx.status = TransactionStatus.EXECUTED;
         vm.stopBroadcast();
-
-        // Only emit event if not in quiet mode
-        if (!Senders.registry().quiet) {
-            emit ITrebEvents.TransactionBroadcast(
-                _tx.transactionId,
-                _sender.account,
-                _tx.transaction.to,
-                _tx.transaction.value,
-                _tx.transaction.data,
-                _tx.transaction.label,
-                returnData
-            );
-        }
     }
 }
 

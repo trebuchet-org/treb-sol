@@ -6,6 +6,7 @@ import {Senders} from "../src/internal/sender/Senders.sol";
 import {SenderTypes, Transaction} from "../src/internal/types.sol";
 import {ConfigurableTrebScript} from "../src/ConfigurableTrebScript.sol";
 import {Deployer} from "../src/internal/sender/Deployer.sol";
+import {ITrebEvents} from "../src/internal/ITrebEvents.sol";
 
 contract QuietModeTest is Test {
     using Senders for Senders.Sender;
@@ -44,7 +45,7 @@ contract QuietModeTest is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             if (
                 logs[i].topics[0]
-                    == keccak256("TransactionSimulated(bytes32,address,address,uint256,bytes,string,bytes)")
+                    == ITrebEvents.TransactionSimulated.selector
             ) {
                 foundTransactionSimulated = true;
                 break;
@@ -68,7 +69,7 @@ contract QuietModeTest is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             if (
                 logs[i].topics[0]
-                    == keccak256("TransactionSimulated(bytes32,address,address,uint256,bytes,string,bytes)")
+                    == ITrebEvents.TransactionSimulated.selector
             ) {
                 foundTransactionSimulated = true;
                 break;
@@ -92,9 +93,7 @@ contract QuietModeTest is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             if (
                 logs[i].topics[0]
-                    == keccak256(
-                        "ContractDeployed(address,address,bytes32,((string,string,string,bytes32,bytes32,bytes32,bytes,string)))"
-                    )
+                    == ITrebEvents.ContractDeployed.selector
             ) {
                 foundContractDeployed = true;
                 break;
@@ -118,11 +117,9 @@ contract QuietModeTest is Test {
         for (uint256 i = 0; i < logs.length; i++) {
             if (
                 logs[i].topics[0]
-                    == keccak256(
-                        "ContractDeployed(address,address,bytes32,((string,string,string,bytes32,bytes32,bytes32,bytes,string)))"
-                    )
+                    == ITrebEvents.ContractDeployed.selector
                     || logs[i].topics[0]
-                        == keccak256("TransactionSimulated(bytes32,address,address,uint256,bytes,string,bytes)")
+                        == ITrebEvents.TransactionSimulated.selector
             ) {
                 foundEvent = true;
                 break;

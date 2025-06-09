@@ -113,7 +113,7 @@ import {GnosisSafe} from "./GnosisSafeSender.sol";
 import {Harness} from "../Harness.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
-import {Transaction, RichTransaction, TransactionStatus, SenderTypes} from "../types.sol";
+import {Transaction, SimulatedTransaction, SenderTypes} from "../types.sol";
 
 library Senders {
     using Senders for Senders.Registry;
@@ -162,7 +162,7 @@ library Senders {
         mapping(bytes32 => Sender) senders;
         mapping(bytes32 => mapping(address => address)) senderHarness;
         bytes32[] ids;
-        RichTransaction[] _globalQueue;
+        SimulatedTransaction[] _globalQueue;
         string namespace;
         bool quiet;
         bool initialized;
@@ -461,11 +461,11 @@ library Senders {
      * @dev Validates transaction array and target addresses, then delegates to simulate()
      * @param _sender The sender to execute transactions through
      * @param _transactions Array of transactions to execute
-     * @return bundleTransactions Array of rich transactions with simulation results and queue tracking
+     * @return simulatedTransactions Array of simulated transactions with results and queue tracking
      */
     function execute(Sender storage _sender, Transaction[] memory _transactions)
         internal
-        returns (RichTransaction[] memory bundleTransactions)
+        returns (SimulatedTransaction[] memory simulatedTransactions)
     {
         if (!_sender.canBroadcast) revert CannotBroadcast(_sender.name);
         if (_transactions.length == 0) revert EmptyTransactionArray();
@@ -480,16 +480,16 @@ library Senders {
      * @dev Convenience wrapper for single transaction execution
      * @param _sender The sender to execute the transaction through
      * @param _transaction Transaction to execute
-     * @return bundleTransaction Rich transaction with simulation results and queue tracking
+     * @return simulatedTransaction Simulated transaction with results
      */
     function execute(Sender storage _sender, Transaction memory _transaction)
         internal
-        returns (RichTransaction memory bundleTransaction)
+        returns (SimulatedTransaction memory simulatedTransaction)
     {
         Transaction[] memory transactions = new Transaction[](1);
         transactions[0] = _transaction;
-        RichTransaction[] memory bundleTransactions = _sender.execute(transactions);
-        return bundleTransactions[0];
+        SimulatedTransaction[] memory simulatedTransactions = _sender.execute(transactions);
+        return simulatedTransactions[0];
     }
 
     /**
@@ -497,19 +497,19 @@ library Senders {
      * @dev This is the core transaction processing function that:
      *      1. Generates unique transaction IDs for tracking
      *      2. Simulates execution using vm.prank() to impersonate the sender
-     *      3. Emits events for successful simulation or failure
-     *      4. Creates RichTransaction objects with simulation results
+     *      3. Emits events for successful simulation
+     *      4. Creates SimulatedTransaction objects with simulation results
      *      5. Adds transactions to global queue in submission order
      * @param _sender The sender to simulate transactions for
      * @param _transactions Array of transactions to simulate
-     * @return bundleTransactions Array of rich transactions with simulation results
+     * @return simulatedTransactions Array of simulated transactions with results
      */
     function simulate(Sender storage _sender, Transaction[] memory _transactions)
         internal
-        returns (RichTransaction[] memory bundleTransactions)
+        returns (SimulatedTransaction[] memory simulatedTransactions)
     {
         Registry storage _registry = registry();
-        bundleTransactions = new RichTransaction[](_transactions.length);
+        simulatedTransactions = new SimulatedTransaction[](_transactions.length);
 
         for (uint256 i = 0; i < _transactions.length; i++) {
             // Generate unique transaction ID
@@ -519,30 +519,6 @@ library Senders {
             (bool success, bytes memory returnData) =
                 _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
 
-            // Only emit events if not in quiet mode
-            if (!registry().quiet) {
-                if (success) {
-                    emit ITrebEvents.TransactionSimulated(
-                        transactionId,
-                        _sender.account,
-                        _transactions[i].to,
-                        _transactions[i].value,
-                        _transactions[i].data,
-                        _transactions[i].label,
-                        returnData
-                    );
-                } else {
-                    emit ITrebEvents.TransactionFailed(
-                        transactionId,
-                        _sender.account,
-                        _transactions[i].to,
-                        _transactions[i].value,
-                        _transactions[i].data,
-                        _transactions[i].label
-                    );
-                }
-            }
-
             if (!success) {
                 // Bubble up the revert reason from the failed call
                 assembly {
@@ -551,20 +527,25 @@ library Senders {
                 }
             }
 
-            RichTransaction memory richTx = RichTransaction({
+            SimulatedTransaction memory simulatedTx = SimulatedTransaction({
                 transaction: _transactions[i],
                 transactionId: transactionId,
                 senderId: _sender.id,
-                status: TransactionStatus.PENDING,
-                simulatedReturnData: returnData,
-                executedReturnData: new bytes(0)
+                sender: _sender.account,
+                returnData: returnData
             });
 
-            bundleTransactions[i] = richTx;
+            // Only emit events if not in quiet mode
+            if (!registry().quiet && success) {
+                emit ITrebEvents.TransactionSimulated(simulatedTx);
+            }
+
+
+            simulatedTransactions[i] = simulatedTx;
             // Add to global queue in order
-            _registry._globalQueue.push(richTx);
+            _registry._globalQueue.push(simulatedTx);
         }
-        return bundleTransactions;
+        return simulatedTransactions;
     }
 
     // ************* Global Transaction Broadcasting ************* //
@@ -611,15 +592,15 @@ library Senders {
      * @param _registry The sender registry containing all queued transactions
      * @return customQueue Array of custom sender transactions requiring external processing
      */
-    function broadcast(Registry storage _registry) internal returns (RichTransaction[] memory customQueue) {
+    function broadcast(Registry storage _registry) internal returns (SimulatedTransaction[] memory customQueue) {
         if (_registry.broadcasted) {
             revert BroadcastAlreadyCalled();
         }
 
         uint256 postSimulationSnapshot = vm.snapshotState();
 
-        customQueue = new RichTransaction[](_registry._globalQueue.length);
-        RichTransaction[] memory txs = _registry._globalQueue;
+        customQueue = new SimulatedTransaction[](_registry._globalQueue.length);
+        SimulatedTransaction[] memory txs = _registry._globalQueue;
         bytes32[] memory senderIds = _registry.ids;
 
         vm.revertToState(_registry.preSimulationSnapshot);
@@ -627,17 +608,17 @@ library Senders {
 
         // Process each transaction in global queue order
         for (uint256 i = 0; i < txs.length; i++) {
-            RichTransaction memory richTx = txs[i];
-            Sender storage sender = _registry.senders[richTx.senderId];
+            SimulatedTransaction memory simulatedTx = txs[i];
+            Sender storage sender = _registry.senders[simulatedTx.senderId];
 
             if (sender.isType(SenderTypes.PrivateKey)) {
                 // Sync execution - broadcast immediately
-                sender.privateKey().broadcast(richTx);
+                sender.privateKey().broadcast(simulatedTx);
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
-                sender.gnosisSafe().queue(richTx);
+                sender.gnosisSafe().queue(simulatedTx);
             } else if (sender.isType(SenderTypes.Custom)) {
-                customQueue[actualCustomQueueLength] = richTx;
+                customQueue[actualCustomQueueLength] = simulatedTx;
                 actualCustomQueueLength++;
             }
         }

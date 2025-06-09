@@ -14,20 +14,15 @@ contract LibraryDeployment is TrebScript {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    string private constant LIBRARY_DEPLOYER = "libraries";
-
-    error MissingLibraryArtifactPath();
-
     string private artifactPath;
+    string private deployer;
 
     constructor() {
-        artifactPath = vm.envOr("LIBRARY_ARTIFACT_PATH", string(""));
-        if (bytes(artifactPath).length == 0) {
-            revert MissingLibraryArtifactPath();
-        }
+        artifactPath = vm.envString("LIBRARY_ARTIFACT_PATH");
+        deployer = vm.envString("DEPLOYER");
     }
 
     function run() public broadcast returns (address) {
-        return sender(LIBRARY_DEPLOYER).create2(artifactPath).deploy();
+        return sender(deployer).create2(artifactPath).deploy();
     }
 }

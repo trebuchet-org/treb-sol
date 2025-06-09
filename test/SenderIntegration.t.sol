@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "../src/internal/sender/PrivateKeySender.sol";
 import {GnosisSafe} from "../src/internal/sender/GnosisSafeSender.sol";
-import {SenderTypes, Transaction, RichTransaction, TransactionStatus} from "../src/internal/types.sol";
+import {SenderTypes, Transaction, SimulatedTransaction} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
 
@@ -135,13 +135,13 @@ contract SenderIntegrationTest is Test {
         });
 
         // Execute transaction (simulation)
-        RichTransaction memory richTxn = harness.execute(TEST_SENDER, txn);
+        SimulatedTransaction memory simulatedTxn = harness.execute(TEST_SENDER, txn);
 
         assertEq(target.getValue(), 42);
 
         // Verify simulation result
-        assertEq(abi.decode(richTxn.simulatedReturnData, (uint256)), 42);
-        assertEq(richTxn.transaction.label, "setValue");
+        assertEq(abi.decode(simulatedTxn.returnData, (uint256)), 42);
+        assertEq(simulatedTxn.transaction.label, "setValue");
 
         // Broadcast transaction
         harness.broadcastAll();
@@ -168,12 +168,12 @@ contract SenderIntegrationTest is Test {
         txns[2] = Transaction({label: "transfer-ether", to: address(target), data: "", value: 1 ether});
 
         // Execute batch
-        RichTransaction[] memory results = harness.execute(BATCH_SENDER, txns);
+        SimulatedTransaction[] memory results = harness.execute(BATCH_SENDER, txns);
 
         // Verify batch simulation
         assertEq(results.length, 3);
-        assertEq(abi.decode(results[0].simulatedReturnData, (uint256)), 10);
-        assertEq(abi.decode(results[1].simulatedReturnData, (uint256)), 20);
+        assertEq(abi.decode(results[0].returnData, (uint256)), 10);
+        assertEq(abi.decode(results[1].returnData, (uint256)), 20);
 
         // Broadcast
         harness.broadcastAll();

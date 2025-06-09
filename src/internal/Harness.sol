@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {Senders} from "./sender/Senders.sol";
 import {SenderCoordinator} from "./SenderCoordinator.sol";
 import {CommonBase} from "forge-std/Base.sol";
-import {Transaction, RichTransaction} from "./types.sol";
+import {Transaction, SimulatedTransaction} from "./types.sol";
 
 contract Harness is CommonBase {
     using Senders for Senders.Sender;
@@ -47,10 +47,10 @@ contract Harness is CommonBase {
             Transaction({to: target, value: msg.value, data: msg.data, label: "harness:execute"});
 
         // Try to execute through senderCoordinator (for state-changing calls)
-        try senderCoordinator.execute(senderId, transaction) returns (RichTransaction memory richTransaction) {
+        try senderCoordinator.execute(senderId, transaction) returns (SimulatedTransaction memory simulatedTx) {
             // Success: This was a state-changing call that was queued
             // Return the simulated return data
-            bytes memory returnData = richTransaction.simulatedReturnData;
+            bytes memory returnData = simulatedTx.returnData;
             assembly {
                 return(add(returnData, 0x20), mload(returnData))
             }

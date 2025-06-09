@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "./Senders.sol";
-import {RichTransaction, Transaction} from "../types.sol";
+import {Transaction, SimulatedTransaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {ICreateX} from "createx-forge/script/ICreateX.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
@@ -69,21 +69,6 @@ library Deployer {
         string label;
         string entropy;
         string artifact;
-    }
-
-    /**
-     * @notice Event data structure for deployment tracking
-     * @dev Emitted in ContractDeployed event for comprehensive deployment auditing
-     */
-    struct EventDeployment {
-        string artifact;
-        string label;
-        string entropy;
-        bytes32 salt;
-        bytes32 bytecodeHash;
-        bytes32 initCodeHash;
-        bytes constructorArgs;
-        string createStrategy;
     }
 
     // *************** DEPLOYMENT *************** //
@@ -262,13 +247,13 @@ library Deployer {
             revert InvalidCreateStrategy(deployment.strategy);
         }
 
-        RichTransaction memory createTxResult = sender.execute(createTx);
-        address simulatedAddress = abi.decode(createTxResult.simulatedReturnData, (address));
+        SimulatedTransaction memory createTxResult = sender.execute(createTx);
+        address simulatedAddress = abi.decode(createTxResult.returnData, (address));
         if (simulatedAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, simulatedAddress);
         }
 
-        EventDeployment memory eventDeployment = EventDeployment({
+        ITrebEvents.DeploymentDetails memory deploymentDetails = ITrebEvents.DeploymentDetails({
             artifact: deployment.artifact,
             label: deployment.label,
             entropy: deployment.entropy,
@@ -282,7 +267,7 @@ library Deployer {
         // Only emit event if not in quiet mode
         if (!Senders.registry().quiet) {
             emit ITrebEvents.ContractDeployed(
-                sender.account, simulatedAddress, createTxResult.transactionId, eventDeployment
+                sender.account, simulatedAddress, createTxResult.transactionId, deploymentDetails
             );
         }
 

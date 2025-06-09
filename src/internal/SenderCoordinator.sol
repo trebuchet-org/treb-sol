@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
 import {Senders} from "./sender/Senders.sol";
-import {Transaction, RichTransaction} from "./types.sol";
+import {Transaction, SimulatedTransaction} from "./types.sol";
 import {ITrebEvents} from "./ITrebEvents.sol";
 
 /**
@@ -90,7 +90,6 @@ contract SenderCoordinator is Script, ITrebEvents {
 
         // Only broadcast if this was the outermost call
         if (!broadcastAlreadyQueued && !dryrun) {
-            emit BroadcastStarted();
             Senders.registry().broadcastQueued = false;
             _broadcast();
         }
@@ -146,7 +145,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      * - Special handling for Safe multisig or other custom sender types
      */
     function _broadcast() internal {
-        RichTransaction[] memory customQueue = Senders.registry().broadcast();
+        SimulatedTransaction[] memory customQueue = Senders.registry().broadcast();
         processCustomQueue(customQueue);
     }
 
@@ -162,7 +161,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      *
      * Example override:
      * ```solidity
-     * function processCustomQueue(RichTransaction[] memory _customQueue) internal override {
+     * function processCustomQueue(SimulatedTransaction[] memory _customQueue) internal override {
      *     for (uint i = 0; i < _customQueue.length; i++) {
      *         if (_customQueue[i].senderType == SenderType.Safe) {
      *             // Submit to Safe multisig
@@ -172,7 +171,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      * }
      * ```
      */
-    function processCustomQueue(RichTransaction[] memory _customQueue) internal virtual {
+    function processCustomQueue(SimulatedTransaction[] memory _customQueue) internal virtual {
         if (_customQueue.length > 0) {
             /// @dev override this function to implement custom queue processing
             revert CustomQueueReceiverNotImplemented();
@@ -188,11 +187,11 @@ contract SenderCoordinator is Script, ITrebEvents {
      *
      * @param _senderId The ID of the sender to use (typically provided by harness)
      * @param _transactions Array of transactions to execute
-     * @return bundleTransactions Array of executed transactions with results including status and return data
+     * @return simulatedTransactions Array of executed transactions with results including status and return data
      */
     function execute(bytes32 _senderId, Transaction[] memory _transactions)
         external
-        returns (RichTransaction[] memory bundleTransactions)
+        returns (SimulatedTransaction[] memory simulatedTransactions)
     {
         Senders.Sender storage _sender = Senders.registry().get(_senderId);
         return _sender.execute(_transactions);
@@ -207,11 +206,11 @@ contract SenderCoordinator is Script, ITrebEvents {
      *
      * @param _senderId The ID of the sender to use (typically provided by harness)
      * @param _transaction Transaction to execute
-     * @return bundleTransaction Executed transaction with results including status and return data
+     * @return simulatedTransaction Executed transaction with results including status and return data
      */
     function execute(bytes32 _senderId, Transaction memory _transaction)
         external
-        returns (RichTransaction memory bundleTransaction)
+        returns (SimulatedTransaction memory simulatedTransaction)
     {
         Senders.Sender storage _sender = Senders.registry().get(_senderId);
         return _sender.execute(_transaction);

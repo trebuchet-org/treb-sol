@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {RichTransaction} from "./types.sol";
-import {Deployer} from "./sender/Deployer.sol";
+import {SimulatedTransaction} from "./types.sol";
 
 /**
  * @title ITrebEvents
@@ -17,66 +16,11 @@ interface ITrebEvents {
     // *************** TRANSACTION LIFECYCLE EVENTS *************** //
 
     /**
-     * @notice Emitted when we start broadcasting transactions
-     */
-    event BroadcastStarted();
-
-    /**
-     * @notice Emitted when a transaction simulation fails during execution
-     * @param transactionId Unique identifier for the failed transaction
-     * @param sender Address of the sender that attempted the transaction
-     * @param to Target contract address
-     * @param value Ether value sent with the transaction
-     * @param data Transaction calldata
-     * @param label Human-readable transaction description
-     */
-    event TransactionFailed(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label
-    );
-
-    /**
      * @notice Emitted when a transaction is successfully simulated
-     * @param transactionId Unique identifier for the transaction
-     * @param sender Address of the sender executing the transaction
-     * @param to Target contract address
-     * @param value Ether value sent with the transaction
-     * @param data Transaction calldata
-     * @param label Human-readable transaction description
-     * @param returnData Return data from the successful simulation
+     * @param simulatedTx Simulated transaction details
      */
     event TransactionSimulated(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label,
-        bytes returnData
-    );
-
-    /**
-     * @notice Emitted when a transaction is broadcast via PrivateKey sender
-     * @param transactionId Unique identifier for the transaction
-     * @param sender Address of the sender executing the transaction
-     * @param to Target contract address
-     * @param value Ether value sent with the transaction
-     * @param data Transaction calldata
-     * @param label Human-readable transaction description
-     * @param returnData Return data from the execution
-     */
-    event TransactionBroadcast(
-        bytes32 indexed transactionId,
-        address indexed sender,
-        address indexed to,
-        uint256 value,
-        bytes data,
-        string label,
-        bytes returnData
+        SimulatedTransaction simulatedTx
     );
 
     // *************** DEPLOYMENT EVENTS *************** //
@@ -90,6 +34,21 @@ interface ITrebEvents {
     event DeployingContract(string what, string label, bytes32 initCodeHash);
 
     /**
+     * @notice Event data structure for deployment tracking
+     * @dev Emitted in ContractDeployed event for comprehensive deployment auditing
+     */
+    struct DeploymentDetails {
+        string artifact;
+        string label;
+        string entropy;
+        bytes32 salt;
+        bytes32 bytecodeHash;
+        bytes32 initCodeHash;
+        bytes constructorArgs;
+        string createStrategy;
+    }
+
+    /**
      * @notice Emitted when a contract is successfully deployed
      * @param deployer The address that initiated the deployment
      * @param location The deployed contract address
@@ -100,7 +59,7 @@ interface ITrebEvents {
         address indexed deployer,
         address indexed location,
         bytes32 indexed transactionId,
-        Deployer.EventDeployment deployment
+        DeploymentDetails deployment
     );
 
     // *************** MULTISIG EVENTS *************** //
@@ -110,9 +69,12 @@ interface ITrebEvents {
      * @param safeTxHash Hash of the Safe transaction
      * @param safe Address of the Safe multisig contract
      * @param proposer Address of the proposer who queued the transaction
-     * @param transactions Array of transactions queued for execution
+     * @param transactionIds Array of transaction IDs queued for execution
      */
     event SafeTransactionQueued(
-        bytes32 indexed safeTxHash, address indexed safe, address indexed proposer, RichTransaction[] transactions
+        bytes32 indexed safeTxHash,
+        address indexed safe,
+        address indexed proposer,
+        bytes32[] transactionIds
     );
 }

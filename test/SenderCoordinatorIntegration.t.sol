@@ -19,7 +19,7 @@ contract TestableSenderCoordinator is SenderCoordinator {
     }
 
     // Expose internal functions for testing
-    function testGetSender(string memory name) external returns (Senders.Sender memory) {
+    function testGetSender(string memory name) external view returns (Senders.Sender memory) {
         return sender(name);
     }
 

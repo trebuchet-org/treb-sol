@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {Deployer} from "../src/internal/sender/Deployer.sol";
 import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
-import {SenderTypes, Transaction, RichTransaction, TransactionStatus} from "../src/internal/types.sol";
+import {SenderTypes, Transaction, SimulatedTransaction} from "../src/internal/types.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 

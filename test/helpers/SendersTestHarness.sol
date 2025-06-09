@@ -7,7 +7,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "../../src/internal/sender/Senders.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "../../src/internal/sender/PrivateKeySender.sol";
 import {GnosisSafe} from "../../src/internal/sender/GnosisSafeSender.sol";
-import {Transaction, RichTransaction, SenderTypes} from "../../src/internal/types.sol";
+import {Transaction, SimulatedTransaction, SenderTypes} from "../../src/internal/types.sol";
 import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {Deployer} from "../../src/internal/sender/Deployer.sol";
@@ -56,13 +56,13 @@ contract SendersTestHarness is SenderCoordinator {
         _broadcast();
     }
 
-    function execute(string memory _name, Transaction memory _transaction) public returns (RichTransaction memory) {
+    function execute(string memory _name, Transaction memory _transaction) public returns (SimulatedTransaction memory) {
         return Senders.get(_name).execute(_transaction);
     }
 
     function execute(string memory _name, Transaction[] memory _transactions)
         public
-        returns (RichTransaction[] memory)
+        returns (SimulatedTransaction[] memory)
     {
         return Senders.get(_name).execute(_transactions);
     }

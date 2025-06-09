@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-enum TransactionStatus {
-    PENDING,
-    EXECUTED,
-    QUEUED
-}
-
 struct Transaction {
     string label;
     address to;
@@ -14,13 +8,12 @@ struct Transaction {
     uint256 value;
 }
 
-struct RichTransaction {
-    Transaction transaction;
+struct SimulatedTransaction {
     bytes32 transactionId;
     bytes32 senderId;
-    TransactionStatus status;
-    bytes simulatedReturnData;
-    bytes executedReturnData;
+    address sender;
+    bytes returnData;
+    Transaction transaction;
 }
 
 library SenderTypes {
