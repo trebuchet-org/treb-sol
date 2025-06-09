@@ -190,7 +190,6 @@ library Senders {
     /// @dev Foundry VM interface for simulation and state management
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
-
     /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
 

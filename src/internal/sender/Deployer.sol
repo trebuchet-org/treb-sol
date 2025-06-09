@@ -255,18 +255,12 @@ library Deployer {
 
         if (!Senders.registry().quiet) {
             _emitDeploymentEvent(
-                deployment, 
-                createTxResult.transactionId, 
-                simulatedAddress, 
-                salt, 
-                keccak256(initCode), 
-                _constructorArgs
+                deployment, createTxResult.transactionId, simulatedAddress, salt, keccak256(initCode), _constructorArgs
             );
         }
 
         return simulatedAddress;
     }
-
 
     /**
      * @notice Emits the deployment event
@@ -275,15 +269,15 @@ library Deployer {
      * @param transactionId The transaction ID of the deployment
      * @param simulatedAddress The simulated address of the deployed contract
      * @param salt The salt used for the deployment
-     * @param initCodeHash The init code hash used for the deployment        
+     * @param initCodeHash The init code hash used for the deployment
      * @param _constructorArgs The constructor arguments used for the deployment
      */
     function _emitDeploymentEvent(
-        Deployment storage deployment, 
-        bytes32 transactionId, 
-        address simulatedAddress, 
-        bytes32 salt, 
-        bytes32 initCodeHash, 
+        Deployment storage deployment,
+        bytes32 transactionId,
+        address simulatedAddress,
+        bytes32 salt,
+        bytes32 initCodeHash,
         bytes memory _constructorArgs
     ) internal {
         ITrebEvents.DeploymentDetails memory deploymentDetails = ITrebEvents.DeploymentDetails({
@@ -297,9 +291,7 @@ library Deployer {
             createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
         });
 
-        emit ITrebEvents.ContractDeployed(
-            deployment.sender.account, simulatedAddress, transactionId, deploymentDetails
-        );
+        emit ITrebEvents.ContractDeployed(deployment.sender.account, simulatedAddress, transactionId, deploymentDetails);
     }
 
     /**
