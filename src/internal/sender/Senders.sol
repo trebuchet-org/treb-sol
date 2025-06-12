@@ -100,8 +100,7 @@ pragma solidity ^0.8.0;
  * deployer.execute(Transaction({
  *     to: targetContract,
  *     value: 0,
- *     data: deploymentData,
- *     label: "Deploy MyContract"
+ *     data: deploymentData
  * }));
  *
  * // Broadcast all queued transactions

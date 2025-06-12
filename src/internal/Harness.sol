@@ -44,7 +44,7 @@ contract Harness is CommonBase {
      */
     fallback(bytes calldata) external payable returns (bytes memory) {
         Transaction memory transaction =
-            Transaction({to: target, value: msg.value, data: msg.data, label: "harness:execute"});
+            Transaction({to: target, value: msg.value, data: msg.data});
 
         // Try to execute through senderCoordinator (for state-changing calls)
         try senderCoordinator.execute(senderId, transaction) returns (SimulatedTransaction memory simulatedTx) {

@@ -165,8 +165,7 @@ contract TestScript is ConfigurableTrebScript {
         Transaction memory txn = Transaction({
             to: address(sc),
             data: abi.encodeWithSelector(SimpleContract.setValue.selector, 42),
-            value: 0,
-            label: "setValue"
+            value: 0
         });
 
         s.execute(txn);

@@ -233,14 +233,12 @@ library Deployer {
             createTx = Transaction({
                 to: CREATEX_ADDRESS,
                 data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
-                label: "deployCreate3",
                 value: 0
             });
         } else if (deployment.strategy == CreateStrategy.CREATE2) {
             createTx = Transaction({
                 to: CREATEX_ADDRESS,
                 data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
-                label: "deployCreate2",
                 value: 0
             });
         } else {

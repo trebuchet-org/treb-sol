@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 struct Transaction {
-    string label;
     address to;
     bytes data;
     uint256 value;

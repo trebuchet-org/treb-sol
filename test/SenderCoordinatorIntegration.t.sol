@@ -196,7 +196,7 @@ contract NestedBroadcastTester is SenderCoordinator {
     function innerBroadcast() public broadcast {
         // This nested broadcast should not trigger duplicate broadcasts
         Senders.Sender storage testSender = sender("test");
-        testSender.execute(Transaction({to: address(1), value: 0, data: hex"", label: "test"}));
+        testSender.execute(Transaction({to: address(1), value: 0, data: hex""}));
         // Would normally queue transactions here
     }
 
@@ -208,6 +208,6 @@ contract NestedBroadcastTester is SenderCoordinator {
     function deeperBroadcast() public broadcast {
         // Even deeper nesting to ensure the flag works correctly
         Senders.Sender storage testSender = sender("test");
-        testSender.execute(Transaction({to: address(1), value: 0, data: hex"", label: "test"}));
+        testSender.execute(Transaction({to: address(1), value: 0, data: hex""}));
     }
 }

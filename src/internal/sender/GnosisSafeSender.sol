@@ -5,6 +5,7 @@ import {Senders} from "./Senders.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {SimulatedTransaction, SenderTypes} from "../types.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
+import {Transaction} from "../types.sol";
 
 /**
  * @title GnosisSafe
@@ -49,7 +50,7 @@ library GnosisSafe {
         SimulatedTransaction[] txQueue;
     }
 
-    error SafeTransactionValueNotZero(string label);
+    error SafeTransactionValueNotZero(Transaction transaction);
     error InvalidGnosisSafeConfig(string name);
 
     /**
@@ -122,7 +123,7 @@ library GnosisSafe {
 
         for (uint256 i = 0; i < _sender.txQueue.length; i++) {
             if (_sender.txQueue[i].transaction.value > 0) {
-                revert SafeTransactionValueNotZero(_sender.txQueue[i].transaction.label);
+                revert SafeTransactionValueNotZero(_sender.txQueue[i].transaction);
             }
             targets[i] = _sender.txQueue[i].transaction.to;
             datas[i] = _sender.txQueue[i].transaction.data;

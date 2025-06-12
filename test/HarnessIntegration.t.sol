@@ -288,8 +288,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         Transaction memory txn = Transaction({
             to: address(counter),
             data: abi.encodeWithSelector(Counter.setNumber.selector, 333),
-            value: 0,
-            label: "setNumber(333)"
+            value: 0
         });
 
         // Execute through senderCoordinator - this simulates and queues
