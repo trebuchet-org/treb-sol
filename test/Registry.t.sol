@@ -76,4 +76,13 @@ contract RegistryTest is Test {
         // Test non-existent chain ID
         assertEq(registry.lookup("Counter", "default", "1"), address(0));
     }
+
+    function testLookupWithPathWithColumns() public isolatedEnv("test/fixtures/basic.json", "default") {
+        registry = new Registry("default", "test/fixtures/basic.json");
+
+        assertEq(
+            registry.lookup("ERC1967Proxy:Counter", "staging", "31337"),
+            address(0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E)
+        );
+    }
 }
