@@ -148,9 +148,8 @@ contract Registry is Script {
         view
         returns (address)
     {
-        try vm.parseJsonAddress(registryJSON, string.concat(".", _chainId, ".", _env, ".", _identifier)) returns (
-            address result
-        ) {
+        string memory jsonPath = string.concat(".", _chainId, ".", _env, "[\"", _identifier, "\"]");
+        try vm.parseJsonAddress(registryJSON, jsonPath) returns (address result) {
             return result;
         } catch {
             console.log("Registry: lookup failed for", _chainId, _env, _identifier);
