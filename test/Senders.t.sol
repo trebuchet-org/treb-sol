@@ -77,8 +77,6 @@ contract SendersTest is Test {
 
         // Try to execute a transaction with a sender that cannot broadcast
         vm.expectRevert(abi.encodeWithSelector(Senders.CannotBroadcast.selector, "ledgerSender"));
-        harness.execute(
-            string("ledgerSender"), Transaction({to: address(0x1234), value: 0, data: ""})
-        );
+        harness.execute(string("ledgerSender"), Transaction({to: address(0x1234), value: 0, data: ""}));
     }
 }

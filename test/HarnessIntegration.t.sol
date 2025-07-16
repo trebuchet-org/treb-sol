@@ -285,11 +285,8 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         bytes32 senderId = keccak256(abi.encodePacked(SENDER_NAME));
 
         // Create transaction manually
-        Transaction memory txn = Transaction({
-            to: address(counter),
-            data: abi.encodeWithSelector(Counter.setNumber.selector, 333),
-            value: 0
-        });
+        Transaction memory txn =
+            Transaction({to: address(counter), data: abi.encodeWithSelector(Counter.setNumber.selector, 333), value: 0});
 
         // Execute through senderCoordinator - this simulates and queues
         SimulatedTransaction memory result = senderCoordinator.execute(senderId, txn);

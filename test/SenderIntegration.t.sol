@@ -127,11 +127,8 @@ contract SenderIntegrationTest is Test {
 
     function test_InMemorySenderFullFlow() public {
         // Create transaction
-        Transaction memory txn = Transaction({
-            to: address(target),
-            data: abi.encodeWithSelector(MockTarget.setValue.selector, 42),
-            value: 0
-        });
+        Transaction memory txn =
+            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0});
 
         // Execute transaction (simulation)
         SimulatedTransaction memory simulatedTxn = harness.execute(TEST_SENDER, txn);
@@ -152,16 +149,10 @@ contract SenderIntegrationTest is Test {
     function test_MultipleTransactionsBatch() public {
         // Create multiple transactions
         Transaction[] memory txns = new Transaction[](3);
-        txns[0] = Transaction({
-            to: address(target),
-            data: abi.encodeWithSelector(MockTarget.setValue.selector, 10),
-            value: 0
-        });
-        txns[1] = Transaction({
-            to: address(target),
-            data: abi.encodeWithSelector(MockTarget.setValue.selector, 20),
-            value: 0
-        });
+        txns[0] =
+            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 10), value: 0});
+        txns[1] =
+            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 20), value: 0});
         txns[2] = Transaction({to: address(target), data: "", value: 1 ether});
 
         // Execute batch
@@ -206,11 +197,8 @@ contract SenderIntegrationTest is Test {
 
     function test_TransactionSimulationFailure() public {
         // Create transaction that will fail (calling non-existent function)
-        Transaction memory txn = Transaction({
-            to: address(target),
-            data: abi.encodeWithSelector(bytes4(0xdeadbeef)),
-            value: 0
-        });
+        Transaction memory txn =
+            Transaction({to: address(target), data: abi.encodeWithSelector(bytes4(0xdeadbeef)), value: 0});
 
         // Expect TransactionSimulated and TransactionFailed events
         // Note: We can't predict the transaction ID here, so we'll skip event verification
@@ -223,11 +211,8 @@ contract SenderIntegrationTest is Test {
 
     function test_CustomSenderType() public {
         // Create transaction
-        Transaction memory txn = Transaction({
-            to: address(target),
-            data: abi.encodeWithSelector(MockTarget.setValue.selector, 42),
-            value: 0
-        });
+        Transaction memory txn =
+            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0});
 
         // queue transaction
         harness.execute(CUSTOM_SENDER, txn);

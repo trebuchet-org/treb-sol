@@ -74,11 +74,8 @@ contract IntegrationTest is Test, CreateXScript {
         assertTrue(deployed != address(0));
 
         // Execute transaction
-        Transaction memory txn = Transaction({
-            to: deployed,
-            data: abi.encodeWithSelector(TestContract.setValue.selector, 100),
-            value: 0
-        });
+        Transaction memory txn =
+            Transaction({to: deployed, data: abi.encodeWithSelector(TestContract.setValue.selector, 100), value: 0});
 
         s.execute(txn);
 
