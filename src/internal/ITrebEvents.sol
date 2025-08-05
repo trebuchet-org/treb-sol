@@ -55,4 +55,15 @@ interface ITrebEvents {
     event SafeTransactionQueued(
         bytes32 indexed safeTxHash, address indexed safe, address indexed proposer, bytes32[] transactionIds
     );
+
+    /**
+     * @notice Emitted when transactions are executed directly on a threshold-1 Safe
+     * @param safeTxHash Hash of the Safe transaction
+     * @param safe Address of the Safe multisig contract
+     * @param executor Address of the executor who performed the transaction
+     * @param transactionIds Array of transaction IDs executed
+     */
+    event SafeTransactionExecuted(
+        bytes32 indexed safeTxHash, address indexed safe, address indexed executor, bytes32[] transactionIds
+    );
 }

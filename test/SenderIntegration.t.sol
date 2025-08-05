@@ -8,6 +8,9 @@ import {GnosisSafe} from "../src/internal/sender/GnosisSafeSender.sol";
 import {SenderTypes, Transaction, SimulatedTransaction} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
+import {Safe} from "safe-smart-account/contracts/Safe.sol";
+import {SafeProxyFactory} from "safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
+import {ITrebEvents} from "../src/internal/ITrebEvents.sol";
 
 contract MockTarget {
     uint256 public value;
@@ -28,6 +31,10 @@ contract SenderIntegrationTest is Test {
     MockTarget target;
     SendersTestHarness harness;
 
+    // Safe contracts for testing
+    Safe safeThreshold1;
+    Safe safeThresholdMulti;
+
     // Constants for sender names
     string constant TEST_SENDER = "test-sender";
     string constant BATCH_SENDER = "batch-sender";
@@ -39,12 +46,72 @@ contract SenderIntegrationTest is Test {
     string constant MEMORY_1 = "memory-1";
     string constant LEDGER_1 = "ledger-1";
     string constant SAFE_1 = "safe-1";
+    string constant SAFE_THRESHOLD_1 = "safe-threshold-1";
+    string constant SAFE_THRESHOLD_MULTI = "safe-threshold-multi";
 
     function setUp() public {
         target = new MockTarget();
 
+        // Deploy Safe contracts
+        Safe safeMasterCopy = new Safe();
+        SafeProxyFactory factory = new SafeProxyFactory();
+
+        // Deploy Safe with threshold 1
+        address[] memory owners1 = new address[](1);
+        owners1[0] = vm.addr(0x54321); // proposer address
+
+        bytes memory initializer1 = abi.encodeWithSelector(
+            Safe.setup.selector,
+            owners1,
+            1, // threshold = 1
+            address(0), // to
+            "", // data
+            address(0), // fallbackHandler
+            address(0), // paymentToken
+            0, // payment
+            payable(0) // paymentReceiver
+        );
+
+        safeThreshold1 = Safe(
+            payable(
+                factory.createProxyWithNonce(
+                    address(safeMasterCopy),
+                    initializer1,
+                    1
+                )
+            )
+        );
+
+        // Deploy Safe with threshold 2
+        address[] memory owners2 = new address[](2);
+        owners2[0] = vm.addr(0x54321); // proposer address
+        owners2[1] = vm.addr(0x67890); // second owner
+
+        bytes memory initializer2 = abi.encodeWithSelector(
+            Safe.setup.selector,
+            owners2,
+            2, // threshold = 2
+            address(0), // to
+            "", // data
+            address(0), // fallbackHandler
+            address(0), // paymentToken
+            0, // payment
+            payable(0) // paymentReceiver
+        );
+
+        safeThresholdMulti = Safe(
+            payable(
+                factory.createProxyWithNonce(
+                    address(safeMasterCopy),
+                    initializer2,
+                    2
+                )
+            )
+        );
+
         // Initialize all senders that will be used across tests
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](8);
+        Senders.SenderInitConfig[]
+            memory configs = new Senders.SenderInitConfig[](10);
 
         // Test sender (InMemory)
         configs[0] = Senders.SenderInitConfig({
@@ -118,6 +185,24 @@ contract SenderIntegrationTest is Test {
             config: abi.encode(PROPOSER)
         });
 
+        // Safe with threshold 1
+        configs[8] = Senders.SenderInitConfig({
+            name: SAFE_THRESHOLD_1,
+            account: address(safeThreshold1),
+            senderType: SenderTypes.GnosisSafe,
+            canBroadcast: true,
+            config: abi.encode(PROPOSER)
+        });
+
+        // Safe with threshold multi
+        configs[9] = Senders.SenderInitConfig({
+            name: SAFE_THRESHOLD_MULTI,
+            account: address(safeThresholdMulti),
+            senderType: SenderTypes.GnosisSafe,
+            canBroadcast: true,
+            config: abi.encode(PROPOSER)
+        });
+
         // Deal ether to test senders
         vm.deal(vm.addr(0x12345), 10 ether);
         vm.deal(vm.addr(0x54321), 10 ether);
@@ -127,11 +212,17 @@ contract SenderIntegrationTest is Test {
 
     function test_InMemorySenderFullFlow() public {
         // Create transaction
-        Transaction memory txn =
-            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0});
+        Transaction memory txn = Transaction({
+            to: address(target),
+            data: abi.encodeWithSelector(MockTarget.setValue.selector, 42),
+            value: 0
+        });
 
         // Execute transaction (simulation)
-        SimulatedTransaction memory simulatedTxn = harness.execute(TEST_SENDER, txn);
+        SimulatedTransaction memory simulatedTxn = harness.execute(
+            TEST_SENDER,
+            txn
+        );
 
         assertEq(target.getValue(), 42);
 
@@ -149,14 +240,23 @@ contract SenderIntegrationTest is Test {
     function test_MultipleTransactionsBatch() public {
         // Create multiple transactions
         Transaction[] memory txns = new Transaction[](3);
-        txns[0] =
-            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 10), value: 0});
-        txns[1] =
-            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 20), value: 0});
+        txns[0] = Transaction({
+            to: address(target),
+            data: abi.encodeWithSelector(MockTarget.setValue.selector, 10),
+            value: 0
+        });
+        txns[1] = Transaction({
+            to: address(target),
+            data: abi.encodeWithSelector(MockTarget.setValue.selector, 20),
+            value: 0
+        });
         txns[2] = Transaction({to: address(target), data: "", value: 1 ether});
 
         // Execute batch
-        SimulatedTransaction[] memory results = harness.execute(BATCH_SENDER, txns);
+        SimulatedTransaction[] memory results = harness.execute(
+            BATCH_SENDER,
+            txns
+        );
 
         // Verify batch simulation
         assertEq(results.length, 3);
@@ -171,7 +271,7 @@ contract SenderIntegrationTest is Test {
         assertEq(address(target).balance, 1 ether);
     }
 
-    function test_GnosisSafeSenderFlow() public {
+    function test_GnosisSafeSenderFlow_Threshold1() public {
         // Create transaction
         Transaction memory txn = Transaction({
             to: address(target),
@@ -180,25 +280,64 @@ contract SenderIntegrationTest is Test {
         });
 
         // Execute (queue for Safe)
-        harness.execute(SAFE_SENDER, txn);
+        harness.execute(SAFE_THRESHOLD_1, txn);
 
-        // not easy to test this right now because we don't have a way to mock the Safe tx
-        // but we're just happy that it reverts where we know.
-        vm.expectRevert(abi.encodeWithSignature("ProposeTransactionFailed(uint256,string)", 0, ""));
+        // For threshold 1, should execute directly
+        vm.expectEmit(false, true, true, false);
+        emit ITrebEvents.SafeTransactionExecuted(
+            bytes32(0), // We don't know the exact hash
+            address(safeThreshold1),
+            vm.addr(0x54321),
+            new bytes32[](1)
+        );
+
         harness.broadcastAll();
+
+        // Verify the transaction was executed
+        assertEq(target.getValue(), 100);
+    }
+
+    function test_GnosisSafeSenderFlow_ThresholdMulti() public {
+        // Create transaction
+        Transaction memory txn = Transaction({
+            to: address(target),
+            data: abi.encodeWithSelector(MockTarget.setValue.selector, 200),
+            value: 0
+        });
+
+        // Execute (queue for Safe)
+        harness.execute(SAFE_THRESHOLD_MULTI, txn);
+
+        // For threshold > 1, should try to propose via API and fail
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ProposeTransactionFailed(uint256,string)",
+                0,
+                ""
+            )
+        );
+        harness.broadcastAll();
+
+        // Verify the transaction was NOT executed
+        assertEq(target.getValue(), 0);
     }
 
     function test_HardwareWalletSenderInitialization() public view {
         // Verify hardware wallet was properly initialized
-        HardwareWallet.Sender memory hwSender = harness.getHardwareWallet(LEDGER_SENDER);
+        HardwareWallet.Sender memory hwSender = harness.getHardwareWallet(
+            LEDGER_SENDER
+        );
         assertEq(hwSender.hardwareWalletType, "ledger");
         assertEq(hwSender.mnemonicDerivationPath, "m/44'/60'/0'/0/0");
     }
 
     function test_TransactionSimulationFailure() public {
         // Create transaction that will fail (calling non-existent function)
-        Transaction memory txn =
-            Transaction({to: address(target), data: abi.encodeWithSelector(bytes4(0xdeadbeef)), value: 0});
+        Transaction memory txn = Transaction({
+            to: address(target),
+            data: abi.encodeWithSelector(bytes4(0xdeadbeef)),
+            value: 0
+        });
 
         // Expect TransactionSimulated and TransactionFailed events
         // Note: We can't predict the transaction ID here, so we'll skip event verification
@@ -211,20 +350,28 @@ contract SenderIntegrationTest is Test {
 
     function test_CustomSenderType() public {
         // Create transaction
-        Transaction memory txn =
-            Transaction({to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0});
+        Transaction memory txn = Transaction({
+            to: address(target),
+            data: abi.encodeWithSelector(MockTarget.setValue.selector, 42),
+            value: 0
+        });
 
         // queue transaction
         harness.execute(CUSTOM_SENDER, txn);
 
         // But broadcast should fail
-        vm.expectRevert(abi.encodeWithSelector(SenderCoordinator.CustomQueueReceiverNotImplemented.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SenderCoordinator.CustomQueueReceiverNotImplemented.selector
+            )
+        );
         harness.broadcastAll();
     }
 
     function test_RegistryMultipleSenders() public {
         // Add additional senders for this test
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](2);
+        Senders.SenderInitConfig[]
+            memory configs = new Senders.SenderInitConfig[](2);
 
         configs[0] = Senders.SenderInitConfig({
             name: MEMORY_1,
