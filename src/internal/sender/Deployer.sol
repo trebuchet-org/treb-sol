@@ -229,12 +229,12 @@ library Deployer {
     {
         bytes32 salt = deployment.sender._salt(deployment.entropy);
         address predictedAddress = deployment.predict(_constructorArgs);
+        bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
 
         // Check if contract already exists at predicted address
         if (predictedAddress.code.length > 0) {
             // Emit collision event if not in quiet mode
             if (!Senders.registry().quiet) {
-                bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
                 ITrebEvents.DeploymentDetails memory deploymentDetails = ITrebEvents.DeploymentDetails({
                     artifact: deployment.artifact,
                     label: deployment.label,
@@ -254,7 +254,6 @@ library Deployer {
         }
 
         // Create and execute the deployment transaction
-        bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
         Transaction memory createTx = _createDeploymentTransaction(deployment.strategy, salt, initCode);
 
         SimulatedTransaction memory createTxResult = deployment.sender.execute(createTx);
