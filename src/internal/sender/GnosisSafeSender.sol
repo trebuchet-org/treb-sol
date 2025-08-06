@@ -112,16 +112,6 @@ library GnosisSafe {
     }
 
     /**
-     * @notice Checks if the Safe has threshold of 1
-     * @param _sender The Safe sender
-     * @return True if the Safe has threshold of 1
-     */
-    function isThresholdOne(Sender storage _sender) internal view returns (bool) {
-        SafeContract safeInstance = SafeContract(payable(_sender.account));
-        return safeInstance.getThreshold() == 1;
-    }
-
-    /**
      * @notice Broadcasts all queued transactions with optional dry-run mode
      * @dev Collects all queued transactions into a batch proposal for the Safe.
      *      Validates that transactions don't include ETH transfers (currently unsupported).
@@ -231,6 +221,16 @@ library GnosisSafe {
             }
             emit ITrebEvents.SafeTransactionExecuted(safeTxHash, _sender.account, proposerAddress, transactionIds);
         }
+    }
+
+    /**
+     * @notice Checks if the Safe has threshold of 1
+     * @param _sender The Safe sender
+     * @return True if the Safe has threshold of 1
+     */
+    function isThresholdOne(Sender storage _sender) internal view returns (bool) {
+        SafeContract safeInstance = SafeContract(payable(_sender.account));
+        return safeInstance.getThreshold() == 1;
     }
 
     /**
