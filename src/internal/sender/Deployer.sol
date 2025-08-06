@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
+import {console} from "forge-std/console.sol";
 import {Senders} from "./Senders.sol";
 import {Transaction, SimulatedTransaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
@@ -201,7 +202,7 @@ library Deployer {
      *      3. Executes deployment via CreateX
      *      4. Verifies the deployed address matches prediction
      *      5. Emits ContractDeployed event
-     *      
+     *
      *      If IGNORE_COLLISION env var is set and a Create3 collision occurs,
      *      logs a warning and returns the predicted address instead of reverting.
      * @param deployment The deployment configuration
@@ -240,10 +241,10 @@ library Deployer {
         // Create and execute the deployment transaction
         bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
         Transaction memory createTx = _createDeploymentTransaction(deployment.strategy, salt, initCode);
-        
+
         SimulatedTransaction memory createTxResult = deployment.sender.execute(createTx);
         address simulatedAddress = abi.decode(createTxResult.returnData, (address));
-        
+
         if (simulatedAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, simulatedAddress);
         }
@@ -256,7 +257,7 @@ library Deployer {
 
         return simulatedAddress;
     }
-    
+
     /**
      * @notice Creates the deployment transaction based on strategy
      */
@@ -281,32 +282,16 @@ library Deployer {
             revert InvalidCreateStrategy(strategy);
         }
     }
-    
+
     /**
-     * @notice Logs collision warning to file and console
+     * @notice Logs collision warning to console
      */
-    function _logCollisionWarning(string memory artifact, address predictedAddress) internal {
-        vm.writeFile(
-            ".warnings.log",
-            string.concat(
-                "[WARNING] Create3 collision detected for ",
-                artifact,
-                " at address ",
-                vm.toString(predictedAddress),
-                ". Contract already deployed. Skipping deployment.\n"
-            )
-        );
-        
+    function _logCollisionWarning(string memory artifact, address predictedAddress) internal view {
         if (!Senders.registry().quiet) {
-            vm.writeLine(
-                "stderr",
-                string.concat(
-                    "\x1b[33m[WARNING]\x1b[0m Create3 collision detected for ",
-                    artifact,
-                    " at ",
-                    vm.toString(predictedAddress),
-                    ". Contract already deployed."
-                )
+            console.log(
+                "[WARNING] Create3 collision detected for %s at address %s. Contract already deployed. Skipping deployment.",
+                artifact,
+                predictedAddress
             );
         }
     }
