@@ -486,31 +486,6 @@ library Deployer {
         }
     }
 
-    /**
-     * @notice Creates the deployment transaction based on strategy
-     */
-    function _createDeploymentTransaction(CreateStrategy strategy, bytes32 salt, bytes memory initCode)
-        internal
-        pure
-        returns (Transaction memory)
-    {
-        if (strategy == CreateStrategy.CREATE3) {
-            return Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else if (strategy == CreateStrategy.CREATE2) {
-            return Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else {
-            revert InvalidCreateStrategy(strategy);
-        }
-    }
-
     // *************** SALT HELPERS *************** //
 
     /**
@@ -580,6 +555,32 @@ library Deployer {
             derivedSalt = keccak256(abi.encode(salt));
         }
     }
+
+    /**
+     * @notice Creates the deployment transaction based on strategy
+     */
+    function _createDeploymentTransaction(CreateStrategy strategy, bytes32 salt, bytes memory initCode)
+        internal
+        pure
+        returns (Transaction memory)
+    {
+        if (strategy == CreateStrategy.CREATE3) {
+            return Transaction({
+                to: CREATEX_ADDRESS,
+                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
+                value: 0
+            });
+        } else if (strategy == CreateStrategy.CREATE2) {
+            return Transaction({
+                to: CREATEX_ADDRESS,
+                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
+                value: 0
+            });
+        } else {
+            revert InvalidCreateStrategy(strategy);
+        }
+    }
+
 
     /**
      * @dev ===============================================
