@@ -346,44 +346,6 @@ library Deployer {
         }
     }
 
-    /**
-     * @notice Logs collision warning to console
-     */
-    function _logCollisionWarning(string memory artifact, address predictedAddress) internal view {
-        if (!Senders.registry().quiet) {
-            console.log(
-                "[WARNING] Create3 collision detected for %s at address %s. Contract already deployed. Skipping deployment.",
-                artifact,
-                predictedAddress
-            );
-        }
-    }
-
-    /**
-     * @notice Creates the deployment transaction based on strategy
-     */
-    function _createDeploymentTransaction(CreateStrategy strategy, bytes32 salt, bytes memory initCode)
-        internal
-        pure
-        returns (Transaction memory)
-    {
-        if (strategy == CreateStrategy.CREATE3) {
-            return Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else if (strategy == CreateStrategy.CREATE2) {
-            return Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else {
-            revert InvalidCreateStrategy(strategy);
-        }
-    }
-
     // *************** CREATE3 *************** //
 
     /**
@@ -508,6 +470,44 @@ library Deployer {
             deployment.strategy = CreateStrategy.CREATE2;
         } catch {
             revert ContractNotFound(_artifact);
+        }
+    }
+    /**
+     * @notice Logs collision warning to console
+     */
+
+    function _logCollisionWarning(string memory artifact, address predictedAddress) internal view {
+        if (!Senders.registry().quiet) {
+            console.log(
+                "[WARNING] Create3 collision detected for %s at address %s. Contract already deployed. Skipping deployment.",
+                artifact,
+                predictedAddress
+            );
+        }
+    }
+
+    /**
+     * @notice Creates the deployment transaction based on strategy
+     */
+    function _createDeploymentTransaction(CreateStrategy strategy, bytes32 salt, bytes memory initCode)
+        internal
+        pure
+        returns (Transaction memory)
+    {
+        if (strategy == CreateStrategy.CREATE3) {
+            return Transaction({
+                to: CREATEX_ADDRESS,
+                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
+                value: 0
+            });
+        } else if (strategy == CreateStrategy.CREATE2) {
+            return Transaction({
+                to: CREATEX_ADDRESS,
+                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
+                value: 0
+            });
+        } else {
+            revert InvalidCreateStrategy(strategy);
         }
     }
 
