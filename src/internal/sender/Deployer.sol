@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
+import {console} from "forge-std/console.sol";
 import {Senders} from "./Senders.sol";
 import {Transaction, SimulatedTransaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
@@ -201,6 +202,9 @@ library Deployer {
      *      3. Executes deployment via CreateX
      *      4. Verifies the deployed address matches prediction
      *      5. Emits ContractDeployed event
+     *
+     *      If IGNORE_COLLISION env var is set and a Create3 collision occurs,
+     *      logs a warning and returns the predicted address instead of reverting.
      * @param deployment The deployment configuration
      * @param _constructorArgs ABI-encoded constructor arguments
      * @return The deployed contract address
@@ -222,31 +226,25 @@ library Deployer {
         verify(deployment)
         returns (address)
     {
-        Senders.Sender storage sender = deployment.sender;
-
-        bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
-        bytes32 salt = sender._salt(deployment.entropy);
+        bytes32 salt = deployment.sender._salt(deployment.entropy);
         address predictedAddress = deployment.predict(_constructorArgs);
 
-        Transaction memory createTx;
-        if (deployment.strategy == CreateStrategy.CREATE3) {
-            createTx = Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else if (deployment.strategy == CreateStrategy.CREATE2) {
-            createTx = Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else {
-            revert InvalidCreateStrategy(deployment.strategy);
+        // Check if we should ignore collisions
+        bool ignoreCollision = vm.envOr("IGNORE_COLLISION", false);
+
+        // If ignoring collisions and contract already exists, return the predicted address
+        if (ignoreCollision && predictedAddress.code.length > 0) {
+            _logCollisionWarning(deployment.artifact, predictedAddress);
+            return predictedAddress;
         }
 
-        SimulatedTransaction memory createTxResult = sender.execute(createTx);
+        // Create and execute the deployment transaction
+        bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
+        Transaction memory createTx = _createDeploymentTransaction(deployment.strategy, salt, initCode);
+
+        SimulatedTransaction memory createTxResult = deployment.sender.execute(createTx);
         address simulatedAddress = abi.decode(createTxResult.returnData, (address));
+
         if (simulatedAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, simulatedAddress);
         }
@@ -474,6 +472,19 @@ library Deployer {
             revert ContractNotFound(_artifact);
         }
     }
+    /**
+     * @notice Logs collision warning to console
+     */
+
+    function _logCollisionWarning(string memory artifact, address predictedAddress) internal view {
+        if (!Senders.registry().quiet) {
+            console.log(
+                "[WARNING] Create3 collision detected for %s at address %s. Contract already deployed. Skipping deployment.",
+                artifact,
+                predictedAddress
+            );
+        }
+    }
 
     // *************** SALT HELPERS *************** //
 
@@ -542,6 +553,31 @@ library Deployer {
             derivedSalt = keccak256(abi.encode(deployer, block.chainid, salt));
         } else {
             derivedSalt = keccak256(abi.encode(salt));
+        }
+    }
+
+    /**
+     * @notice Creates the deployment transaction based on strategy
+     */
+    function _createDeploymentTransaction(CreateStrategy strategy, bytes32 salt, bytes memory initCode)
+        internal
+        pure
+        returns (Transaction memory)
+    {
+        if (strategy == CreateStrategy.CREATE3) {
+            return Transaction({
+                to: CREATEX_ADDRESS,
+                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
+                value: 0
+            });
+        } else if (strategy == CreateStrategy.CREATE2) {
+            return Transaction({
+                to: CREATEX_ADDRESS,
+                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
+                value: 0
+            });
+        } else {
+            revert InvalidCreateStrategy(strategy);
         }
     }
 
