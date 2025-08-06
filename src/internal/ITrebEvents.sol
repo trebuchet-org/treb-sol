@@ -66,4 +66,13 @@ interface ITrebEvents {
     event SafeTransactionExecuted(
         bytes32 indexed safeTxHash, address indexed safe, address indexed executor, bytes32[] transactionIds
     );
+
+    /**
+     * @notice Emitted when a deployment collision is detected and skipped
+     * @param existingContract The address where the contract already exists
+     * @param deploymentDetails The deployment details that would have been used
+     * @dev This event is emitted when a contract already exists at the predicted address
+     *      and the deployment is skipped to avoid reverting the entire transaction batch
+     */
+    event DeploymentCollision(address indexed existingContract, DeploymentDetails deploymentDetails);
 }

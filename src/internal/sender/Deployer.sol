@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
-import {console} from "forge-std/console.sol";
 import {Senders} from "./Senders.sol";
 import {Transaction, SimulatedTransaction} from "../types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
@@ -199,15 +198,17 @@ library Deployer {
      * @dev This is the main deployment function that:
      *      1. Generates salt from entropy/namespace/label
      *      2. Predicts the deployment address
-     *      3. Executes deployment via CreateX
-     *      4. Verifies the deployed address matches prediction
-     *      5. Emits ContractDeployed event
+     *      3. Checks if contract already exists at predicted address
+     *      4. If collision detected, emits DeploymentCollision event and returns existing address
+     *      5. Otherwise, executes deployment via CreateX
+     *      6. Verifies the deployed address matches prediction
+     *      7. Emits ContractDeployed event
      *
-     *      If IGNORE_COLLISION env var is set and a Create3 collision occurs,
-     *      logs a warning and returns the predicted address instead of reverting.
+     *      Collision handling ensures that multi-contract deployment scripts can continue
+     *      even when some contracts are already deployed, making scripts idempotent.
      * @param deployment The deployment configuration
      * @param _constructorArgs ABI-encoded constructor arguments
-     * @return The deployed contract address
+     * @return The contract address (either newly deployed or existing)
      *
      * @custom:example
      * ```solidity
@@ -229,12 +230,26 @@ library Deployer {
         bytes32 salt = deployment.sender._salt(deployment.entropy);
         address predictedAddress = deployment.predict(_constructorArgs);
 
-        // Check if we should ignore collisions
-        bool ignoreCollision = vm.envOr("IGNORE_COLLISION", false);
+        // Check if contract already exists at predicted address
+        if (predictedAddress.code.length > 0) {
+            // Emit collision event if not in quiet mode
+            if (!Senders.registry().quiet) {
+                bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
+                ITrebEvents.DeploymentDetails memory deploymentDetails = ITrebEvents.DeploymentDetails({
+                    artifact: deployment.artifact,
+                    label: deployment.label,
+                    entropy: deployment.entropy,
+                    salt: salt,
+                    bytecodeHash: keccak256(deployment.bytecode),
+                    initCodeHash: keccak256(initCode),
+                    constructorArgs: _constructorArgs,
+                    createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
+                });
 
-        // If ignoring collisions and contract already exists, return the predicted address
-        if (ignoreCollision && predictedAddress.code.length > 0) {
-            _logCollisionWarning(deployment.artifact, predictedAddress);
+                emit ITrebEvents.DeploymentCollision(predictedAddress, deploymentDetails);
+            }
+
+            // Return the existing contract address without attempting deployment
             return predictedAddress;
         }
 
@@ -470,19 +485,6 @@ library Deployer {
             deployment.strategy = CreateStrategy.CREATE2;
         } catch {
             revert ContractNotFound(_artifact);
-        }
-    }
-    /**
-     * @notice Logs collision warning to console
-     */
-
-    function _logCollisionWarning(string memory artifact, address predictedAddress) internal view {
-        if (!Senders.registry().quiet) {
-            console.log(
-                "[WARNING] Create3 collision detected for %s at address %s. Contract already deployed. Skipping deployment.",
-                artifact,
-                predictedAddress
-            );
         }
     }
 
