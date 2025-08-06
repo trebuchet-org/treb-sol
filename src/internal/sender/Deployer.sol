@@ -62,8 +62,13 @@ library Deployer {
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
     ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
 
+    // Keccak256 hashes of known vm.getCode error messages
+    bytes32 private constant NO_BYTECODE_HASH = keccak256("vm.getCode: no bytecode for contract; is it abstract or unlinked?");
+    bytes32 private constant NO_ARTIFACT_HASH = keccak256("vm.getCode: no matching artifact found");
+
     // Custom errors for better gas efficiency and clarity
     error ContractNotFound(string what);
+    error BytecodeMissing(string what);
     error PredictedAddressMismatch(address predicted, address actual);
     error EntropyAlreadySet();
     error LabelAlreadySet();
@@ -420,7 +425,24 @@ library Deployer {
             deployment = sender._deploy(code);
             deployment.artifact = _artifact;
             deployment.strategy = CreateStrategy.CREATE3;
-        } catch {
+        } catch Error(string memory reason) {
+            bytes32 reasonHash = keccak256(bytes(reason));
+            if (reasonHash == NO_BYTECODE_HASH) {
+                revert BytecodeMissing(_artifact);
+            }
+            revert ContractNotFound(_artifact);
+        } catch (bytes memory lowLevelData) {
+            // Check if this is a revert with a reason string
+            if (lowLevelData.length >= 68) {
+                assembly {
+                    lowLevelData := add(lowLevelData, 0x04)
+                }
+                string memory revertReason = abi.decode(lowLevelData, (string));
+                bytes32 reasonHash = keccak256(bytes(revertReason));
+                if (reasonHash == NO_BYTECODE_HASH) {
+                    revert BytecodeMissing(_artifact);
+                }
+            }
             revert ContractNotFound(_artifact);
         }
     }
@@ -482,7 +504,24 @@ library Deployer {
             deployment = sender._deploy(code);
             deployment.artifact = _artifact;
             deployment.strategy = CreateStrategy.CREATE2;
-        } catch {
+        } catch Error(string memory reason) {
+            bytes32 reasonHash = keccak256(bytes(reason));
+            if (reasonHash == NO_BYTECODE_HASH) {
+                revert BytecodeMissing(_artifact);
+            }
+            revert ContractNotFound(_artifact);
+        } catch (bytes memory lowLevelData) {
+            // Check if this is a revert with a reason string
+            if (lowLevelData.length >= 68) {
+                assembly {
+                    lowLevelData := add(lowLevelData, 0x04)
+                }
+                string memory revertReason = abi.decode(lowLevelData, (string));
+                bytes32 reasonHash = keccak256(bytes(revertReason));
+                if (reasonHash == NO_BYTECODE_HASH) {
+                    revert BytecodeMissing(_artifact);
+                }
+            }
             revert ContractNotFound(_artifact);
         }
     }
