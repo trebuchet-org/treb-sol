@@ -159,6 +159,63 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.get(_name).create3(_entropy, _bytecode).predict(_args);
     }
 
+    // ************* CREATE2 Deployer Methods ************* //
+
+    function deployCreate2WithArtifact(string memory _name, string memory _artifact, bytes memory _args)
+        public
+        returns (address)
+    {
+        // Use factory pattern: create2 -> deploy
+        return Senders.get(_name).create2(_artifact).deploy(_args);
+    }
+
+    function deployCreate2WithArtifactAndLabel(
+        string memory _name,
+        string memory _artifact,
+        string memory _label,
+        bytes memory _args
+    ) public returns (address) {
+        // Use factory pattern: create2 -> setLabel -> deploy
+        return Senders.get(_name).create2(_artifact).setLabel(_label).deploy(_args);
+    }
+
+    function deployCreate2WithEntropy(
+        string memory _name,
+        string memory _entropy,
+        bytes memory _bytecode,
+        bytes memory _args
+    ) public returns (address) {
+        // Use factory pattern: create2 with entropy -> deploy
+        return Senders.get(_name).create2(_entropy, _bytecode).deploy(_args);
+    }
+
+    // ************* CREATE2 Prediction Methods ************* //
+
+    function predictCreate2WithArtifact(string memory _name, string memory _artifact, bytes memory _args)
+        public
+        returns (address)
+    {
+        return Senders.get(_name).create2(_artifact).predict(_args);
+    }
+
+    function predictCreate2WithArtifactAndLabel(
+        string memory _name,
+        string memory _artifact,
+        string memory _label,
+        bytes memory _args
+    ) public returns (address) {
+        return Senders.get(_name).create2(_artifact).setLabel(_label).predict(_args);
+    }
+
+    function predictCreate2WithEntropy(
+        string memory _name,
+        string memory _entropy,
+        bytes memory _bytecode,
+        bytes memory _args
+    ) public returns (address) {
+        return Senders.get(_name).create2(_entropy, _bytecode).predict(_args);
+    }
+
     function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
         return Senders.get(_name)._salt(_entropy);
     }
