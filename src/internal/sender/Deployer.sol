@@ -63,7 +63,8 @@ library Deployer {
     ICreateX private constant CREATEX = ICreateX(CREATEX_ADDRESS);
 
     // Keccak256 hashes of known vm.getCode error messages
-    bytes32 private constant NO_BYTECODE_HASH = keccak256("vm.getCode: no bytecode for contract; is it abstract or unlinked?");
+    bytes32 private constant NO_BYTECODE_HASH =
+        keccak256("vm.getCode: no bytecode for contract; is it abstract or unlinked?");
     bytes32 private constant NO_ARTIFACT_HASH = keccak256("vm.getCode: no matching artifact found");
 
     // Custom errors for better gas efficiency and clarity
