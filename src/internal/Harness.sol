@@ -9,6 +9,7 @@ import {Transaction, SimulatedTransaction} from "./types.sol";
 contract Harness is CommonBase {
     using Senders for Senders.Sender;
 
+    bytes32 public lastTransactionId;
     address private target;
     bytes32 private senderId;
     SenderCoordinator private senderCoordinator;
@@ -43,13 +44,20 @@ contract Harness is CommonBase {
      * - State-changing calls are queued for batch execution via the dispatcher
      */
     fallback(bytes calldata) external payable returns (bytes memory) {
-        Transaction memory transaction = Transaction({to: target, value: msg.value, data: msg.data});
+        Transaction memory transaction = Transaction({
+            to: target,
+            value: msg.value,
+            data: msg.data
+        });
 
         // Try to execute through senderCoordinator (for state-changing calls)
-        try senderCoordinator.execute(senderId, transaction) returns (SimulatedTransaction memory simulatedTx) {
+        try senderCoordinator.execute(senderId, transaction) returns (
+            SimulatedTransaction memory simulatedTx
+        ) {
             // Success: This was a state-changing call that was queued
             // Return the simulated return data
             bytes memory returnData = simulatedTx.returnData;
+            lastTransactionId = simulatedTx.transactionId;
             assembly {
                 return(add(returnData, 0x20), mload(returnData))
             }
@@ -65,7 +73,9 @@ contract Harness is CommonBase {
             // Empty revert data (length 0) indicates this might be a staticcall
             // The senderCoordinator.execute reverted because it detected staticcall context
             // Now try to forward as a staticcall to get the view function result
-            (bool success, bytes memory returnData) = target.staticcall(msg.data);
+            (bool success, bytes memory returnData) = target.staticcall(
+                msg.data
+            );
             if (success) {
                 assembly {
                     return(add(returnData, 0x20), mload(returnData))
@@ -78,4 +88,6 @@ contract Harness is CommonBase {
             }
         }
     }
+
+    receive() external payable {}
 }
