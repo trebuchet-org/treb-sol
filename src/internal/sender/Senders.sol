@@ -110,6 +110,7 @@ pragma solidity ^0.8.0;
 import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
+import {OZGovernor} from "./OZGovernorSender.sol";
 import {Harness} from "../Harness.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
@@ -122,6 +123,7 @@ library Senders {
     using HardwareWallet for HardwareWallet.Sender;
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
+    using OZGovernor for OZGovernor.Sender;
 
     /**
      * @notice Configuration structure for initializing a sender
@@ -157,9 +159,11 @@ library Senders {
         bytes32[] ids;
         SimulatedTransaction[] _globalQueue;
         string namespace;
+        string network;
         bool quiet;
         bool initialized;
-        uint256 preSimulationSnapshot;
+        uint256 simulationFork;
+        uint256 executionFork;
         bool broadcasted;
         bool broadcastQueued;
         uint256 transactionCounter;
@@ -184,10 +188,12 @@ library Senders {
 
     /// @dev Storage slot for the Registry singleton, derived from keccak256("senders.registry")
     /// @dev This ensures the registry doesn't conflict with other storage in inherited contracts
-    bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
+    bytes32 private constant REGISTRY_STORAGE_SLOT =
+        0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
 
     /// @dev Foundry VM interface for simulation and state management
-    Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
+    Vm private constant vm =
+        Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     /// @notice Thrown when attempting to cast a sender to an incompatible type
     error InvalidCast(string name, bytes8 senderType, bytes8 requiredType);
@@ -245,7 +251,15 @@ library Senders {
         Registry storage _registry = registry();
         _registry.transactionCounter++;
         // solhint-disable-next-line not-rely-on-time
-        return keccak256(abi.encodePacked(block.chainid, block.timestamp, msg.sender, _registry.transactionCounter));
+        return
+            keccak256(
+                abi.encodePacked(
+                    block.chainid,
+                    block.timestamp,
+                    msg.sender,
+                    _registry.transactionCounter
+                )
+            );
     }
 
     // ************* Registry Management ************* //
@@ -256,8 +270,13 @@ library Senders {
      * @param _namespace Deployment namespace
      * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _quiet) internal {
-        initialize(registry(), _configs, _namespace, _quiet);
+    function initialize(
+        SenderInitConfig[] memory _configs,
+        string memory _namespace,
+        string memory _network,
+        bool _quiet
+    ) internal {
+        initialize(registry(), _configs, _namespace, _network, _quiet);
     }
 
     /**
@@ -271,6 +290,7 @@ library Senders {
         Registry storage _registry,
         SenderInitConfig[] memory _configs,
         string memory _namespace,
+        string memory _network,
         bool _quiet
     ) internal {
         if (_registry.initialized) {
@@ -278,6 +298,7 @@ library Senders {
         }
 
         _registry.namespace = _namespace;
+        _registry.network = _network;
         _registry.initialized = true;
         _registry.quiet = _quiet;
 
@@ -285,6 +306,10 @@ library Senders {
             revert NoSenders();
         }
         _initializeSenders(_registry, _configs);
+
+        _registry.executionFork = vm.createFork(_network);
+        _registry.simulationFork = vm.createFork(_network);
+        vm.selectFork(_registry.simulationFork);
     }
 
     /**
@@ -295,16 +320,22 @@ library Senders {
      * @param _registry The registry to populate
      * @param _configs Array of sender configurations
      */
-    function _initializeSenders(Registry storage _registry, SenderInitConfig[] memory _configs) private {
+    function _initializeSenders(
+        Registry storage _registry,
+        SenderInitConfig[] memory _configs
+    ) private {
         _registry.ids = new bytes32[](_configs.length);
         unchecked {
             for (uint256 i; i < _configs.length; ++i) {
-                bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
+                bytes32 senderId = keccak256(
+                    abi.encodePacked(_configs[i].name)
+                );
                 _registry.senders[senderId].id = senderId;
                 _registry.senders[senderId].name = _configs[i].name;
                 _registry.senders[senderId].account = _configs[i].account;
                 _registry.senders[senderId].senderType = _configs[i].senderType;
-                _registry.senders[senderId].canBroadcast = _configs[i].canBroadcast;
+                _registry.senders[senderId].canBroadcast = _configs[i]
+                    .canBroadcast;
                 _registry.senders[senderId].config = _configs[i].config;
                 _registry.ids[i] = senderId;
             }
@@ -315,8 +346,6 @@ library Senders {
                 _registry.senders[_registry.ids[i]].initialize();
             }
         }
-
-        _registry.preSimulationSnapshot = vm.snapshotState();
     }
 
     /**
@@ -344,8 +373,13 @@ library Senders {
      * @return Sender storage reference
      * @dev Reverts if sender is not initialized (account == address(0))
      */
-    function get(Registry storage _registry, string memory _name) internal view returns (Sender storage) {
-        Sender storage sender = _registry.senders[keccak256(abi.encodePacked(_name))];
+    function get(
+        Registry storage _registry,
+        string memory _name
+    ) internal view returns (Sender storage) {
+        Sender storage sender = _registry.senders[
+            keccak256(abi.encodePacked(_name))
+        ];
         if (sender.account == address(0)) {
             revert SenderNotInitialized(_name);
         }
@@ -358,7 +392,10 @@ library Senders {
      * @param _id Unique sender identifier
      * @return Sender storage reference
      */
-    function get(Registry storage _registry, bytes32 _id) internal view returns (Sender storage) {
+    function get(
+        Registry storage _registry,
+        bytes32 _id
+    ) internal view returns (Sender storage) {
         return _registry.senders[_id];
     }
 
@@ -376,6 +413,8 @@ library Senders {
             _sender.hardwareWallet().initialize();
         } else if (_sender.isType(SenderTypes.GnosisSafe)) {
             _sender.gnosisSafe().initialize();
+        } else if (_sender.isType(SenderTypes.OZGovernor)) {
+            _sender.ozGovernor().initialize();
         } else if (!_sender.isType(SenderTypes.Custom)) {
             revert InvalidSenderType(_sender.name, _sender.senderType);
         }
@@ -387,7 +426,10 @@ library Senders {
      * @param _type Type name to check against (e.g., "InMemory", "HardwareWallet")
      * @return True if the sender matches the specified type
      */
-    function isType(Sender storage _sender, string memory _type) internal view returns (bool) {
+    function isType(
+        Sender storage _sender,
+        string memory _type
+    ) internal view returns (bool) {
         bytes8 typeHash = bytes8(keccak256(abi.encodePacked(_type)));
         return _sender.isType(typeHash);
     }
@@ -398,7 +440,10 @@ library Senders {
      * @param _type Type hash to check against
      * @return True if the sender matches the specified type
      */
-    function isType(Sender storage _sender, bytes8 _type) internal view returns (bool) {
+    function isType(
+        Sender storage _sender,
+        bytes8 _type
+    ) internal view returns (bool) {
         return _sender.senderType & _type == _type;
     }
 
@@ -407,7 +452,9 @@ library Senders {
      * @param _sender The sender to cast
      * @return PrivateKey.Sender storage reference
      */
-    function privateKey(Sender storage _sender) internal view returns (PrivateKey.Sender storage) {
+    function privateKey(
+        Sender storage _sender
+    ) internal view returns (PrivateKey.Sender storage) {
         return PrivateKey.cast(_sender);
     }
 
@@ -416,7 +463,9 @@ library Senders {
      * @param _sender The sender to cast
      * @return HardwareWallet.Sender storage reference
      */
-    function hardwareWallet(Sender storage _sender) internal view returns (HardwareWallet.Sender storage) {
+    function hardwareWallet(
+        Sender storage _sender
+    ) internal view returns (HardwareWallet.Sender storage) {
         return HardwareWallet.cast(_sender);
     }
 
@@ -425,7 +474,9 @@ library Senders {
      * @param _sender The sender to cast
      * @return GnosisSafe.Sender storage reference
      */
-    function gnosisSafe(Sender storage _sender) internal view returns (GnosisSafe.Sender storage) {
+    function gnosisSafe(
+        Sender storage _sender
+    ) internal view returns (GnosisSafe.Sender storage) {
         return GnosisSafe.cast(_sender);
     }
 
@@ -434,8 +485,21 @@ library Senders {
      * @param _sender The sender to cast
      * @return InMemory.Sender storage reference
      */
-    function inMemory(Sender storage _sender) internal view returns (InMemory.Sender storage) {
+    function inMemory(
+        Sender storage _sender
+    ) internal view returns (InMemory.Sender storage) {
         return InMemory.cast(_sender);
+    }
+
+    /**
+     * @notice Casts a sender to an OZGovernor sender type
+     * @param _sender The sender to cast
+     * @return OZGovernor.Sender storage reference
+     */
+    function ozGovernor(
+        Sender storage _sender
+    ) internal view returns (OZGovernor.Sender storage) {
+        return OZGovernor.cast(_sender);
     }
 
     /**
@@ -445,7 +509,10 @@ library Senders {
      * @param _target The target contract address
      * @return Address of the harness proxy contract
      */
-    function harness(Sender storage _sender, address _target) internal returns (address) {
+    function harness(
+        Sender storage _sender,
+        address _target
+    ) internal returns (address) {
         Registry storage reg = registry();
         address _harness = reg.senderHarness[_sender.id][_target];
         if (_harness == address(0)) {
@@ -464,14 +531,15 @@ library Senders {
      * @param _transactions Array of transactions to execute
      * @return simulatedTransactions Array of simulated transactions with results and queue tracking
      */
-    function execute(Sender storage _sender, Transaction[] memory _transactions)
-        internal
-        returns (SimulatedTransaction[] memory simulatedTransactions)
-    {
+    function execute(
+        Sender storage _sender,
+        Transaction[] memory _transactions
+    ) internal returns (SimulatedTransaction[] memory simulatedTransactions) {
         if (!_sender.canBroadcast) revert CannotBroadcast(_sender.name);
         if (_transactions.length == 0) revert EmptyTransactionArray();
         for (uint256 i = 0; i < _transactions.length; i++) {
-            if (_transactions[i].to == address(0)) revert InvalidTargetAddress(i);
+            if (_transactions[i].to == address(0))
+                revert InvalidTargetAddress(i);
         }
         return _sender.simulate(_transactions);
     }
@@ -483,13 +551,15 @@ library Senders {
      * @param _transaction Transaction to execute
      * @return simulatedTransaction Simulated transaction with results
      */
-    function execute(Sender storage _sender, Transaction memory _transaction)
-        internal
-        returns (SimulatedTransaction memory simulatedTransaction)
-    {
+    function execute(
+        Sender storage _sender,
+        Transaction memory _transaction
+    ) internal returns (SimulatedTransaction memory simulatedTransaction) {
         Transaction[] memory transactions = new Transaction[](1);
         transactions[0] = _transaction;
-        SimulatedTransaction[] memory simulatedTransactions = _sender.execute(transactions);
+        SimulatedTransaction[] memory simulatedTransactions = _sender.execute(
+            transactions
+        );
         return simulatedTransactions[0];
     }
 
@@ -505,20 +575,23 @@ library Senders {
      * @param _transactions Array of transactions to simulate
      * @return simulatedTransactions Array of simulated transactions with results
      */
-    function simulate(Sender storage _sender, Transaction[] memory _transactions)
-        internal
-        returns (SimulatedTransaction[] memory simulatedTransactions)
-    {
+    function simulate(
+        Sender storage _sender,
+        Transaction[] memory _transactions
+    ) internal returns (SimulatedTransaction[] memory simulatedTransactions) {
         Registry storage _registry = registry();
-        simulatedTransactions = new SimulatedTransaction[](_transactions.length);
+        simulatedTransactions = new SimulatedTransaction[](
+            _transactions.length
+        );
 
         for (uint256 i = 0; i < _transactions.length; i++) {
             // Generate unique transaction ID
             bytes32 transactionId = generateTransactionId();
 
             vm.prank(_sender.account);
-            (bool success, bytes memory returnData) =
-                _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
+            (bool success, bytes memory returnData) = _transactions[i].to.call{
+                value: _transactions[i].value
+            }(_transactions[i].data);
 
             if (!success) {
                 // Bubble up the revert reason from the failed call
@@ -592,18 +665,22 @@ library Senders {
      * @param _registry The sender registry containing all queued transactions
      * @return customQueue Array of custom sender transactions requiring external processing
      */
-    function broadcast(Registry storage _registry) internal returns (SimulatedTransaction[] memory customQueue) {
+    function broadcast(
+        Registry storage _registry
+    ) internal returns (SimulatedTransaction[] memory customQueue) {
         if (_registry.broadcasted) {
             revert BroadcastAlreadyCalled();
         }
 
-        uint256 postSimulationSnapshot = vm.snapshotState();
+        // uint256 postSimulationSnapshot = vm.snapshotState();
 
         customQueue = new SimulatedTransaction[](_registry._globalQueue.length);
         SimulatedTransaction[] memory txs = _registry._globalQueue;
         bytes32[] memory senderIds = _registry.ids;
 
-        vm.revertToState(_registry.preSimulationSnapshot);
+        vm.selectFork(_registry.executionFork);
+        // vm.revertToState(_registry.preSimulationSnapshot);
+
         uint256 actualCustomQueueLength = 0;
 
         // Process each transaction in global queue order
@@ -617,6 +694,9 @@ library Senders {
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
                 sender.gnosisSafe().queue(simulatedTx);
+            } else if (sender.isType(SenderTypes.OZGovernor)) {
+                // Async execution - accumulate for proposal
+                sender.ozGovernor().queue(simulatedTx);
             } else if (sender.isType(SenderTypes.Custom)) {
                 customQueue[actualCustomQueueLength] = simulatedTx;
                 actualCustomQueueLength++;
@@ -632,11 +712,14 @@ library Senders {
             Sender storage sender = _registry.senders[senderIds[i]];
             if (sender.isType(SenderTypes.GnosisSafe)) {
                 sender.gnosisSafe().broadcast();
+            } else if (sender.isType(SenderTypes.OZGovernor)) {
+                sender.ozGovernor().broadcast();
             }
         }
 
-        vm.revertToState(postSimulationSnapshot);
         _registry.broadcasted = true;
+
+        vm.selectFork(_registry.simulationFork);
         return customQueue;
     }
 }

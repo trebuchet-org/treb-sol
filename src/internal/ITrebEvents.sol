@@ -75,4 +75,15 @@ interface ITrebEvents {
      *      and the deployment is skipped to avoid reverting the entire transaction batch
      */
     event DeploymentCollision(address indexed existingContract, DeploymentDetails deploymentDetails);
+
+    /**
+     * @notice Emitted when a governance proposal is created via OZGovernor sender
+     * @param proposalId The ID of the created proposal (returned by Governor.propose)
+     * @param governor Address of the Governor contract
+     * @param proposer Address of the account that created the proposal
+     * @param transactionIds Array of transaction IDs included in the proposal
+     */
+    event GovernorProposalCreated(
+        uint256 indexed proposalId, address indexed governor, address indexed proposer, bytes32[] transactionIds
+    );
 }
