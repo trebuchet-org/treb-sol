@@ -12,7 +12,7 @@ import {SimulatedTransaction} from "./types.sol";
  *      All internal contracts that emit events should reference this interface rather than
  *      defining events inline. This enables better tooling integration and ABI generation.
  */
-interface ITrebEvents {
+library ITrebEvents {
     /**
      * @notice Event data structure for deployment tracking
      * @dev Emitted in ContractDeployed event for comprehensive deployment auditing
