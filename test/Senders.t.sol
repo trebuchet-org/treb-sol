@@ -10,7 +10,7 @@ import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
 contract SendersRegistryTestHarness {
     function initialize(Senders.SenderInitConfig[] memory _configs) public {
-        Senders.initialize(_configs, "default", false);
+        Senders.initialize(_configs, "default", "sepolia", false);
     }
 }
 
@@ -28,7 +28,8 @@ contract SendersTest is Test {
     }
 
     function test_initialize() public {
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
+        Senders.SenderInitConfig[]
+            memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: "sender1",
             account: address(0x1234),
@@ -48,7 +49,8 @@ contract SendersTest is Test {
     }
 
     function test_RevertWhen_getPrivateKeyWithInvalidSenderType() public {
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
+        Senders.SenderInitConfig[]
+            memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: "sender1",
             account: address(0x1234),
@@ -59,13 +61,19 @@ contract SendersTest is Test {
         initialize(configs);
 
         vm.expectRevert(
-            abi.encodeWithSelector(Senders.InvalidCast.selector, "sender1", SenderTypes.Ledger, SenderTypes.InMemory)
+            abi.encodeWithSelector(
+                Senders.InvalidCast.selector,
+                "sender1",
+                SenderTypes.Ledger,
+                SenderTypes.InMemory
+            )
         );
         harness.getInMemory("sender1");
     }
 
     function test_RevertWhen_executeWithoutBroadcastCapability() public {
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
+        Senders.SenderInitConfig[]
+            memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: "ledgerSender",
             account: address(0x1234),
@@ -76,7 +84,15 @@ contract SendersTest is Test {
         initialize(configs);
 
         // Try to execute a transaction with a sender that cannot broadcast
-        vm.expectRevert(abi.encodeWithSelector(Senders.CannotBroadcast.selector, "ledgerSender"));
-        harness.execute(string("ledgerSender"), Transaction({to: address(0x1234), value: 0, data: ""}));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Senders.CannotBroadcast.selector,
+                "ledgerSender"
+            )
+        );
+        harness.execute(
+            string("ledgerSender"),
+            Transaction({to: address(0x1234), value: 0, data: ""})
+        );
     }
 }
