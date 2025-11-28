@@ -7,6 +7,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "../../src/internal/sender/Senders.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "../../src/internal/sender/PrivateKeySender.sol";
 import {GnosisSafe} from "../../src/internal/sender/GnosisSafeSender.sol";
+import {MentoGovernance} from "../../src/internal/sender/MentoGovernanceSender.sol";
 import {Transaction, SimulatedTransaction, SenderTypes} from "../../src/internal/types.sol";
 import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
@@ -92,6 +93,10 @@ contract SendersTestHarness is SenderCoordinator {
 
     function getInMemory(string memory _name) public view returns (InMemory.Sender memory) {
         return Senders.get(_name).inMemory();
+    }
+
+    function getMentoGovernance(string memory _name) public view returns (MentoGovernance.Sender memory) {
+        return Senders.get(_name).mentoGovernance();
     }
 
     function isType(string memory _name, bytes8 _senderType) public view returns (bool) {

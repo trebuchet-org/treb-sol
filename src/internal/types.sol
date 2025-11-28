@@ -24,4 +24,5 @@ library SenderTypes {
     bytes8 internal constant HardwareWallet = bytes8(keccak256("hardware-wallet")) | PrivateKey;
     bytes8 internal constant Ledger = bytes8(keccak256("ledger")) | HardwareWallet;
     bytes8 internal constant Trezor = bytes8(keccak256("trezor")) | HardwareWallet;
+    bytes8 internal constant MentoGovernance = Multisig | bytes8(keccak256("mento-governance"));
 }

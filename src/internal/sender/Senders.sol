@@ -110,6 +110,7 @@ pragma solidity ^0.8.0;
 import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
+import {MentoGovernance} from "./MentoGovernanceSender.sol";
 import {Harness} from "../Harness.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
@@ -122,6 +123,7 @@ library Senders {
     using HardwareWallet for HardwareWallet.Sender;
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
+    using MentoGovernance for MentoGovernance.Sender;
 
     /**
      * @notice Configuration structure for initializing a sender
@@ -376,6 +378,8 @@ library Senders {
             _sender.hardwareWallet().initialize();
         } else if (_sender.isType(SenderTypes.GnosisSafe)) {
             _sender.gnosisSafe().initialize();
+        } else if (_sender.isType(SenderTypes.MentoGovernance)) {
+            _sender.mentoGovernance().initialize();
         } else if (!_sender.isType(SenderTypes.Custom)) {
             revert InvalidSenderType(_sender.name, _sender.senderType);
         }
@@ -436,6 +440,15 @@ library Senders {
      */
     function inMemory(Sender storage _sender) internal view returns (InMemory.Sender storage) {
         return InMemory.cast(_sender);
+    }
+
+    /**
+     * @notice Casts a sender to a MentoGovernance sender type
+     * @param _sender The sender to cast
+     * @return MentoGovernance.Sender storage reference
+     */
+    function mentoGovernance(Sender storage _sender) internal view returns (MentoGovernance.Sender storage) {
+        return MentoGovernance.cast(_sender);
     }
 
     /**
@@ -617,6 +630,9 @@ library Senders {
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
                 sender.gnosisSafe().queue(simulatedTx);
+            } else if (sender.isType(SenderTypes.MentoGovernance)) {
+                // Async execution - accumulate for governance proposal
+                sender.mentoGovernance().queue(simulatedTx);
             } else if (sender.isType(SenderTypes.Custom)) {
                 customQueue[actualCustomQueueLength] = simulatedTx;
                 actualCustomQueueLength++;
@@ -632,6 +648,8 @@ library Senders {
             Sender storage sender = _registry.senders[senderIds[i]];
             if (sender.isType(SenderTypes.GnosisSafe)) {
                 sender.gnosisSafe().broadcast();
+            } else if (sender.isType(SenderTypes.MentoGovernance)) {
+                sender.mentoGovernance().broadcast();
             }
         }
 

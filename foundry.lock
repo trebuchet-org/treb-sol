@@ -1,0 +1,17 @@
+{
+  "lib/createx-forge": {
+    "rev": "1d5ed80fabe164421228d7ce0fd5c7f3e3010300"
+  },
+  "lib/forge-std": {
+    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+  },
+  "lib/safe-smart-account": {
+    "tag": {
+      "name": "v1.5.0",
+      "rev": "dc437e8fba8b4805d76bcbd1c668c9fd3d1e83be"
+    }
+  },
+  "lib/safe-utils": {
+    "rev": "c78eddc258ce1387d6562b52ccaa517b91c1a845"
+  }
+}

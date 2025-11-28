@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import {Script} from "forge-std/Script.sol";
 import {Senders} from "./sender/Senders.sol";
 import {Transaction, SimulatedTransaction} from "./types.sol";
-import {ITrebEvents} from "./ITrebEvents.sol";
 
 /**
  * @title SenderCoordinator
@@ -35,7 +34,7 @@ import {ITrebEvents} from "./ITrebEvents.sol";
  * }
  * ```
  */
-contract SenderCoordinator is Script, ITrebEvents {
+contract SenderCoordinator is Script {
     using Senders for Senders.Registry;
     using Senders for Senders.Sender;
 
