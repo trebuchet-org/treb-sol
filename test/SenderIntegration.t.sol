@@ -50,7 +50,7 @@ contract SenderIntegrationTest is Test {
     string constant SAFE_THRESHOLD_MULTI = "safe-threshold-multi";
     bytes32 constant salt = keccak256(abi.encode("salt"));
 
-    function forkSetup() internal {
+    function setUp() public {
         target = new MockTarget{salt: salt}();
 
         // Deploy Safe contracts
@@ -109,14 +109,10 @@ contract SenderIntegrationTest is Test {
                 )
             )
         );
-    }
 
-    function setUp() public {
         // Initialize all senders that will be used across tests
         Senders.SenderInitConfig[]
             memory configs = new Senders.SenderInitConfig[](10);
-
-        forkSetup();
 
         // Test sender (InMemory)
         configs[0] = Senders.SenderInitConfig({

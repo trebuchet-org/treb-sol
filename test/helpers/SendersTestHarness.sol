@@ -305,11 +305,11 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.registry().namespace;
     }
 
-    function getExecutionFork() public returns (uint256) {
+    function getExecutionFork() public view returns (uint256) {
         return Senders.registry().executionFork;
     }
 
-    function getSimulationFork() public returns (uint256) {
+    function getSimulationFork() public view returns (uint256) {
         return Senders.registry().simulationFork;
     }
 

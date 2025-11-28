@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.24;
 
 import {Test, Vm} from "forge-std/Test.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
@@ -7,89 +7,11 @@ import {OZGovernor} from "../src/internal/sender/OZGovernorSender.sol";
 import {SenderTypes, Transaction, SimulatedTransaction} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 import {ITrebEvents} from "../src/internal/ITrebEvents.sol";
+import {TestVotesToken, TestGovernorDirect, TestGovernorTimelock} from "./helpers/OZGovernor.sol";
+import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import {IVotes} from "lib/openzeppelin-contracts/contracts/governance/utils/IVotes.sol";
+import {IGovernor} from "lib/openzeppelin-contracts/contracts/governance/IGovernor.sol";
 
-/**
- * @title MockGovernor
- * @notice Mock OpenZeppelin Governor for testing proposal creation
- * @dev Mimics the OZ Governor interface with proposal tracking
- */
-contract MockGovernor {
-    uint256 public proposalCount;
-    uint256 public lastProposalId;
-
-    // Track last proposal details for verification
-    address[] public lastTargets;
-    uint256[] public lastValues;
-    bytes[] public lastCalldatas;
-    string public lastDescription;
-
-    function propose(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        string memory description
-    ) external returns (uint256 proposalId) {
-        proposalCount++;
-        proposalId = uint256(
-            keccak256(
-                abi.encode(
-                    targets,
-                    values,
-                    calldatas,
-                    keccak256(bytes(description))
-                )
-            )
-        );
-        lastProposalId = proposalId;
-
-        // Store for verification
-        delete lastTargets;
-        delete lastValues;
-        delete lastCalldatas;
-        for (uint256 i = 0; i < targets.length; i++) {
-            lastTargets.push(targets[i]);
-            lastValues.push(values[i]);
-            lastCalldatas.push(calldatas[i]);
-        }
-        lastDescription = description;
-
-        return proposalId;
-    }
-
-    function getLastTargetsLength() external view returns (uint256) {
-        return lastTargets.length;
-    }
-
-    function getLastTarget(uint256 index) external view returns (address) {
-        return lastTargets[index];
-    }
-
-    function getLastValue(uint256 index) external view returns (uint256) {
-        return lastValues[index];
-    }
-
-    function getLastCalldata(
-        uint256 index
-    ) external view returns (bytes memory) {
-        return lastCalldatas[index];
-    }
-}
-
-/**
- * @title MockTimelockController
- * @notice Mock TimelockController that tracks execution calls
- * @dev In real OZ setups, the timelock is the executor and the Governor queues to it
- */
-contract MockTimelockController {
-    address public admin;
-
-    constructor() {
-        admin = msg.sender;
-    }
-
-    // The timelock just needs to exist - in real scenarios it would execute proposals
-    receive() external payable {}
-}
 
 /**
  * @title MockTarget
@@ -132,8 +54,10 @@ contract MockSenderTracker {
 }
 
 contract OZGovernorSenderTest is Test {
-    MockGovernor governor;
-    MockTimelockController timelock;
+    TestVotesToken votesToken;
+    TestGovernorDirect governor;
+    TestGovernorTimelock governorWithTimelock;
+    TimelockController timelock;
     MockTarget target;
     SendersTestHarness harness;
 
@@ -146,9 +70,38 @@ contract OZGovernorSenderTest is Test {
     uint256 constant PROPOSER_PK = 0x54321;
 
     function setUp() public {
-        // Deploy mock contracts
-        governor = new MockGovernor();
-        timelock = new MockTimelockController();
+        // Deploy voting token and set up voting power
+        votesToken = new TestVotesToken();
+        address proposerAddr = vm.addr(PROPOSER_PK);
+        votesToken.mint(proposerAddr, 1_000_000 ether);
+
+        // Proposer must delegate to self to activate voting power
+        vm.prank(proposerAddr);
+        votesToken.delegate(proposerAddr);
+
+        // Advance block for checkpoint
+        vm.roll(block.number + 1);
+
+        // Deploy direct governor (no timelock)
+        governor = new TestGovernorDirect(IVotes(address(votesToken)));
+
+        // Deploy timelock with open executor role
+        address[] memory proposers = new address[](1);
+        proposers[0] = address(0); // Placeholder, will grant to governor later
+        address[] memory executors = new address[](1);
+        executors[0] = address(0); // Open executor role (anyone can execute)
+        timelock = new TimelockController(0, proposers, executors, address(this));
+
+        // Deploy governor with timelock
+        governorWithTimelock = new TestGovernorTimelock(
+            IVotes(address(votesToken)),
+            timelock
+        );
+
+        // Grant proposer role to governor with timelock
+        timelock.grantRole(timelock.PROPOSER_ROLE(), address(governorWithTimelock));
+
+        // Deploy target contract
         target = new MockTarget();
 
         // Initialize senders
@@ -158,7 +111,7 @@ contract OZGovernorSenderTest is Test {
         // Proposer (InMemory) - required for OZGovernor
         configs[0] = Senders.SenderInitConfig({
             name: PROPOSER,
-            account: vm.addr(PROPOSER_PK),
+            account: proposerAddr,
             senderType: SenderTypes.InMemory,
             canBroadcast: true,
             config: abi.encode(PROPOSER_PK)
@@ -179,18 +132,18 @@ contract OZGovernorSenderTest is Test {
             account: address(timelock), // Initial value, will be overridden
             senderType: SenderTypes.OZGovernor,
             canBroadcast: true,
-            config: abi.encode(address(governor), address(timelock), PROPOSER)
+            config: abi.encode(address(governorWithTimelock), address(timelock), PROPOSER)
         });
 
         // Deal ether to proposer
         harness = new SendersTestHarness(configs);
 
-        vm.deal(vm.addr(PROPOSER_PK), 10 ether);
+        vm.deal(proposerAddr, 10 ether);
         vm.deal(address(governor), 10 ether);
         vm.deal(address(timelock), 10 ether);
 
         vm.selectFork(harness.getExecutionFork());
-        vm.deal(vm.addr(PROPOSER_PK), 10 ether);
+        vm.deal(proposerAddr, 10 ether);
         vm.deal(address(governor), 10 ether);
         vm.deal(address(timelock), 10 ether);
 
@@ -224,7 +177,7 @@ contract OZGovernorSenderTest is Test {
 
         assertEq(
             sender.governor,
-            address(governor),
+            address(governorWithTimelock),
             "Governor address mismatch"
         );
         assertEq(
@@ -695,10 +648,13 @@ contract OZGovernorSenderTest is Test {
  * @dev Tests real-world scenarios with both timelock and non-timelock configurations
  */
 contract OZGovernorIntegrationTest is Test {
+    // Voting token for governance
+    TestVotesToken votesToken;
+
     // Two separate governors for testing different configurations
-    MockGovernor governorDirect; // Direct execution (no timelock)
-    MockGovernor governorWithTimelock; // Execution through timelock
-    MockTimelockController timelockController;
+    TestGovernorDirect governorDirect; // Direct execution (no timelock)
+    TestGovernorTimelock governorWithTimelock; // Execution through timelock
+    TimelockController timelockController;
 
     // Target contracts
     MockTarget treasury;
@@ -720,10 +676,43 @@ contract OZGovernorIntegrationTest is Test {
     uint256 constant PROPOSER_TIMELOCK_PK = 0x3;
 
     function setUp() public {
-        // Deploy governance infrastructure
-        governorDirect = new MockGovernor();
-        governorWithTimelock = new MockGovernor();
-        timelockController = new MockTimelockController();
+        // Deploy voting token
+        votesToken = new TestVotesToken();
+
+        // Mint and delegate for both proposers
+        address proposerDirectAddr = vm.addr(PROPOSER_DIRECT_PK);
+        address proposerTimelockAddr = vm.addr(PROPOSER_TIMELOCK_PK);
+
+        votesToken.mint(proposerDirectAddr, 1_000_000 ether);
+        votesToken.mint(proposerTimelockAddr, 1_000_000 ether);
+
+        vm.prank(proposerDirectAddr);
+        votesToken.delegate(proposerDirectAddr);
+
+        vm.prank(proposerTimelockAddr);
+        votesToken.delegate(proposerTimelockAddr);
+
+        // Advance block for checkpoint
+        vm.roll(block.number + 1);
+
+        // Deploy direct governor (no timelock)
+        governorDirect = new TestGovernorDirect(IVotes(address(votesToken)));
+
+        // Deploy timelock with open executor role
+        address[] memory proposers = new address[](1);
+        proposers[0] = address(0); // Placeholder
+        address[] memory executors = new address[](1);
+        executors[0] = address(0); // Open executor role
+        timelockController = new TimelockController(0, proposers, executors, address(this));
+
+        // Deploy governor with timelock
+        governorWithTimelock = new TestGovernorTimelock(
+            IVotes(address(votesToken)),
+            timelockController
+        );
+
+        // Grant proposer role to governor with timelock
+        timelockController.grantRole(timelockController.PROPOSER_ROLE(), address(governorWithTimelock));
 
         // Deploy target contracts
         treasury = new MockTarget();
@@ -746,7 +735,7 @@ contract OZGovernorIntegrationTest is Test {
         // Proposer for direct governor
         configs[1] = Senders.SenderInitConfig({
             name: PROPOSER_DIRECT,
-            account: vm.addr(PROPOSER_DIRECT_PK),
+            account: proposerDirectAddr,
             senderType: SenderTypes.InMemory,
             canBroadcast: true,
             config: abi.encode(PROPOSER_DIRECT_PK)
@@ -755,7 +744,7 @@ contract OZGovernorIntegrationTest is Test {
         // Proposer for timelock governor
         configs[2] = Senders.SenderInitConfig({
             name: PROPOSER_TIMELOCK,
-            account: vm.addr(PROPOSER_TIMELOCK_PK),
+            account: proposerTimelockAddr,
             senderType: SenderTypes.InMemory,
             canBroadcast: true,
             config: abi.encode(PROPOSER_TIMELOCK_PK)
@@ -789,8 +778,8 @@ contract OZGovernorIntegrationTest is Test {
 
         // Fund proposers
         vm.deal(vm.addr(DEPLOYER_PK), 100 ether);
-        vm.deal(vm.addr(PROPOSER_DIRECT_PK), 100 ether);
-        vm.deal(vm.addr(PROPOSER_TIMELOCK_PK), 100 ether);
+        vm.deal(proposerDirectAddr, 100 ether);
+        vm.deal(proposerTimelockAddr, 100 ether);
 
         harness = new SendersTestHarness(configs);
     }
@@ -829,13 +818,19 @@ contract OZGovernorIntegrationTest is Test {
 
         // Verify GovernorProposalCreated event was emitted
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundProposalEvent = false;
+        bool foundTrebEvent = false;
+        bool foundOZEvent = false;
+        bytes32 ozProposalCreatedSelector = keccak256(
+            "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"
+        );
+
         for (uint256 i = 0; i < logs.length; i++) {
+            // Check for Treb event
             if (
                 logs[i].topics[0] ==
                 ITrebEvents.GovernorProposalCreated.selector
             ) {
-                foundProposalEvent = true;
+                foundTrebEvent = true;
                 assertEq(
                     logs[i].topics[2],
                     bytes32(uint256(uint160(address(governorDirect)))),
@@ -848,13 +843,55 @@ contract OZGovernorIntegrationTest is Test {
                     simTx.transactionId,
                     "Transaction ID mismatch"
                 );
-                break;
+            }
+
+            // Check for OZ ProposalCreated event
+            if (logs[i].topics[0] == ozProposalCreatedSelector) {
+                foundOZEvent = true;
+                (
+                    uint256 proposalId,
+                    address proposer,
+                    address[] memory targets,
+                    uint256[] memory values,
+                    , // signatures (always empty)
+                    bytes[] memory calldatas,
+                    , // voteStart
+                    , // voteEnd
+                    // description
+                ) = abi.decode(
+                    logs[i].data,
+                    (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+                );
+
+                // Assert tx count
+                assertEq(targets.length, 1, "OZ: Wrong number of targets");
+                assertEq(values.length, 1, "OZ: Wrong number of values");
+                assertEq(calldatas.length, 1, "OZ: Wrong number of calldatas");
+
+                // Assert tx data matches
+                assertEq(targets[0], address(treasury), "OZ: Target mismatch");
+                assertEq(values[0], 0, "OZ: Value mismatch");
+                assertEq(
+                    calldatas[0],
+                    abi.encodeWithSelector(MockTarget.setValue.selector, 1000),
+                    "OZ: Calldata mismatch"
+                );
+
+                // Verify proposal exists via state() - must switch to execution fork
+                vm.selectFork(harness.getExecutionFork());
+                IGovernor.ProposalState state = governorDirect.state(proposalId);
+                assertTrue(
+                    state == IGovernor.ProposalState.Pending || state == IGovernor.ProposalState.Active,
+                    "OZ: Proposal should exist"
+                );
+                vm.selectFork(harness.getSimulationFork());
+
+                // Verify proposer matches
+                assertEq(proposer, vm.addr(PROPOSER_DIRECT_PK), "OZ: Proposer mismatch");
             }
         }
-        assertTrue(
-            foundProposalEvent,
-            "GovernorProposalCreated event not found"
-        );
+        assertTrue(foundTrebEvent, "Treb GovernorProposalCreated event not found");
+        assertTrue(foundOZEvent, "OZ ProposalCreated event not found");
     }
 
     function test_Integration_DirectGovernor_MultipleActions() public {
@@ -902,13 +939,19 @@ contract OZGovernorIntegrationTest is Test {
 
         // Verify GovernorProposalCreated event with all 3 actions
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundProposalEvent = false;
+        bool foundTrebEvent = false;
+        bool foundOZEvent = false;
+        bytes32 ozProposalCreatedSelector = keccak256(
+            "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"
+        );
+
         for (uint256 i = 0; i < logs.length; i++) {
+            // Check for Treb event
             if (
                 logs[i].topics[0] ==
                 ITrebEvents.GovernorProposalCreated.selector
             ) {
-                foundProposalEvent = true;
+                foundTrebEvent = true;
                 bytes32[] memory txIds = abi.decode(logs[i].data, (bytes32[]));
                 assertEq(txIds.length, 3, "Should have 3 transactions");
                 assertEq(
@@ -926,13 +969,69 @@ contract OZGovernorIntegrationTest is Test {
                     simTxs[2].transactionId,
                     "Transaction 2 ID mismatch"
                 );
-                break;
+            }
+
+            // Check for OZ ProposalCreated event
+            if (logs[i].topics[0] == ozProposalCreatedSelector) {
+                foundOZEvent = true;
+                (
+                    uint256 proposalId,
+                    address proposer,
+                    address[] memory targets,
+                    uint256[] memory values,
+                    , // signatures (always empty)
+                    bytes[] memory calldatas,
+                    , // voteStart
+                    , // voteEnd
+                    // description
+                ) = abi.decode(
+                    logs[i].data,
+                    (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+                );
+
+                // Assert tx count
+                assertEq(targets.length, 3, "OZ: Wrong number of targets");
+                assertEq(values.length, 3, "OZ: Wrong number of values");
+                assertEq(calldatas.length, 3, "OZ: Wrong number of calldatas");
+
+                // Assert all targets
+                assertEq(targets[0], address(treasury), "OZ: Target 0 mismatch");
+                assertEq(targets[1], address(registry), "OZ: Target 1 mismatch");
+                assertEq(targets[2], address(upgradeableContract), "OZ: Target 2 mismatch");
+
+                // Assert all values
+                assertEq(values[0], 0, "OZ: Value 0 mismatch");
+                assertEq(values[1], 0, "OZ: Value 1 mismatch");
+                assertEq(values[2], 5 ether, "OZ: Value 2 mismatch");
+
+                // Assert all calldatas
+                assertEq(
+                    calldatas[0],
+                    abi.encodeWithSelector(MockTarget.setValue.selector, 100),
+                    "OZ: Calldata 0 mismatch"
+                );
+                assertEq(
+                    calldatas[1],
+                    abi.encodeWithSelector(MockTarget.setValue.selector, 200),
+                    "OZ: Calldata 1 mismatch"
+                );
+                assertEq(calldatas[2], "", "OZ: Calldata 2 mismatch");
+
+                // Verify proposal exists via state() - must switch to execution fork
+                vm.selectFork(harness.getExecutionFork());
+                IGovernor.ProposalState state = governorDirect.state(proposalId);
+                assertTrue(
+                    state == IGovernor.ProposalState.Pending || state == IGovernor.ProposalState.Active,
+                    "OZ: Proposal should exist"
+                );
+                vm.selectFork(harness.getSimulationFork());
+
+                // Verify proposer matches
+                assertEq(proposer, vm.addr(PROPOSER_DIRECT_PK), "OZ: Proposer mismatch");
             }
         }
-        assertTrue(
-            foundProposalEvent,
-            "GovernorProposalCreated event not found"
-        );
+        assertTrue(foundTrebEvent, "Treb GovernorProposalCreated event not found");
+        assertTrue(foundOZEvent, "OZ ProposalCreated event not found");
     }
 
     // ============ Timelock Governor Integration Tests ============
@@ -964,13 +1063,19 @@ contract OZGovernorIntegrationTest is Test {
 
         // Verify GovernorProposalCreated event - proposal is on governorWithTimelock
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundProposalEvent = false;
+        bool foundTrebEvent = false;
+        bool foundOZEvent = false;
+        bytes32 ozProposalCreatedSelector = keccak256(
+            "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"
+        );
+
         for (uint256 i = 0; i < logs.length; i++) {
+            // Check for Treb event
             if (
                 logs[i].topics[0] ==
                 ITrebEvents.GovernorProposalCreated.selector
             ) {
-                foundProposalEvent = true;
+                foundTrebEvent = true;
                 assertEq(
                     logs[i].topics[2],
                     bytes32(uint256(uint160(address(governorWithTimelock)))),
@@ -983,13 +1088,55 @@ contract OZGovernorIntegrationTest is Test {
                     simTx.transactionId,
                     "Transaction ID mismatch"
                 );
-                break;
+            }
+
+            // Check for OZ ProposalCreated event
+            if (logs[i].topics[0] == ozProposalCreatedSelector) {
+                foundOZEvent = true;
+                (
+                    uint256 proposalId,
+                    address proposer,
+                    address[] memory targets,
+                    uint256[] memory values,
+                    , // signatures (always empty)
+                    bytes[] memory calldatas,
+                    , // voteStart
+                    , // voteEnd
+                    // description
+                ) = abi.decode(
+                    logs[i].data,
+                    (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+                );
+
+                // Assert tx count
+                assertEq(targets.length, 1, "OZ: Wrong number of targets");
+                assertEq(values.length, 1, "OZ: Wrong number of values");
+                assertEq(calldatas.length, 1, "OZ: Wrong number of calldatas");
+
+                // Assert tx data matches
+                assertEq(targets[0], address(treasury), "OZ: Target mismatch");
+                assertEq(values[0], 0, "OZ: Value mismatch");
+                assertEq(
+                    calldatas[0],
+                    abi.encodeWithSelector(MockTarget.setValue.selector, 9999),
+                    "OZ: Calldata mismatch"
+                );
+
+                // Verify proposal exists via state() - must switch to execution fork
+                vm.selectFork(harness.getExecutionFork());
+                IGovernor.ProposalState state = governorWithTimelock.state(proposalId);
+                assertTrue(
+                    state == IGovernor.ProposalState.Pending || state == IGovernor.ProposalState.Active,
+                    "OZ: Proposal should exist"
+                );
+                vm.selectFork(harness.getSimulationFork());
+
+                // Verify proposer matches
+                assertEq(proposer, vm.addr(PROPOSER_TIMELOCK_PK), "OZ: Proposer mismatch");
             }
         }
-        assertTrue(
-            foundProposalEvent,
-            "GovernorProposalCreated event not found"
-        );
+        assertTrue(foundTrebEvent, "Treb GovernorProposalCreated event not found");
+        assertTrue(foundOZEvent, "OZ ProposalCreated event not found");
     }
 
     function test_Integration_TimelockGovernor_MultipleActions() public {
@@ -1027,13 +1174,19 @@ contract OZGovernorIntegrationTest is Test {
 
         // Verify GovernorProposalCreated event with 2 actions
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundProposalEvent = false;
+        bool foundTrebEvent = false;
+        bool foundOZEvent = false;
+        bytes32 ozProposalCreatedSelector = keccak256(
+            "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"
+        );
+
         for (uint256 i = 0; i < logs.length; i++) {
+            // Check for Treb event
             if (
                 logs[i].topics[0] ==
                 ITrebEvents.GovernorProposalCreated.selector
             ) {
-                foundProposalEvent = true;
+                foundTrebEvent = true;
                 bytes32[] memory txIds = abi.decode(logs[i].data, (bytes32[]));
                 assertEq(txIds.length, 2, "Should have 2 transactions");
                 assertEq(
@@ -1046,13 +1199,66 @@ contract OZGovernorIntegrationTest is Test {
                     simTxs[1].transactionId,
                     "Transaction 1 ID mismatch"
                 );
-                break;
+            }
+
+            // Check for OZ ProposalCreated event
+            if (logs[i].topics[0] == ozProposalCreatedSelector) {
+                foundOZEvent = true;
+                (
+                    uint256 proposalId,
+                    address proposer,
+                    address[] memory targets,
+                    uint256[] memory values,
+                    , // signatures (always empty)
+                    bytes[] memory calldatas,
+                    , // voteStart
+                    , // voteEnd
+                    // description
+                ) = abi.decode(
+                    logs[i].data,
+                    (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+                );
+
+                // Assert tx count
+                assertEq(targets.length, 2, "OZ: Wrong number of targets");
+                assertEq(values.length, 2, "OZ: Wrong number of values");
+                assertEq(calldatas.length, 2, "OZ: Wrong number of calldatas");
+
+                // Assert all targets
+                assertEq(targets[0], address(treasury), "OZ: Target 0 mismatch");
+                assertEq(targets[1], address(registry), "OZ: Target 1 mismatch");
+
+                // Assert all values
+                assertEq(values[0], 0, "OZ: Value 0 mismatch");
+                assertEq(values[1], 0, "OZ: Value 1 mismatch");
+
+                // Assert all calldatas
+                assertEq(
+                    calldatas[0],
+                    abi.encodeWithSelector(MockTarget.setValue.selector, 500),
+                    "OZ: Calldata 0 mismatch"
+                );
+                assertEq(
+                    calldatas[1],
+                    abi.encodeWithSelector(MockTarget.setValue.selector, 600),
+                    "OZ: Calldata 1 mismatch"
+                );
+
+                // Verify proposal exists via state() - must switch to execution fork
+                vm.selectFork(harness.getExecutionFork());
+                IGovernor.ProposalState state = governorWithTimelock.state(proposalId);
+                assertTrue(
+                    state == IGovernor.ProposalState.Pending || state == IGovernor.ProposalState.Active,
+                    "OZ: Proposal should exist"
+                );
+                vm.selectFork(harness.getSimulationFork());
+
+                // Verify proposer matches
+                assertEq(proposer, vm.addr(PROPOSER_TIMELOCK_PK), "OZ: Proposer mismatch");
             }
         }
-        assertTrue(
-            foundProposalEvent,
-            "GovernorProposalCreated event not found"
-        );
+        assertTrue(foundTrebEvent, "Treb GovernorProposalCreated event not found");
+        assertTrue(foundOZEvent, "OZ ProposalCreated event not found");
     }
 
     // ============ Mixed Sender Integration Tests ============
@@ -1226,26 +1432,69 @@ contract OZGovernorIntegrationTest is Test {
 
         // Verify proposal ID from the event
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundProposalEvent = false;
+        bool foundTrebEvent = false;
+        bool foundOZEvent = false;
+        bytes32 ozProposalCreatedSelector = keccak256(
+            "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"
+        );
+
         for (uint256 i = 0; i < logs.length; i++) {
+            // Check for Treb event
             if (
                 logs[i].topics[0] ==
                 ITrebEvents.GovernorProposalCreated.selector
             ) {
-                foundProposalEvent = true;
+                foundTrebEvent = true;
                 uint256 proposalId = uint256(logs[i].topics[1]);
                 assertEq(
                     proposalId,
                     expectedProposalId,
                     "Proposal ID should match OZ calculation"
                 );
-                break;
+            }
+
+            // Check for OZ ProposalCreated event
+            if (logs[i].topics[0] == ozProposalCreatedSelector) {
+                foundOZEvent = true;
+                (
+                    uint256 proposalId,
+                    address proposer,
+                    address[] memory ozTargets,
+                    uint256[] memory ozValues,
+                    , // signatures (always empty)
+                    bytes[] memory ozCalldatas,
+                    , // voteStart
+                    , // voteEnd
+                    // description
+                ) = abi.decode(
+                    logs[i].data,
+                    (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+                );
+
+                // Verify proposal ID matches expected
+                assertEq(proposalId, expectedProposalId, "OZ: Proposal ID mismatch");
+
+                // Assert tx count and data
+                assertEq(ozTargets.length, 1, "OZ: Wrong number of targets");
+                assertEq(ozTargets[0], address(treasury), "OZ: Target mismatch");
+                assertEq(ozValues[0], 0, "OZ: Value mismatch");
+                assertEq(ozCalldatas[0], calldatas[0], "OZ: Calldata mismatch");
+
+                // Verify proposal exists via state() - must switch to execution fork
+                vm.selectFork(harness.getExecutionFork());
+                IGovernor.ProposalState state = governorDirect.state(proposalId);
+                assertTrue(
+                    state == IGovernor.ProposalState.Pending || state == IGovernor.ProposalState.Active,
+                    "OZ: Proposal should exist"
+                );
+                vm.selectFork(harness.getSimulationFork());
+
+                // Verify proposer matches
+                assertEq(proposer, vm.addr(PROPOSER_DIRECT_PK), "OZ: Proposer mismatch");
             }
         }
-        assertTrue(
-            foundProposalEvent,
-            "GovernorProposalCreated event not found"
-        );
+        assertTrue(foundTrebEvent, "Treb GovernorProposalCreated event not found");
+        assertTrue(foundOZEvent, "OZ ProposalCreated event not found");
     }
 
     function test_Integration_ETHTransfersThroughGovernance() public {
@@ -1272,13 +1521,19 @@ contract OZGovernorIntegrationTest is Test {
 
         // Verify GovernorProposalCreated event was emitted with ETH value
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundProposalEvent = false;
+        bool foundTrebEvent = false;
+        bool foundOZEvent = false;
+        bytes32 ozProposalCreatedSelector = keccak256(
+            "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"
+        );
+
         for (uint256 i = 0; i < logs.length; i++) {
+            // Check for Treb event
             if (
                 logs[i].topics[0] ==
                 ITrebEvents.GovernorProposalCreated.selector
             ) {
-                foundProposalEvent = true;
+                foundTrebEvent = true;
                 bytes32[] memory txIds = abi.decode(logs[i].data, (bytes32[]));
                 assertEq(txIds.length, 1, "Should have 1 transaction");
                 assertEq(
@@ -1286,12 +1541,50 @@ contract OZGovernorIntegrationTest is Test {
                     simTx.transactionId,
                     "Transaction ID mismatch"
                 );
-                break;
+            }
+
+            // Check for OZ ProposalCreated event
+            if (logs[i].topics[0] == ozProposalCreatedSelector) {
+                foundOZEvent = true;
+                (
+                    uint256 proposalId,
+                    address proposer,
+                    address[] memory targets,
+                    uint256[] memory values,
+                    , // signatures (always empty)
+                    bytes[] memory calldatas,
+                    , // voteStart
+                    , // voteEnd
+                    // description
+                ) = abi.decode(
+                    logs[i].data,
+                    (uint256, address, address[], uint256[], string[], bytes[], uint256, uint256, string)
+                );
+
+                // Assert tx count
+                assertEq(targets.length, 1, "OZ: Wrong number of targets");
+                assertEq(values.length, 1, "OZ: Wrong number of values");
+                assertEq(calldatas.length, 1, "OZ: Wrong number of calldatas");
+
+                // Assert tx data matches - ETH transfer
+                assertEq(targets[0], recipient, "OZ: Target mismatch");
+                assertEq(values[0], 10 ether, "OZ: Value mismatch - should be 10 ETH");
+                assertEq(calldatas[0], "", "OZ: Calldata mismatch - should be empty");
+
+                // Verify proposal exists via state() - must switch to execution fork
+                vm.selectFork(harness.getExecutionFork());
+                IGovernor.ProposalState state = governorDirect.state(proposalId);
+                assertTrue(
+                    state == IGovernor.ProposalState.Pending || state == IGovernor.ProposalState.Active,
+                    "OZ: Proposal should exist"
+                );
+                vm.selectFork(harness.getSimulationFork());
+
+                // Verify proposer matches
+                assertEq(proposer, vm.addr(PROPOSER_DIRECT_PK), "OZ: Proposer mismatch");
             }
         }
-        assertTrue(
-            foundProposalEvent,
-            "GovernorProposalCreated event not found"
-        );
+        assertTrue(foundTrebEvent, "Treb GovernorProposalCreated event not found");
+        assertTrue(foundOZEvent, "OZ ProposalCreated event not found");
     }
 }
