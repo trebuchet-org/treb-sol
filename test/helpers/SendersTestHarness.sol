@@ -23,9 +23,9 @@ contract SendersTestHarness is SenderCoordinator {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(
-        Senders.SenderInitConfig[] memory _configs
-    ) SenderCoordinator(_configs, "default", "sepolia", false, false) {
+    constructor(Senders.SenderInitConfig[] memory _configs)
+        SenderCoordinator(_configs, "default", "sepolia", false, false)
+    {
         // Deploy MultiSendCallOnly for testing (after initialize)
         MultiSendCallOnly multiSendCallOnly = new MultiSendCallOnly();
         vm.makePersistent(address(multiSendCallOnly));
@@ -35,22 +35,14 @@ contract SendersTestHarness is SenderCoordinator {
             if (_configs[i].senderType == SenderTypes.GnosisSafe) {
                 // Get the Safe.Client storage for this sender
                 Senders.Sender storage sender = Senders.get(_configs[i].name);
-                GnosisSafe.Sender storage gnosisSafeSender = GnosisSafe.cast(
-                    sender
-                );
+                GnosisSafe.Sender storage gnosisSafeSender = GnosisSafe.cast(sender);
                 Safe.Client storage safeClient = gnosisSafeSender.safe();
                 safeClient.instance().urls[block.chainid] = "https://localhost";
-                safeClient.instance().multiSendCallOnly[
-                    block.chainid
-                ] = multiSendCallOnly;
+                safeClient.instance().multiSendCallOnly[block.chainid] = multiSendCallOnly;
 
                 // Mock Safe contract calls
                 address safeAddress = sender.account;
-                vm.mockCall(
-                    safeAddress,
-                    abi.encodeWithSignature("nonce()"),
-                    abi.encode(uint256(0))
-                );
+                vm.mockCall(safeAddress, abi.encodeWithSignature("nonce()"), abi.encode(uint256(0)));
                 vm.mockCall(
                     safeAddress,
                     abi.encodeWithSignature(
@@ -66,73 +58,53 @@ contract SendersTestHarness is SenderCoordinator {
         _broadcast();
     }
 
-    function execute(
-        string memory _name,
-        Transaction memory _transaction
-    ) public returns (SimulatedTransaction memory) {
+    function execute(string memory _name, Transaction memory _transaction)
+        public
+        returns (SimulatedTransaction memory)
+    {
         return Senders.get(_name).execute(_transaction);
     }
 
-    function execute(
-        string memory _name,
-        Transaction[] memory _transactions
-    ) public returns (SimulatedTransaction[] memory) {
+    function execute(string memory _name, Transaction[] memory _transactions)
+        public
+        returns (SimulatedTransaction[] memory)
+    {
         return Senders.get(_name).execute(_transactions);
     }
 
-    function get(
-        string memory _name
-    ) public view returns (Senders.Sender memory) {
+    function get(string memory _name) public view returns (Senders.Sender memory) {
         return Senders.get(_name);
     }
 
-    function getSenderAccount(
-        string memory _name
-    ) public view returns (address) {
+    function getSenderAccount(string memory _name) public view returns (address) {
         return Senders.get(_name).account;
     }
 
-    function getPrivateKey(
-        string memory _name
-    ) public view returns (PrivateKey.Sender memory) {
+    function getPrivateKey(string memory _name) public view returns (PrivateKey.Sender memory) {
         return Senders.get(_name).privateKey();
     }
 
-    function getGnosisSafe(
-        string memory _name
-    ) public view returns (GnosisSafe.Sender memory) {
+    function getGnosisSafe(string memory _name) public view returns (GnosisSafe.Sender memory) {
         return Senders.get(_name).gnosisSafe();
     }
 
-    function getHardwareWallet(
-        string memory _name
-    ) public view returns (HardwareWallet.Sender memory) {
+    function getHardwareWallet(string memory _name) public view returns (HardwareWallet.Sender memory) {
         return Senders.get(_name).hardwareWallet();
     }
 
-    function getInMemory(
-        string memory _name
-    ) public view returns (InMemory.Sender memory) {
+    function getInMemory(string memory _name) public view returns (InMemory.Sender memory) {
         return Senders.get(_name).inMemory();
     }
 
-    function getOZGovernor(
-        string memory _name
-    ) public view returns (OZGovernor.Sender memory) {
+    function getOZGovernor(string memory _name) public view returns (OZGovernor.Sender memory) {
         return Senders.get(_name).ozGovernor();
     }
 
-    function setProposalDescription(
-        string memory _name,
-        string memory _description
-    ) public {
+    function setProposalDescription(string memory _name, string memory _description) public {
         Senders.get(_name).ozGovernor().setProposalDescription(_description);
     }
 
-    function setProposalDescriptionPath(
-        string memory _name,
-        string memory _path
-    ) public {
+    function setProposalDescriptionPath(string memory _name, string memory _path) public {
         Senders.get(_name).ozGovernor().setProposalDescriptionPath(_path);
     }
 
@@ -140,21 +112,17 @@ contract SendersTestHarness is SenderCoordinator {
         Senders.get(_name).ozGovernor().clearDescription();
     }
 
-    function isType(
-        string memory _name,
-        bytes8 _senderType
-    ) public view returns (bool) {
+    function isType(string memory _name, bytes8 _senderType) public view returns (bool) {
         return Senders.get(_name).isType(_senderType);
     }
 
     // ************* Deployer Methods ************* //
 
     // Factory pattern methods only
-    function deployCreate3WithArtifact(
-        string memory _name,
-        string memory _artifact,
-        bytes memory _args
-    ) public returns (address) {
+    function deployCreate3WithArtifact(string memory _name, string memory _artifact, bytes memory _args)
+        public
+        returns (address)
+    {
         // Use factory pattern: create3 -> deploy
         return Senders.get(_name).create3(_artifact).deploy(_args);
     }
@@ -166,10 +134,7 @@ contract SendersTestHarness is SenderCoordinator {
         bytes memory _args
     ) public returns (address) {
         // Use factory pattern: create3 -> setLabel -> deploy
-        return
-            Senders.get(_name).create3(_artifact).setLabel(_label).deploy(
-                _args
-            );
+        return Senders.get(_name).create3(_artifact).setLabel(_label).deploy(_args);
     }
 
     function deployCreate3WithEntropy(
@@ -185,11 +150,10 @@ contract SendersTestHarness is SenderCoordinator {
     // ************* Prediction Methods ************* //
 
     // Mirror deployCreate3WithArtifact
-    function predictCreate3WithArtifact(
-        string memory _name,
-        string memory _artifact,
-        bytes memory _args
-    ) public returns (address) {
+    function predictCreate3WithArtifact(string memory _name, string memory _artifact, bytes memory _args)
+        public
+        returns (address)
+    {
         return Senders.get(_name).create3(_artifact).predict(_args);
     }
 
@@ -200,10 +164,7 @@ contract SendersTestHarness is SenderCoordinator {
         string memory _label,
         bytes memory _args
     ) public returns (address) {
-        return
-            Senders.get(_name).create3(_artifact).setLabel(_label).predict(
-                _args
-            );
+        return Senders.get(_name).create3(_artifact).setLabel(_label).predict(_args);
     }
 
     // Mirror deployCreate3WithEntropy
@@ -218,11 +179,10 @@ contract SendersTestHarness is SenderCoordinator {
 
     // ************* CREATE2 Deployer Methods ************* //
 
-    function deployCreate2WithArtifact(
-        string memory _name,
-        string memory _artifact,
-        bytes memory _args
-    ) public returns (address) {
+    function deployCreate2WithArtifact(string memory _name, string memory _artifact, bytes memory _args)
+        public
+        returns (address)
+    {
         // Use factory pattern: create2 -> deploy
         return Senders.get(_name).create2(_artifact).deploy(_args);
     }
@@ -234,10 +194,7 @@ contract SendersTestHarness is SenderCoordinator {
         bytes memory _args
     ) public returns (address) {
         // Use factory pattern: create2 -> setLabel -> deploy
-        return
-            Senders.get(_name).create2(_artifact).setLabel(_label).deploy(
-                _args
-            );
+        return Senders.get(_name).create2(_artifact).setLabel(_label).deploy(_args);
     }
 
     function deployCreate2WithEntropy(
@@ -252,11 +209,10 @@ contract SendersTestHarness is SenderCoordinator {
 
     // ************* CREATE2 Prediction Methods ************* //
 
-    function predictCreate2WithArtifact(
-        string memory _name,
-        string memory _artifact,
-        bytes memory _args
-    ) public returns (address) {
+    function predictCreate2WithArtifact(string memory _name, string memory _artifact, bytes memory _args)
+        public
+        returns (address)
+    {
         return Senders.get(_name).create2(_artifact).predict(_args);
     }
 
@@ -266,10 +222,7 @@ contract SendersTestHarness is SenderCoordinator {
         string memory _label,
         bytes memory _args
     ) public returns (address) {
-        return
-            Senders.get(_name).create2(_artifact).setLabel(_label).predict(
-                _args
-            );
+        return Senders.get(_name).create2(_artifact).setLabel(_label).predict(_args);
     }
 
     function predictCreate2WithEntropy(
@@ -281,17 +234,11 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.get(_name).create2(_entropy, _bytecode).predict(_args);
     }
 
-    function _salt(
-        string memory _name,
-        string memory _entropy
-    ) public view returns (bytes32) {
+    function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
         return Senders.get(_name)._salt(_entropy);
     }
 
-    function _derivedSalt(
-        string memory _name,
-        bytes32 _baseSalt
-    ) public view returns (bytes32) {
+    function _derivedSalt(string memory _name, bytes32 _baseSalt) public view returns (bytes32) {
         return Senders.get(_name)._derivedSalt(_baseSalt);
     }
 
@@ -305,20 +252,17 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.registry().namespace;
     }
 
-    function getExecutionFork() public returns (uint256) {
+    function getExecutionFork() public view returns (uint256) {
         return Senders.registry().executionFork;
     }
 
-    function getSimulationFork() public returns (uint256) {
+    function getSimulationFork() public view returns (uint256) {
         return Senders.registry().simulationFork;
     }
 
     // ************* Harness Helpers ************* //
 
-    function getHarness(
-        string memory _name,
-        address _target
-    ) public returns (address) {
+    function getHarness(string memory _name, address _target) public returns (address) {
         return Senders.get(_name).harness(_target);
     }
 }

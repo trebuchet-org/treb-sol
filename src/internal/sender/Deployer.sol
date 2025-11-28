@@ -37,7 +37,6 @@ library Deployer {
     enum CreateStrategy {
         CREATE3, // Address = f(deployer, salt) - init code independent
         CREATE2 // Address = f(deployer, salt, initCodeHash) - init code dependent
-
     }
 
     /**

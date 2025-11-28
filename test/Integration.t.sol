@@ -46,8 +46,7 @@ contract IntegrationTest is Test, CreateXScript {
         address senderAddr = vm.addr(pk);
         vm.deal(senderAddr, 10 ether);
 
-        Senders.SenderInitConfig[]
-            memory configs = new Senders.SenderInitConfig[](1);
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: TEST,
             account: senderAddr,
@@ -75,11 +74,8 @@ contract IntegrationTest is Test, CreateXScript {
         assertTrue(deployed != address(0));
 
         // Execute transaction
-        Transaction memory txn = Transaction({
-            to: deployed,
-            data: abi.encodeWithSelector(TestContract.setValue.selector, 100),
-            value: 0
-        });
+        Transaction memory txn =
+            Transaction({to: deployed, data: abi.encodeWithSelector(TestContract.setValue.selector, 100), value: 0});
 
         s.execute(txn);
 
@@ -97,8 +93,7 @@ contract IntegrationTest is Test, CreateXScript {
         address senderAddr = vm.addr(pk);
         vm.deal(senderAddr, 10 ether);
 
-        Senders.SenderInitConfig[]
-            memory configs = new Senders.SenderInitConfig[](1);
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: COORDINATOR_TEST,
             account: senderAddr,
@@ -109,12 +104,7 @@ contract IntegrationTest is Test, CreateXScript {
 
         // Create custom sender coordinator for testing
         bytes memory encodedConfigs = abi.encode(configs);
-        TestSenderCoordinator disp = new TestSenderCoordinator(
-            encodedConfigs,
-            "default",
-            "sepolia",
-            false
-        );
+        TestSenderCoordinator disp = new TestSenderCoordinator(encodedConfigs, "default", "sepolia", false);
 
         // Use the sender
         TestContract tc = disp.deployTestContract(123, COORDINATOR_TEST);
@@ -123,8 +113,7 @@ contract IntegrationTest is Test, CreateXScript {
 
     function test_MultipleSenderTypes() public {
         // Create multiple sender configs
-        Senders.SenderInitConfig[]
-            memory configs = new Senders.SenderInitConfig[](3);
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](3);
 
         // InMemory sender
         configs[0] = Senders.SenderInitConfig({
@@ -180,25 +169,11 @@ contract TestSenderCoordinator is SenderCoordinator {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(
-        bytes memory _rawConfigs,
-        string memory _namespace,
-        string memory _network,
-        bool _dryrun
-    )
-        SenderCoordinator(
-            abi.decode(_rawConfigs, (Senders.SenderInitConfig[])),
-            _namespace,
-            _network,
-            _dryrun,
-            false
-        )
+    constructor(bytes memory _rawConfigs, string memory _namespace, string memory _network, bool _dryrun)
+        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _network, _dryrun, false)
     {}
 
-    function deployTestContract(
-        uint256 value,
-        string memory senderName
-    ) external returns (TestContract) {
+    function deployTestContract(uint256 value, string memory senderName) external returns (TestContract) {
         Senders.Sender storage s = sender(senderName);
 
         bytes memory bytecode = type(TestContract).creationCode;

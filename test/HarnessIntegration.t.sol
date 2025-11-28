@@ -14,10 +14,7 @@ contract OwnableContract {
     address public owner;
     uint256 public value;
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ValueSet(uint256 newValue);
 
     modifier onlyOwner() {
@@ -94,8 +91,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         senderAddr = vm.addr(privateKey);
         vm.deal(senderAddr, 10 ether);
 
-        Senders.SenderInitConfig[]
-            memory configs = new Senders.SenderInitConfig[](1);
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: SENDER_NAME,
             account: senderAddr,
@@ -133,10 +129,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertTrue(harnessAddr != address(ownable));
 
         // Verify harness is cached (second call returns same address)
-        address harnessAddr2 = harness.getHarness(
-            SENDER_NAME,
-            address(ownable)
-        );
+        address harnessAddr2 = harness.getHarness(SENDER_NAME, address(ownable));
         assertEq(harnessAddr, harnessAddr2);
     }
 
@@ -181,14 +174,8 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     // Test 4: Harness with different contracts for same sender
     function test_HarnessMultipleContracts() public {
         // Get harnesses for both contracts
-        address ownableHarness = harness.getHarness(
-            SENDER_NAME,
-            address(ownable)
-        );
-        address counterHarness = harness.getHarness(
-            SENDER_NAME,
-            address(counter)
-        );
+        address ownableHarness = harness.getHarness(SENDER_NAME, address(ownable));
+        address counterHarness = harness.getHarness(SENDER_NAME, address(counter));
 
         // Should be different addresses
         assertTrue(ownableHarness != counterHarness);
@@ -304,9 +291,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
 
         // Create transaction manually
         Transaction memory txn = Transaction({
-            to: address(counter),
-            data: abi.encodeWithSelector(Counter.setNumber.selector, 333),
-            value: 0
+            to: address(counter), data: abi.encodeWithSelector(Counter.setNumber.selector, 333), value: 0
         });
 
         // Execute through senderCoordinator - this simulates and queues
@@ -334,19 +319,10 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         // Now test a custom error scenario
         // First, let's create a contract with custom errors
         RevertTestContract revertContract = new RevertTestContract();
-        address revertHarness = harness.getHarness(
-            SENDER_NAME,
-            address(revertContract)
-        );
+        address revertHarness = harness.getHarness(SENDER_NAME, address(revertContract));
 
         // This should propagate the custom error
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                RevertTestContract.CustomError.selector,
-                123,
-                "This is a custom error"
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(RevertTestContract.CustomError.selector, 123, "This is a custom error"));
         RevertTestContract(revertHarness).failWithCustomError();
 
         // This should propagate the require message
@@ -358,20 +334,14 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     function test_EmptyRevertDataTriggersStaticCall() public {
         // Deploy a special contract that can test this behavior
         StaticCallTestContract testContract = new StaticCallTestContract();
-        address testHarness = harness.getHarness(
-            SENDER_NAME,
-            address(testContract)
-        );
+        address testHarness = harness.getHarness(SENDER_NAME, address(testContract));
 
         // View function should work (triggers staticcall path due to empty revert)
         uint256 value = StaticCallTestContract(testHarness).getValue();
         assertEq(value, 42);
 
         // Pure function should also work
-        uint256 computed = StaticCallTestContract(testHarness).computeValue(
-            10,
-            20
-        );
+        uint256 computed = StaticCallTestContract(testHarness).computeValue(10, 20);
         assertEq(computed, 30);
 
         // State changing function should be queued
@@ -382,10 +352,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     // Test 13: Complex revert scenarios
     function test_ComplexRevertScenarios() public {
         ComplexRevertContract complexContract = new ComplexRevertContract();
-        address complexHarness = harness.getHarness(
-            SENDER_NAME,
-            address(complexContract)
-        );
+        address complexHarness = harness.getHarness(SENDER_NAME, address(complexContract));
 
         // Test revert with empty string (still has data due to string encoding)
         vm.expectRevert(bytes(""));
@@ -405,10 +372,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     // Test 16: View function works after failures
     function test_ViewFunctionAfterFailures() public {
         ComplexRevertContract complexContract = new ComplexRevertContract();
-        address complexHarness = harness.getHarness(
-            SENDER_NAME,
-            address(complexContract)
-        );
+        address complexHarness = harness.getHarness(SENDER_NAME, address(complexContract));
 
         // View function should work even after the contract has methods that revert
         assertTrue(ComplexRevertContract(complexHarness).isViewFunction());
@@ -424,12 +388,8 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         assertEq(directValue, 123);
 
         // Now through harness
-        address debugHarness = harness.getHarness(
-            SENDER_NAME,
-            address(debugContract)
-        );
-        uint256 harnessValue = StaticCallDebugContract(debugHarness)
-            .getSimpleValue();
+        address debugHarness = harness.getHarness(SENDER_NAME, address(debugContract));
+        uint256 harnessValue = StaticCallDebugContract(debugHarness).getSimpleValue();
         assertEq(harnessValue, 123);
 
         // Test that state changes work
@@ -441,10 +401,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
     function test_TransactionEventsEmitted() public {
         // Create a fresh counter for this test to ensure it starts at 0
         Counter freshCounter = new Counter();
-        address harnessAddr = harness.getHarness(
-            SENDER_NAME,
-            address(freshCounter)
-        );
+        address harnessAddr = harness.getHarness(SENDER_NAME, address(freshCounter));
 
         // Test successful transaction emits TransactionSimulated
         // Note: Harness calls don't emit TransactionSimulated events anymore

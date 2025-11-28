@@ -17,8 +17,7 @@ contract QuietModeTest is Test {
     TestScript quietScript;
 
     address constant TEST_ACCOUNT = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-    uint256 constant TEST_PRIVATE_KEY =
-        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    uint256 constant TEST_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     function setUp() public {
         // Create normal script (not quiet)
@@ -44,17 +43,12 @@ contract QuietModeTest is Test {
         // Should have TransactionSimulated event
         bool foundTransactionSimulated = false;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector
-            ) {
+            if (logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector) {
                 foundTransactionSimulated = true;
                 break;
             }
         }
-        assertTrue(
-            foundTransactionSimulated,
-            "TransactionSimulated event should be emitted in normal mode"
-        );
+        assertTrue(foundTransactionSimulated, "TransactionSimulated event should be emitted in normal mode");
     }
 
     function test_QuietModeSuppressesEvents() public {
@@ -70,17 +64,12 @@ contract QuietModeTest is Test {
         // Should NOT have TransactionSimulated event
         bool foundTransactionSimulated = false;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector
-            ) {
+            if (logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector) {
                 foundTransactionSimulated = true;
                 break;
             }
         }
-        assertFalse(
-            foundTransactionSimulated,
-            "TransactionSimulated event should NOT be emitted in quiet mode"
-        );
+        assertFalse(foundTransactionSimulated, "TransactionSimulated event should NOT be emitted in quiet mode");
     }
 
     function test_QuietModeDeploymentDoesNotEmitEvents() public {
@@ -101,10 +90,7 @@ contract QuietModeTest is Test {
                 break;
             }
         }
-        assertFalse(
-            foundContractDeployed,
-            "ContractDeployed event should NOT be emitted in quiet mode"
-        );
+        assertFalse(foundContractDeployed, "ContractDeployed event should NOT be emitted in quiet mode");
     }
 
     function test_NormalModeDeploymentEmitsEvents() public {
@@ -121,8 +107,8 @@ contract QuietModeTest is Test {
         bool foundEvent = false;
         for (uint256 i = 0; i < logs.length; i++) {
             if (
-                logs[i].topics[0] == ITrebEvents.ContractDeployed.selector ||
-                logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector
+                logs[i].topics[0] == ITrebEvents.ContractDeployed.selector
+                    || logs[i].topics[0] == ITrebEvents.TransactionSimulated.selector
             ) {
                 foundEvent = true;
                 break;
@@ -147,9 +133,7 @@ contract TestScript is ConfigurableTrebScript {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(
-        bool _quiet
-    )
+    constructor(bool _quiet)
         ConfigurableTrebScript(
             _getSenderConfigs(),
             "test",
@@ -160,21 +144,14 @@ contract TestScript is ConfigurableTrebScript {
         )
     {}
 
-    function _getSenderConfigs()
-        internal
-        pure
-        returns (Senders.SenderInitConfig[] memory)
-    {
-        Senders.SenderInitConfig[]
-            memory configs = new Senders.SenderInitConfig[](1);
+    function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
         configs[0] = Senders.SenderInitConfig({
             name: "test",
             account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
             senderType: SenderTypes.InMemory,
             canBroadcast: true,
-            config: abi.encode(
-                0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-            )
+            config: abi.encode(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
         });
         return configs;
     }
@@ -187,9 +164,7 @@ contract TestScript is ConfigurableTrebScript {
 
         // Execute a transaction
         Transaction memory txn = Transaction({
-            to: address(sc),
-            data: abi.encodeWithSelector(SimpleContract.setValue.selector, 42),
-            value: 0
+            to: address(sc), data: abi.encodeWithSelector(SimpleContract.setValue.selector, 42), value: 0
         });
 
         s.execute(txn);

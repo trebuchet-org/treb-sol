@@ -75,16 +75,6 @@ library OZGovernor {
     error ProposalDescriptionNotSet(string name);
 
     /**
-     * @notice Checks if description has been set for this sender
-     * @dev Checks if the description storage field is non-empty
-     * @param _sender The OZGovernor sender
-     * @return True if description is set
-     */
-    function _isDescriptionSet(Sender storage _sender) internal view returns (bool) {
-        return bytes(_sender.description).length > 0;
-    }
-
-    /**
      * @notice Initializes an OZGovernor sender with its configuration
      * @dev Sets up the governor, timelock, and proposer. The account field is set to
      *      timelock if provided, otherwise governor, for correct vm.prank behavior during simulation.
@@ -210,6 +200,16 @@ library OZGovernor {
         }
 
         delete _sender.txQueue;
+    }
+
+    /**
+     * @notice Checks if description has been set for this sender
+     * @dev Checks if the description storage field is non-empty
+     * @param _sender The OZGovernor sender
+     * @return True if description is set
+     */
+    function _isDescriptionSet(Sender storage _sender) internal view returns (bool) {
+        return bytes(_sender.description).length > 0;
     }
 
     /**

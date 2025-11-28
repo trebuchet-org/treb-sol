@@ -42,13 +42,8 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
      *      - A Safe multisig as the final owner of deployed contracts
      * @return Array of sender configurations
      */
-    function _getSenderConfigs()
-        internal
-        pure
-        returns (Senders.SenderInitConfig[] memory)
-    {
-        Senders.SenderInitConfig[]
-            memory configs = new Senders.SenderInitConfig[](3);
+    function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
+        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](3);
 
         // 1. Deployer - Private key sender for initial deployment
         // In production, this would be a hardware wallet or secure key management
@@ -57,9 +52,7 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
             account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, // Anvil test account #0
             senderType: SenderTypes.InMemory,
             canBroadcast: true,
-            config: abi.encode(
-                0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-            ) // Anvil private key #0
+            config: abi.encode(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80) // Anvil private key #0
         });
 
         // 2. Proposer - Private key sender that can propose Safe transactions
@@ -69,9 +62,7 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
             account: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, // Anvil test account #1
             senderType: SenderTypes.InMemory,
             canBroadcast: true,
-            config: abi.encode(
-                0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-            ) // Anvil private key #1
+            config: abi.encode(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d) // Anvil private key #1
         });
 
         // 3. Safe - Multisig wallet that will become the owner of deployed contracts
@@ -102,9 +93,8 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
         Senders.Sender storage safe = sender("safe");
 
         // Deploy the example contract with deployer as initial owner
-        address contractAddr = deployer.create3("ExampleContract").deploy(
-            abi.encode(deployer.account, "Initial Contract")
-        );
+        address contractAddr =
+            deployer.create3("ExampleContract").deploy(abi.encode(deployer.account, "Initial Contract"));
 
         console.log("Contract deployed at:", contractAddr);
         console.log("Initial owner:", deployer.account);
@@ -114,9 +104,7 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
 
         // Get harness for the deployed contract and transfer ownership to Safe
         // This can be just an interface as well.
-        ExampleContract example = ExampleContract(
-            deployer.harness(contractAddr)
-        );
+        ExampleContract example = ExampleContract(deployer.harness(contractAddr));
         example.transferOwnership(safe.account);
 
         console.log("Ownership transferred to Safe:", safe.account);
@@ -126,9 +114,7 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
 
         // Use Safe harness to execute owner-only functions
         // These calls will be batched and proposed to the Safe multisig
-        ExampleContract safeExample = ExampleContract(
-            safe.harness(contractAddr)
-        );
+        ExampleContract safeExample = ExampleContract(safe.harness(contractAddr));
 
         // Set new name through Safe
         safeExample.setName("Safe-Managed Contract");

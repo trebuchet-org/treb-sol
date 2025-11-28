@@ -1,0 +1,17 @@
+{
+  "lib/createx-forge": {
+    "rev": "1d5ed80fabe164421228d7ce0fd5c7f3e3010300"
+  },
+  "lib/forge-std": {
+    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+  },
+  "lib/openzeppelin-contracts": {
+    "tag": {
+      "name": "v5.5.0",
+      "rev": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    }
+  },
+  "lib/safe-utils": {
+    "rev": "c78eddc258ce1387d6562b52ccaa517b91c1a845"
+  }
+}

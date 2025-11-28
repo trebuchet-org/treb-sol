@@ -89,15 +89,16 @@ library GnosisSafe {
             revert InvalidGnosisSafeConfig(_sender.name);
         }
 
-        _sender.safe().initialize(
-            _sender.account,
-            Safe.Signer({
-                signer: _sender.proposer().account,
-                signerType: signerType,
-                derivationPath: derivationPath,
-                privateKey: privateKey
-            })
-        );
+        _sender.safe()
+            .initialize(
+                _sender.account,
+                Safe.Signer({
+                    signer: _sender.proposer().account,
+                    signerType: signerType,
+                    derivationPath: derivationPath,
+                    privateKey: privateKey
+                })
+            );
     }
 
     /**

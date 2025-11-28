@@ -130,10 +130,10 @@ contract SenderCoordinator is Script, ITrebEvents {
      * @param _transactions Array of transactions to execute
      * @return simulatedTransactions Array of executed transactions with results including status and return data
      */
-    function execute(
-        bytes32 _senderId,
-        Transaction[] memory _transactions
-    ) external returns (SimulatedTransaction[] memory simulatedTransactions) {
+    function execute(bytes32 _senderId, Transaction[] memory _transactions)
+        external
+        returns (SimulatedTransaction[] memory simulatedTransactions)
+    {
         Senders.Sender storage _sender = Senders.registry().get(_senderId);
         return _sender.execute(_transactions);
     }
@@ -149,10 +149,10 @@ contract SenderCoordinator is Script, ITrebEvents {
      * @param _transaction Transaction to execute
      * @return simulatedTransaction Executed transaction with results including status and return data
      */
-    function execute(
-        bytes32 _senderId,
-        Transaction memory _transaction
-    ) external returns (SimulatedTransaction memory simulatedTransaction) {
+    function execute(bytes32 _senderId, Transaction memory _transaction)
+        external
+        returns (SimulatedTransaction memory simulatedTransaction)
+    {
         Senders.Sender storage _sender = Senders.registry().get(_senderId);
         return _sender.execute(_transaction);
     }
@@ -169,9 +169,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      * - Special handling for Safe multisig or other custom sender types
      */
     function _broadcast() internal {
-        SimulatedTransaction[] memory customQueue = Senders
-            .registry()
-            .broadcast();
+        SimulatedTransaction[] memory customQueue = Senders.registry().broadcast();
         processCustomQueue(customQueue);
     }
 
@@ -197,9 +195,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      * }
      * ```
      */
-    function processCustomQueue(
-        SimulatedTransaction[] memory _customQueue
-    ) internal virtual {
+    function processCustomQueue(SimulatedTransaction[] memory _customQueue) internal virtual {
         if (_customQueue.length > 0) {
             /// @dev override this function to implement custom queue processing
             revert CustomQueueReceiverNotImplemented();
@@ -221,9 +217,7 @@ contract SenderCoordinator is Script, ITrebEvents {
      * address newContract = deployer.deployCreate3("MyContract");
      * ```
      */
-    function sender(
-        string memory _name
-    ) internal view returns (Senders.Sender storage) {
+    function sender(string memory _name) internal view returns (Senders.Sender storage) {
         return Senders.registry().get(_name);
     }
 }

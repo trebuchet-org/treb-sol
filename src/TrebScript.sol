@@ -42,10 +42,7 @@ abstract contract TrebScript is ConfigurableTrebScript {
      */
     constructor()
         ConfigurableTrebScript(
-            abi.decode(
-                vm.envBytes("SENDER_CONFIGS"),
-                (Senders.SenderInitConfig[])
-            ),
+            abi.decode(vm.envBytes("SENDER_CONFIGS"), (Senders.SenderInitConfig[])),
             vm.envOr("NAMESPACE", string("default")),
             vm.envString("NETWORK"),
             vm.envOr("REGISTRY_FILE", string(".treb/registry.json")),
