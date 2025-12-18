@@ -7,8 +7,8 @@ import {Senders} from "../src/internal/sender/Senders.sol";
 import {SenderTypes, Transaction} from "../src/internal/types.sol";
 
 contract TestableSenderCoordinator is SenderCoordinator {
-    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun)
-        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun, false)
+    constructor(bytes memory _rawConfigs, string memory _namespace, string memory _network, bool _dryrun)
+        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _network, _dryrun, false)
     {}
 
     function _decodeConfigs(bytes memory _rawConfigs) private pure returns (Senders.SenderInitConfig[] memory) {
@@ -38,18 +38,6 @@ contract SenderCoordinatorIntegrationTest is Test {
     string constant LAZY_SENDER = "lazy";
     string constant DISPATCHER_TEST = "senderCoordinator-test";
 
-    function setUp() public {
-        // Set required environment variables
-        vm.setEnv("NETWORK", "http://localhost:8545");
-    }
-
-    function tearDown() public {
-        // Clean up environment variables
-        vm.setEnv("SENDER_CONFIGS", "");
-        vm.setEnv("DRYRUN", "");
-        vm.setEnv("NAMESPACE", "");
-    }
-
     function test_SenderCoordinatorInitialization() public {
         // Create sender configs
         Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](2);
@@ -70,7 +58,7 @@ contract SenderCoordinatorIntegrationTest is Test {
 
         // Create senderCoordinator with configs
         bytes memory encodedConfigs = abi.encode(configs);
-        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", false);
+        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", "sepolia", false);
 
         // Access sender (should trigger lazy initialization)
         Senders.Sender memory sender1 = senderCoordinator.testGetSender(SENDER1);
@@ -86,7 +74,7 @@ contract SenderCoordinatorIntegrationTest is Test {
         // Create senderCoordinator with empty configs
         bytes memory emptyConfigs = "";
         vm.expectRevert(Senders.NoSenders.selector);
-        senderCoordinator = new TestableSenderCoordinator(emptyConfigs, "default", false);
+        senderCoordinator = new TestableSenderCoordinator(emptyConfigs, "default", "sepolia", false);
     }
 
     function test_SenderCoordinatorInvalidSenderConfigs() public {
@@ -95,7 +83,7 @@ contract SenderCoordinatorIntegrationTest is Test {
 
         // Should revert during construction when trying to decode
         vm.expectRevert();
-        senderCoordinator = new TestableSenderCoordinator(invalidConfigs, "default", false);
+        senderCoordinator = new TestableSenderCoordinator(invalidConfigs, "default", "sepolia", false);
     }
 
     function test_SenderCoordinatorBroadcastModifier() public {
@@ -112,11 +100,11 @@ contract SenderCoordinatorIntegrationTest is Test {
         bytes memory encodedConfigs = abi.encode(configs);
 
         // Test broadcast with dryrun=false
-        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", false);
+        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", "sepolia", false);
         senderCoordinator.testBroadcast();
 
         // Test with dryrun=true
-        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", true);
+        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", "sepolia", true);
         senderCoordinator.testBroadcast();
     }
 
@@ -134,7 +122,7 @@ contract SenderCoordinatorIntegrationTest is Test {
         bytes memory encodedConfigs = abi.encode(configs);
 
         // Create senderCoordinator
-        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", false);
+        senderCoordinator = new TestableSenderCoordinator(encodedConfigs, "default", "sepolia", false);
 
         // Registry should not be initialized yet
         // First access should initialize
@@ -162,7 +150,7 @@ contract SenderCoordinatorIntegrationTest is Test {
         bytes memory encodedConfigs = abi.encode(configs);
 
         // Create test coordinator that supports nested broadcasts
-        NestedBroadcastTester nestedTester = new NestedBroadcastTester(encodedConfigs, "default", false);
+        NestedBroadcastTester nestedTester = new NestedBroadcastTester(encodedConfigs, "default", "sepolia", false);
 
         // This should work without issues - outer broadcast should handle everything
         nestedTester.outerBroadcast();
@@ -176,8 +164,8 @@ contract SenderCoordinatorIntegrationTest is Test {
 contract NestedBroadcastTester is SenderCoordinator {
     using Senders for Senders.Sender;
 
-    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun)
-        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _dryrun, false)
+    constructor(bytes memory _rawConfigs, string memory _namespace, string memory _network, bool _dryrun)
+        SenderCoordinator(_decodeConfigs(_rawConfigs), _namespace, _network, _dryrun, false)
     {}
 
     function _decodeConfigs(bytes memory _rawConfigs) private pure returns (Senders.SenderInitConfig[] memory) {

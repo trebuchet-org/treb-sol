@@ -110,6 +110,7 @@ pragma solidity ^0.8.0;
 import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
+import {OZGovernor} from "./OZGovernorSender.sol";
 import {Harness} from "../Harness.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 
@@ -122,6 +123,7 @@ library Senders {
     using HardwareWallet for HardwareWallet.Sender;
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
+    using OZGovernor for OZGovernor.Sender;
 
     /**
      * @notice Configuration structure for initializing a sender
@@ -157,9 +159,11 @@ library Senders {
         bytes32[] ids;
         SimulatedTransaction[] _globalQueue;
         string namespace;
+        string network;
         bool quiet;
         bool initialized;
-        uint256 preSimulationSnapshot;
+        uint256 simulationFork;
+        uint256 executionFork;
         bool broadcasted;
         bool broadcastQueued;
         uint256 transactionCounter;
@@ -256,8 +260,13 @@ library Senders {
      * @param _namespace Deployment namespace
      * @param _quiet Whether to suppress internal event logs
      */
-    function initialize(SenderInitConfig[] memory _configs, string memory _namespace, bool _quiet) internal {
-        initialize(registry(), _configs, _namespace, _quiet);
+    function initialize(
+        SenderInitConfig[] memory _configs,
+        string memory _namespace,
+        string memory _network,
+        bool _quiet
+    ) internal {
+        initialize(registry(), _configs, _namespace, _network, _quiet);
     }
 
     /**
@@ -271,6 +280,7 @@ library Senders {
         Registry storage _registry,
         SenderInitConfig[] memory _configs,
         string memory _namespace,
+        string memory _network,
         bool _quiet
     ) internal {
         if (_registry.initialized) {
@@ -278,6 +288,7 @@ library Senders {
         }
 
         _registry.namespace = _namespace;
+        _registry.network = _network;
         _registry.initialized = true;
         _registry.quiet = _quiet;
 
@@ -285,6 +296,10 @@ library Senders {
             revert NoSenders();
         }
         _initializeSenders(_registry, _configs);
+
+        _registry.executionFork = vm.createFork(_network);
+        _registry.simulationFork = vm.createFork(_network);
+        vm.selectFork(_registry.simulationFork);
     }
 
     /**
@@ -315,8 +330,6 @@ library Senders {
                 _registry.senders[_registry.ids[i]].initialize();
             }
         }
-
-        _registry.preSimulationSnapshot = vm.snapshotState();
     }
 
     /**
@@ -376,6 +389,8 @@ library Senders {
             _sender.hardwareWallet().initialize();
         } else if (_sender.isType(SenderTypes.GnosisSafe)) {
             _sender.gnosisSafe().initialize();
+        } else if (_sender.isType(SenderTypes.OZGovernor)) {
+            _sender.ozGovernor().initialize();
         } else if (!_sender.isType(SenderTypes.Custom)) {
             revert InvalidSenderType(_sender.name, _sender.senderType);
         }
@@ -439,6 +454,15 @@ library Senders {
     }
 
     /**
+     * @notice Casts a sender to an OZGovernor sender type
+     * @param _sender The sender to cast
+     * @return OZGovernor.Sender storage reference
+     */
+    function ozGovernor(Sender storage _sender) internal view returns (OZGovernor.Sender storage) {
+        return OZGovernor.cast(_sender);
+    }
+
+    /**
      * @notice Gets or creates a harness proxy contract for a sender-target pair
      * @dev Harness contracts provide execution context isolation and enable secure cross-contract calls
      * @param _sender The sender requiring a harness
@@ -471,7 +495,9 @@ library Senders {
         if (!_sender.canBroadcast) revert CannotBroadcast(_sender.name);
         if (_transactions.length == 0) revert EmptyTransactionArray();
         for (uint256 i = 0; i < _transactions.length; i++) {
-            if (_transactions[i].to == address(0)) revert InvalidTargetAddress(i);
+            if (_transactions[i].to == address(0)) {
+                revert InvalidTargetAddress(i);
+            }
         }
         return _sender.simulate(_transactions);
     }
@@ -597,13 +623,15 @@ library Senders {
             revert BroadcastAlreadyCalled();
         }
 
-        uint256 postSimulationSnapshot = vm.snapshotState();
+        // uint256 postSimulationSnapshot = vm.snapshotState();
 
         customQueue = new SimulatedTransaction[](_registry._globalQueue.length);
         SimulatedTransaction[] memory txs = _registry._globalQueue;
         bytes32[] memory senderIds = _registry.ids;
 
-        vm.revertToState(_registry.preSimulationSnapshot);
+        vm.selectFork(_registry.executionFork);
+        // vm.revertToState(_registry.preSimulationSnapshot);
+
         uint256 actualCustomQueueLength = 0;
 
         // Process each transaction in global queue order
@@ -617,6 +645,9 @@ library Senders {
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
                 sender.gnosisSafe().queue(simulatedTx);
+            } else if (sender.isType(SenderTypes.OZGovernor)) {
+                // Async execution - accumulate for proposal
+                sender.ozGovernor().queue(simulatedTx);
             } else if (sender.isType(SenderTypes.Custom)) {
                 customQueue[actualCustomQueueLength] = simulatedTx;
                 actualCustomQueueLength++;
@@ -632,11 +663,14 @@ library Senders {
             Sender storage sender = _registry.senders[senderIds[i]];
             if (sender.isType(SenderTypes.GnosisSafe)) {
                 sender.gnosisSafe().broadcast();
+            } else if (sender.isType(SenderTypes.OZGovernor)) {
+                sender.ozGovernor().broadcast();
             }
         }
 
-        vm.revertToState(postSimulationSnapshot);
         _registry.broadcasted = true;
+
+        vm.selectFork(_registry.simulationFork);
         return customQueue;
     }
 }

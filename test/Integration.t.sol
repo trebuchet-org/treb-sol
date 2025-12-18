@@ -56,7 +56,7 @@ contract IntegrationTest is Test, CreateXScript {
         });
 
         // Initialize
-        Senders.initialize(configs, "default", false);
+        Senders.initialize(configs, "default", "sepolia", false);
 
         // Get sender directly from registry
         Senders.Registry storage reg = Senders.registry();
@@ -102,12 +102,9 @@ contract IntegrationTest is Test, CreateXScript {
             config: abi.encode(pk)
         });
 
-        // Set environment
-        vm.setEnv("NETWORK", "http://localhost:8545");
-
         // Create custom sender coordinator for testing
         bytes memory encodedConfigs = abi.encode(configs);
-        TestSenderCoordinator disp = new TestSenderCoordinator(encodedConfigs, "default", false);
+        TestSenderCoordinator disp = new TestSenderCoordinator(encodedConfigs, "default", "sepolia", false);
 
         // Use the sender
         TestContract tc = disp.deployTestContract(123, COORDINATOR_TEST);
@@ -146,7 +143,7 @@ contract IntegrationTest is Test, CreateXScript {
         });
 
         // Initialize all
-        Senders.initialize(configs, "default", false);
+        Senders.initialize(configs, "default", "sepolia", false);
 
         // Verify all initialized correctly
         Senders.Registry storage reg = Senders.registry();
@@ -172,8 +169,8 @@ contract TestSenderCoordinator is SenderCoordinator {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(bytes memory _rawConfigs, string memory _namespace, bool _dryrun)
-        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _dryrun, false)
+    constructor(bytes memory _rawConfigs, string memory _namespace, string memory _network, bool _dryrun)
+        SenderCoordinator(abi.decode(_rawConfigs, (Senders.SenderInitConfig[])), _namespace, _network, _dryrun, false)
     {}
 
     function deployTestContract(uint256 value, string memory senderName) external returns (TestContract) {

@@ -7,6 +7,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {Senders} from "../../src/internal/sender/Senders.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "../../src/internal/sender/PrivateKeySender.sol";
 import {GnosisSafe} from "../../src/internal/sender/GnosisSafeSender.sol";
+import {OZGovernor} from "../../src/internal/sender/OZGovernorSender.sol";
 import {Transaction, SimulatedTransaction, SenderTypes} from "../../src/internal/types.sol";
 import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
@@ -18,12 +19,16 @@ contract SendersTestHarness is SenderCoordinator {
     using Senders for Senders.Registry;
     using Safe for Safe.Client;
     using GnosisSafe for GnosisSafe.Sender;
+    using OZGovernor for OZGovernor.Sender;
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(Senders.SenderInitConfig[] memory _configs) SenderCoordinator(_configs, "default", false, false) {
+    constructor(Senders.SenderInitConfig[] memory _configs)
+        SenderCoordinator(_configs, "default", "sepolia", false, false)
+    {
         // Deploy MultiSendCallOnly for testing (after initialize)
         MultiSendCallOnly multiSendCallOnly = new MultiSendCallOnly();
+        vm.makePersistent(address(multiSendCallOnly));
 
         // Setup Safe senders for testing
         for (uint256 i = 0; i < _configs.length; i++) {
@@ -47,9 +52,6 @@ contract SendersTestHarness is SenderCoordinator {
                 );
             }
         }
-
-        // Update the snapshot to include our MultiSendCallOnly setup
-        Senders.registry().preSimulationSnapshot = vm.snapshotState();
     }
 
     function broadcastAll() public {
@@ -92,6 +94,22 @@ contract SendersTestHarness is SenderCoordinator {
 
     function getInMemory(string memory _name) public view returns (InMemory.Sender memory) {
         return Senders.get(_name).inMemory();
+    }
+
+    function getOZGovernor(string memory _name) public view returns (OZGovernor.Sender memory) {
+        return Senders.get(_name).ozGovernor();
+    }
+
+    function setProposalDescription(string memory _name, string memory _description) public {
+        Senders.get(_name).ozGovernor().setProposalDescription(_description);
+    }
+
+    function setProposalDescriptionPath(string memory _name, string memory _path) public {
+        Senders.get(_name).ozGovernor().setProposalDescriptionPath(_path);
+    }
+
+    function clearProposalDescription(string memory _name) public {
+        Senders.get(_name).ozGovernor().clearDescription();
     }
 
     function isType(string memory _name, bytes8 _senderType) public view returns (bool) {
@@ -232,6 +250,14 @@ contract SendersTestHarness is SenderCoordinator {
 
     function getNamespace() public view returns (string memory) {
         return Senders.registry().namespace;
+    }
+
+    function getExecutionFork() public view returns (uint256) {
+        return Senders.registry().executionFork;
+    }
+
+    function getSimulationFork() public view returns (uint256) {
+        return Senders.registry().simulationFork;
     }
 
     // ************* Harness Helpers ************* //

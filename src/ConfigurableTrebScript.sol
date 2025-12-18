@@ -43,6 +43,7 @@ abstract contract ConfigurableTrebScript is SenderCoordinator, Registry {
      * @notice Initializes the configurable deployment script with explicit parameters
      * @param senderInitConfigs Array of sender configurations defining available transaction senders
      * @param namespace Deployment namespace (e.g., "default", "staging", "production")
+     * @param network Network name
      * @param registryFilename Path to the registry JSON file for deployment lookups
      * @param dryrun Whether to run in dry-run mode (simulate without executing transactions)
      * @param quiet Whether to suppress internal treb-cli parsing logs (reduces trace pollution)
@@ -52,8 +53,9 @@ abstract contract ConfigurableTrebScript is SenderCoordinator, Registry {
     constructor(
         Senders.SenderInitConfig[] memory senderInitConfigs,
         string memory namespace,
+        string memory network,
         string memory registryFilename,
         bool dryrun,
         bool quiet
-    ) Registry(namespace, registryFilename) SenderCoordinator(senderInitConfigs, namespace, dryrun, quiet) {}
+    ) Registry(namespace, registryFilename) SenderCoordinator(senderInitConfigs, namespace, network, dryrun, quiet) {}
 }

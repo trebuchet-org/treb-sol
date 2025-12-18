@@ -87,7 +87,7 @@ contract HarnessIntegrationTest is Test, CreateXScript {
 
     function setUp() public withCreateX {
         // Setup test sender
-        uint256 privateKey = 0x12345;
+        uint256 privateKey = 0x1234567;
         senderAddr = vm.addr(privateKey);
         vm.deal(senderAddr, 10 ether);
 
@@ -103,10 +103,15 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         // Initialize harness
         harness = new SendersTestHarness(configs);
 
-        // Create senderCoordinator for testing
-        senderCoordinator = new SenderCoordinator(configs, "default", false, false);
+        // Deploy test contracts to both forks and return
+        // to the simulation fork.
+        _deployTestContracts();
+        vm.selectFork(harness.getExecutionFork());
+        _deployTestContracts();
+        vm.selectFork(harness.getSimulationFork());
+    }
 
-        // Deploy test contracts from the sender account
+    function _deployTestContracts() internal {
         vm.startPrank(senderAddr);
         ownable = new OwnableContract();
         counter = new Counter();
@@ -285,11 +290,12 @@ contract HarnessIntegrationTest is Test, CreateXScript {
         bytes32 senderId = keccak256(abi.encodePacked(SENDER_NAME));
 
         // Create transaction manually
-        Transaction memory txn =
-            Transaction({to: address(counter), data: abi.encodeWithSelector(Counter.setNumber.selector, 333), value: 0});
+        Transaction memory txn = Transaction({
+            to: address(counter), data: abi.encodeWithSelector(Counter.setNumber.selector, 333), value: 0
+        });
 
         // Execute through senderCoordinator - this simulates and queues
-        SimulatedTransaction memory result = senderCoordinator.execute(senderId, txn);
+        SimulatedTransaction memory result = harness.execute(senderId, txn);
 
         // Transaction is executed during simulation
         assertEq(counter.number(), 333);

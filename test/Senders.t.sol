@@ -10,7 +10,7 @@ import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
 contract SendersRegistryTestHarness {
     function initialize(Senders.SenderInitConfig[] memory _configs) public {
-        Senders.initialize(_configs, "default", false);
+        Senders.initialize(_configs, "default", "sepolia", false);
     }
 }
 

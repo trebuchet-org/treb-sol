@@ -190,8 +190,9 @@ contract DeployerEntropyPatternsTest is Test, CreateXScript {
         address predicted2 = harness.predictCreate3WithArtifact(
             DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", abi.encode(900)
         );
-        address deployed2 =
-            harness.deployCreate3WithArtifact(DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", abi.encode(900));
+        address deployed2 = harness.deployCreate3WithArtifact(
+            DEPLOYER, "DeployerEntropyPatterns.t.sol:SimpleContract", abi.encode(900)
+        );
         assertEq(predicted2, deployed2);
 
         // Pattern 3: Artifact + label

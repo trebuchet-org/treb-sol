@@ -137,6 +137,7 @@ contract TestScript is ConfigurableTrebScript {
         ConfigurableTrebScript(
             _getSenderConfigs(),
             "test",
+            "sepolia",
             ".test-registry.json",
             false, // not dryrun
             _quiet // quiet mode
@@ -162,8 +163,9 @@ contract TestScript is ConfigurableTrebScript {
         SimpleContract sc = new SimpleContract();
 
         // Execute a transaction
-        Transaction memory txn =
-            Transaction({to: address(sc), data: abi.encodeWithSelector(SimpleContract.setValue.selector, 42), value: 0});
+        Transaction memory txn = Transaction({
+            to: address(sc), data: abi.encodeWithSelector(SimpleContract.setValue.selector, 42), value: 0
+        });
 
         s.execute(txn);
     }

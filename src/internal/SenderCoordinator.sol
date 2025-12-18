@@ -109,10 +109,11 @@ contract SenderCoordinator is Script, ITrebEvents {
     constructor(
         Senders.SenderInitConfig[] memory _senderInitConfigs,
         string memory _namespace,
+        string memory _network,
         bool _dryrun,
         bool _quiet
     ) {
-        Senders.initialize(_senderInitConfigs, _namespace, _quiet);
+        Senders.initialize(_senderInitConfigs, _namespace, _network, _quiet);
         namespace = _namespace;
         dryrun = _dryrun;
         quiet = _quiet;

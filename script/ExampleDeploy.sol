@@ -27,6 +27,7 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
         ConfigurableTrebScript(
             _getSenderConfigs(), // Custom sender configuration
             "example", // Namespace
+            "sepolia",
             "example-registry.json", // Registry file
             false, // Not dry run
             false // Not quiet mode
