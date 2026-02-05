@@ -21,6 +21,5 @@ ffi = true
 
 # RPC endpoints
 [rpc_endpoints]
-sepolia = "${SEPOLIA_RPC_URL}"
-alfajores = "https://alfajores-forno.celo-testnet.org"
+sepolia = "https://forno.celo-sepolia.celo-testnet.org"
 anvil = "http://127.0.0.1:8545"
