@@ -100,16 +100,16 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.get(_name).ozGovernor();
     }
 
+    function setTitle(string memory _name, string memory _title) public {
+        Senders.get(_name).ozGovernor().setTitle(_title);
+    }
+
     function setProposalDescription(string memory _name, string memory _description) public {
         Senders.get(_name).ozGovernor().setProposalDescription(_description);
     }
 
-    function setProposalDescriptionPath(string memory _name, string memory _path) public {
-        Senders.get(_name).ozGovernor().setProposalDescriptionPath(_path);
-    }
-
-    function clearProposalDescription(string memory _name) public {
-        Senders.get(_name).ozGovernor().clearDescription();
+    function buildProposalMetadata(string memory _name) public returns (string memory) {
+        return Senders.get(_name).ozGovernor().buildProposalMetadata();
     }
 
     function isType(string memory _name, bytes8 _senderType) public view returns (bool) {

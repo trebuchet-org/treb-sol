@@ -51,7 +51,8 @@ library OZGovernor {
      * @param governor Governor contract address (where propose is called)
      * @param timelock Optional timelock address (address(0) if none)
      * @param txQueue Queue of transactions to be included in the proposal
-     * @param description Proposal description text
+     * @param title Proposal title text
+     * @param description Proposal description file path (in markdown format)
      */
     struct Sender {
         bytes32 id;
@@ -65,13 +66,14 @@ library OZGovernor {
         address governor;
         address timelock;
         SimulatedTransaction[] txQueue;
+        string title;
         string description;
     }
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     error InvalidOZGovernorConfig(string name);
-    error ProposalDescriptionAlreadySet(string name);
+    error ProposalTitleNotSet(string name);
     error ProposalDescriptionNotSet(string name);
 
     /**
@@ -112,37 +114,21 @@ library OZGovernor {
     }
 
     /**
-     * @notice Clears the proposal description for testing purposes
-     * @dev Resets the description storage field to empty. Only use in tests.
+     * @notice Sets the proposal title directly
      * @param _sender The OZGovernor sender
+     * @param _title The proposal title text
      */
-    function clearDescription(Sender storage _sender) internal {
-        _sender.description = "";
-    }
-
-    /**
-     * @notice Sets the proposal description directly
-     * @dev Can only be called once per sender. Must be called before broadcast.
-     * @param _sender The OZGovernor sender
-     * @param _description The proposal description text
-     */
-    function setProposalDescription(Sender storage _sender, string memory _description) internal {
-        if (_sender._isDescriptionSet()) {
-            revert ProposalDescriptionAlreadySet(_sender.name);
-        }
-        _sender.description = _description;
+    function setTitle(Sender storage _sender, string memory _title) internal {
+        _sender.title = _title;
     }
 
     /**
      * @notice Sets the proposal description from a file path
-     * @dev Reads the file content and uses it as the description. Can only be called once.
+     * @dev Reads the file content and uses it as the description.
      * @param _sender The OZGovernor sender
      * @param _path Path to the file containing the proposal description
      */
-    function setProposalDescriptionPath(Sender storage _sender, string memory _path) internal {
-        if (_sender._isDescriptionSet()) {
-            revert ProposalDescriptionAlreadySet(_sender.name);
-        }
+    function setProposalDescription(Sender storage _sender, string memory _path) internal {
         _sender.description = vm.readFile(_path);
     }
 
@@ -159,7 +145,9 @@ library OZGovernor {
     /**
      * @notice Broadcasts all queued transactions as a governance proposal
      * @dev Creates a proposal on the Governor contract with all queued transactions.
-     *      Reverts if description is not set. Supports ETH value in transactions.
+     *      Reverts if title or description is not set. Supports ETH value in transactions.
+     *      The proposal description is a JSON metadata string built from the title and
+     *      markdown description, enabling governance UIs to render it properly.
      * @param _sender The OZGovernor sender
      */
     function broadcast(Sender storage _sender) internal {
@@ -167,11 +155,15 @@ library OZGovernor {
             return;
         }
 
+        if (!_sender._isTitleSet()) {
+            revert ProposalTitleNotSet(_sender.name);
+        }
+
         if (!_sender._isDescriptionSet()) {
             revert ProposalDescriptionNotSet(_sender.name);
         }
 
-        string memory description = _sender.description;
+        string memory description = _sender.buildProposalMetadata();
 
         // Prepare proposal arrays
         address[] memory targets = new address[](_sender.txQueue.length);
@@ -200,6 +192,33 @@ library OZGovernor {
         }
 
         delete _sender.txQueue;
+    }
+
+    /**
+     * @notice Constructs a JSON metadata string from the proposal title and description
+     * @dev Uses Forge's vm.serializeString to build a JSON object:
+     *      {
+     *          "title": "<proposal title>",
+     *          "description": "<proposal description in markdown format>"
+     *      }
+     *      This format allows governance UIs to properly render the proposal.
+     * @param _sender The OZGovernor sender
+     * @return The JSON-encoded proposal metadata string
+     */
+    function buildProposalMetadata(Sender storage _sender) internal returns (string memory) {
+        string memory objectKey = "proposal-metadata";
+        vm.serializeString(objectKey, "title", _sender.title);
+        return vm.serializeString(objectKey, "description", _sender.description);
+    }
+
+    /**
+     * @notice Checks if title has been set for this sender
+     * @dev Checks if the title storage field is non-empty
+     * @param _sender The OZGovernor sender
+     * @return True if title is set
+     */
+    function _isTitleSet(Sender storage _sender) internal view returns (bool) {
+        return bytes(_sender.title).length > 0;
     }
 
     /**

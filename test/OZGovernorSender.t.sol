@@ -65,6 +65,9 @@ contract OZGovernorSenderTest is Test {
     string constant GOV_NO_TIMELOCK = "gov-no-timelock";
     string constant GOV_WITH_TIMELOCK = "gov-with-timelock";
 
+    // Proposal description file path
+    string constant PROPOSAL_DESCRIPTION_PATH = "test/fixtures/test-proposal-description.md";
+
     // Proposer private key
     uint256 constant PROPOSER_PK = 0x54321;
 
@@ -215,70 +218,67 @@ contract OZGovernorSenderTest is Test {
         new SendersTestHarness(configs);
     }
 
+    // ============ Title Tests ============
+
+    function test_setTitle_shouldSetTitleCorrectly() public {
+        string memory title = "Test proposal title";
+        harness.setTitle(GOV_NO_TIMELOCK, title);
+        assertEq(harness.getOZGovernor(GOV_NO_TIMELOCK).title, title);
+
+        string memory title2 = "Another title";
+        harness.setTitle(GOV_NO_TIMELOCK, title2);
+        assertEq(harness.getOZGovernor(GOV_NO_TIMELOCK).title, title2);
+
+        string memory govWithTimelockTitle = "Title for timelock";
+        harness.setTitle(GOV_WITH_TIMELOCK, govWithTimelockTitle);
+        assertEq(harness.getOZGovernor(GOV_WITH_TIMELOCK).title, govWithTimelockTitle);
+    }
+
     // ============ Description Tests ============
 
-    function test_SetProposalDescription() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Test proposal description");
+    function test_setProposalDescription_shouldSetDescriptionCorrectly() public {
+        string memory fileContent = vm.readFile(PROPOSAL_DESCRIPTION_PATH);
 
-        // Verify description was set by trying to set again (should revert)
-        vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalDescriptionAlreadySet.selector, GOV_NO_TIMELOCK));
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Another description");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
+        assertEq(harness.getOZGovernor(GOV_NO_TIMELOCK).description, fileContent);
     }
 
-    function test_SetProposalDescriptionPath() public {
-        // Create a temp file with description in test/fixtures
-        string memory path = "test/fixtures/test-proposal-description.md";
-        vm.writeFile(path, "# Proposal from file\n\nThis is a test proposal.");
+    // ============ Proposal Metadata Tests ============
 
-        harness.setProposalDescriptionPath(GOV_NO_TIMELOCK, path);
+    function test_buildProposalMetadata_shouldReturnJsonWithTitleAndDescription() public {
+        string memory title = "Test proposal title";
+        harness.setTitle(GOV_NO_TIMELOCK, title);
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
-        // Verify description was set by trying to set again (should revert)
-        vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalDescriptionAlreadySet.selector, GOV_NO_TIMELOCK));
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Another description");
+        string memory metadata = harness.buildProposalMetadata(GOV_NO_TIMELOCK);
 
-        // Cleanup
-        vm.removeFile(path);
-    }
+        // Parse the JSON and verify both fields
+        string memory parsedTitle = vm.parseJsonString(metadata, ".title");
+        string memory parsedDescription = vm.parseJsonString(metadata, ".description");
 
-    function test_RevertOnDoubleSetDescription() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "First description");
-
-        vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalDescriptionAlreadySet.selector, GOV_NO_TIMELOCK));
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Second description");
-    }
-
-    function test_RevertOnSetDescriptionAfterPath() public {
-        string memory path = "test/fixtures/test-proposal-after-path.md";
-        vm.writeFile(path, "Description from file");
-
-        harness.setProposalDescriptionPath(GOV_NO_TIMELOCK, path);
-
-        vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalDescriptionAlreadySet.selector, GOV_NO_TIMELOCK));
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Another description");
-
-        vm.removeFile(path);
-    }
-
-    function test_RevertOnSetPathAfterDescription() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Direct description");
-
-        string memory path = "test/fixtures/test-proposal-after-desc.md";
-        vm.writeFile(path, "Description from file");
-
-        vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalDescriptionAlreadySet.selector, GOV_NO_TIMELOCK));
-        harness.setProposalDescriptionPath(GOV_NO_TIMELOCK, path);
-
-        vm.removeFile(path);
+        assertEq(parsedTitle, title, "Title mismatch in metadata JSON");
+        assertEq(parsedDescription, vm.readFile(PROPOSAL_DESCRIPTION_PATH), "Description mismatch in metadata JSON");
     }
 
     // ============ Broadcast Tests ============
 
-    function test_RevertBroadcastWithoutDescription() public {
-        // Queue a transaction without setting description
+    function test_broadcast_shouldRevertIfTitleNotSet() public {
         Transaction memory txn = Transaction({
             to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0
         });
 
+        harness.execute(GOV_NO_TIMELOCK, txn);
+
+        vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalTitleNotSet.selector, GOV_NO_TIMELOCK));
+        harness.broadcastAll();
+    }
+
+    function test_broadcast_shouldRevertIfDescriptionNotSet() public {
+        Transaction memory txn = Transaction({
+            to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0
+        });
+
+        harness.setTitle(GOV_NO_TIMELOCK, "Test proposal title");
         harness.execute(GOV_NO_TIMELOCK, txn);
 
         vm.expectRevert(abi.encodeWithSelector(OZGovernor.ProposalDescriptionNotSet.selector, GOV_NO_TIMELOCK));
@@ -286,8 +286,8 @@ contract OZGovernorSenderTest is Test {
     }
 
     function test_BroadcastCreatesProposal() public {
-        // Set description
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Test upgrade proposal");
+        harness.setTitle(GOV_NO_TIMELOCK, "Test proposal title");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         // Queue transaction
         Transaction memory txn = Transaction({
@@ -324,7 +324,8 @@ contract OZGovernorSenderTest is Test {
     }
 
     function test_BroadcastWithMultipleTransactions() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Multi-action proposal");
+        harness.setTitle(GOV_NO_TIMELOCK, "Multi-action proposal title");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         // Queue multiple transactions
         Transaction[] memory txns = new Transaction[](3);
@@ -359,7 +360,8 @@ contract OZGovernorSenderTest is Test {
     }
 
     function test_BroadcastEmitsEvent() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Event test proposal");
+        harness.setTitle(GOV_NO_TIMELOCK, "Event test proposal title");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         Transaction memory txn = Transaction({
             to: address(target), data: abi.encodeWithSelector(MockTarget.setValue.selector, 42), value: 0
@@ -375,8 +377,8 @@ contract OZGovernorSenderTest is Test {
     }
 
     function test_EmptyQueueDoesNotRevert() public {
-        // Set description but don't queue any transactions
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Empty proposal");
+        harness.setTitle(GOV_NO_TIMELOCK, "Empty proposal title");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         vm.recordLogs();
         // Broadcast should not revert (just does nothing)
@@ -394,7 +396,7 @@ contract OZGovernorSenderTest is Test {
     // ============ Prank Source Tests ============
 
     function test_SimulationPranksFromGovernorWhenNoTimelock() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "Prank test");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         // Set up target to track msg.sender
         MockSenderTracker tracker = new MockSenderTracker();
@@ -410,7 +412,7 @@ contract OZGovernorSenderTest is Test {
     }
 
     function test_SimulationPranksFromTimelockWhenProvided() public {
-        harness.setProposalDescription(GOV_WITH_TIMELOCK, "Timelock prank test");
+        harness.setProposalDescription(GOV_WITH_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         MockSenderTracker tracker = new MockSenderTracker();
 
@@ -427,7 +429,8 @@ contract OZGovernorSenderTest is Test {
     // ============ Value Transfer Tests ============
 
     function test_AllowsValueTransfers() public {
-        harness.setProposalDescription(GOV_NO_TIMELOCK, "ETH transfer proposal");
+        harness.setTitle(GOV_NO_TIMELOCK, "ETH transfer proposal title");
+        harness.setProposalDescription(GOV_NO_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         // Fund the governor (which will be pranked as sender)
         vm.deal(address(governor), 10 ether);
@@ -488,6 +491,9 @@ contract OZGovernorIntegrationTest is Test {
     string constant PROPOSER_TIMELOCK = "proposer-timelock";
     string constant GOV_DIRECT = "gov-direct";
     string constant GOV_TIMELOCK = "gov-timelock";
+
+    // Proposal description file path
+    string constant PROPOSAL_DESCRIPTION_PATH = "test/fixtures/test-proposal-description.md";
 
     // Private keys
     uint256 constant DEPLOYER_PK = 0x1;
@@ -595,7 +601,8 @@ contract OZGovernorIntegrationTest is Test {
 
     function test_Integration_DirectGovernor_SingleAction() public {
         // Scenario: Protocol upgrade via direct governor
-        harness.setProposalDescription(GOV_DIRECT, "# PIP-1: Update Treasury Parameter\n\nSet treasury value to 1000.");
+        harness.setTitle(GOV_DIRECT, "Protocol upgrade title");
+        harness.setProposalDescription(GOV_DIRECT, PROPOSAL_DESCRIPTION_PATH);
 
         Transaction memory txn = Transaction({
             to: address(treasury), data: abi.encodeWithSelector(MockTarget.setValue.selector, 1000), value: 0
@@ -673,10 +680,10 @@ contract OZGovernorIntegrationTest is Test {
 
     function test_Integration_DirectGovernor_MultipleActions() public {
         // Scenario: Batch governance proposal with multiple actions
+        harness.setTitle(GOV_DIRECT, "Multi-action proposal title");
         harness.setProposalDescription(
             GOV_DIRECT,
-            "# PIP-2: Protocol Configuration Update\n\n" "1. Update treasury\n" "2. Update registry\n"
-            "3. Fund upgradeable contract"
+            PROPOSAL_DESCRIPTION_PATH
         );
 
         // Fund governor for ETH transfer simulation
@@ -779,8 +786,9 @@ contract OZGovernorIntegrationTest is Test {
 
     function test_Integration_TimelockGovernor_SingleAction() public {
         // Scenario: Critical upgrade that goes through timelock
+        harness.setTitle(GOV_TIMELOCK, "Critical parameter update title");
         harness.setProposalDescription(
-            GOV_TIMELOCK, "# TIP-1: Critical Parameter Update\n\nThis change requires timelock delay."
+            GOV_TIMELOCK, PROPOSAL_DESCRIPTION_PATH
         );
 
         Transaction memory txn = Transaction({
@@ -860,10 +868,10 @@ contract OZGovernorIntegrationTest is Test {
 
     function test_Integration_TimelockGovernor_MultipleActions() public {
         // Scenario: Complex governance action through timelock
+        harness.setTitle(GOV_TIMELOCK, "Multi-step protocol upgrade title");
         harness.setProposalDescription(
             GOV_TIMELOCK,
-            "# TIP-2: Multi-step Protocol Upgrade\n\n" "Critical changes requiring timelock:\n" "1. Treasury update\n"
-            "2. Registry migration"
+            PROPOSAL_DESCRIPTION_PATH
         );
 
         Transaction[] memory txns = new Transaction[](2);
@@ -966,7 +974,8 @@ contract OZGovernorIntegrationTest is Test {
         assertEq(treasury.value(), 1, "Deployer should set value");
 
         // Then governor proposes a change
-        harness.setProposalDescription(GOV_DIRECT, "Update after deployment");
+        harness.setTitle(GOV_DIRECT, "Update after deployment title");
+        harness.setProposalDescription(GOV_DIRECT, PROPOSAL_DESCRIPTION_PATH);
         Transaction memory govTxn = Transaction({
             to: address(treasury), data: abi.encodeWithSelector(MockTarget.setValue.selector, 2), value: 0
         });
@@ -994,8 +1003,10 @@ contract OZGovernorIntegrationTest is Test {
 
     function test_Integration_BothGovernorsInSameScript() public {
         // Scenario: Two different governance systems updated in same script
-        harness.setProposalDescription(GOV_DIRECT, "Direct gov proposal");
-        harness.setProposalDescription(GOV_TIMELOCK, "Timelock gov proposal");
+        harness.setTitle(GOV_DIRECT, "Direct gov title");
+        harness.setProposalDescription(GOV_DIRECT, PROPOSAL_DESCRIPTION_PATH);
+        harness.setTitle(GOV_TIMELOCK, "Timelock gov title");
+        harness.setProposalDescription(GOV_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         // Queue to direct governor
         Transaction memory directTxn = Transaction({
@@ -1043,7 +1054,8 @@ contract OZGovernorIntegrationTest is Test {
     // ============ Error Scenario Tests ============
 
     function test_Integration_ProposalIdIsCorrect() public {
-        harness.setProposalDescription(GOV_DIRECT, "Test proposal for ID verification");
+        harness.setTitle(GOV_DIRECT, "Test proposal for ID verification title");
+        harness.setProposalDescription(GOV_DIRECT, PROPOSAL_DESCRIPTION_PATH);
 
         address[] memory targets = new address[](1);
         targets[0] = address(treasury);
@@ -1055,8 +1067,9 @@ contract OZGovernorIntegrationTest is Test {
         calldatas[0] = abi.encodeWithSelector(MockTarget.setValue.selector, 42);
 
         // Calculate expected proposal ID (same as OZ Governor)
+        string memory proposalDescription = harness.buildProposalDescription(GOV_DIRECT);
         uint256 expectedProposalId = uint256(
-            keccak256(abi.encode(targets, values, calldatas, keccak256(bytes("Test proposal for ID verification"))))
+            keccak256(abi.encode(targets, values, calldatas, keccak256(bytes(proposalDescription))))
         );
 
         Transaction memory txn = Transaction({to: address(treasury), data: calldatas[0], value: 0});
@@ -1124,7 +1137,8 @@ contract OZGovernorIntegrationTest is Test {
 
     function test_Integration_ETHTransfersThroughGovernance() public {
         // Scenario: Governance proposal to send ETH from treasury
-        harness.setProposalDescription(GOV_DIRECT, "Grant: Send 10 ETH to recipient");
+        harness.setTitle(GOV_DIRECT, "ETH transfer proposal title");
+        harness.setProposalDescription(GOV_DIRECT, PROPOSAL_DESCRIPTION_PATH);
 
         // Fund governor for ETH transfer simulation
         vm.deal(address(governorDirect), 20 ether);
