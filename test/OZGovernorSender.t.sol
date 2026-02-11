@@ -637,12 +637,15 @@ contract OZGovernorIntegrationTest is Test {
             // Check for OZ ProposalCreated event
             if (logs[i].topics[0] == ozProposalCreatedSelector) {
                 foundOZEvent = true;
+                // forgefmt: disable-next-item
                 (
                     uint256 proposalId,
                     address proposer,
                     address[] memory targets,
-                    uint256[] memory values,, // signatures (always empty)
-                    bytes[] memory calldatas,, // voteStart
+                    uint256[] memory values,
+                    , // signatures
+                    bytes[] memory calldatas,
+                    , // voteStart
                     , // voteEnd
                     // description
                 ) = abi.decode(
@@ -681,10 +684,7 @@ contract OZGovernorIntegrationTest is Test {
     function test_Integration_DirectGovernor_MultipleActions() public {
         // Scenario: Batch governance proposal with multiple actions
         harness.setTitle(GOV_DIRECT, "Multi-action proposal title");
-        harness.setProposalDescription(
-            GOV_DIRECT,
-            PROPOSAL_DESCRIPTION_PATH
-        );
+        harness.setProposalDescription(GOV_DIRECT, PROPOSAL_DESCRIPTION_PATH);
 
         // Fund governor for ETH transfer simulation
         vm.deal(address(governorDirect), 10 ether);
@@ -729,12 +729,15 @@ contract OZGovernorIntegrationTest is Test {
             // Check for OZ ProposalCreated event
             if (logs[i].topics[0] == ozProposalCreatedSelector) {
                 foundOZEvent = true;
+                // forgefmt: disable-next-item
                 (
                     uint256 proposalId,
                     address proposer,
                     address[] memory targets,
-                    uint256[] memory values,, // signatures (always empty)
-                    bytes[] memory calldatas,, // voteStart
+                    uint256[] memory values,
+                    , // signatures
+                    bytes[] memory calldatas,
+                    , // voteStart
                     , // voteEnd
                     // description
                 ) = abi.decode(
@@ -787,9 +790,7 @@ contract OZGovernorIntegrationTest is Test {
     function test_Integration_TimelockGovernor_SingleAction() public {
         // Scenario: Critical upgrade that goes through timelock
         harness.setTitle(GOV_TIMELOCK, "Critical parameter update title");
-        harness.setProposalDescription(
-            GOV_TIMELOCK, PROPOSAL_DESCRIPTION_PATH
-        );
+        harness.setProposalDescription(GOV_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         Transaction memory txn = Transaction({
             to: address(treasury), data: abi.encodeWithSelector(MockTarget.setValue.selector, 9999), value: 0
@@ -825,12 +826,15 @@ contract OZGovernorIntegrationTest is Test {
             // Check for OZ ProposalCreated event
             if (logs[i].topics[0] == ozProposalCreatedSelector) {
                 foundOZEvent = true;
+                // forgefmt: disable-next-item
                 (
                     uint256 proposalId,
                     address proposer,
                     address[] memory targets,
-                    uint256[] memory values,, // signatures (always empty)
-                    bytes[] memory calldatas,, // voteStart
+                    uint256[] memory values,
+                    , // signatures
+                    bytes[] memory calldatas,
+                    , // voteStart
                     , // voteEnd
                     // description
                 ) = abi.decode(
@@ -869,10 +873,7 @@ contract OZGovernorIntegrationTest is Test {
     function test_Integration_TimelockGovernor_MultipleActions() public {
         // Scenario: Complex governance action through timelock
         harness.setTitle(GOV_TIMELOCK, "Multi-step protocol upgrade title");
-        harness.setProposalDescription(
-            GOV_TIMELOCK,
-            PROPOSAL_DESCRIPTION_PATH
-        );
+        harness.setProposalDescription(GOV_TIMELOCK, PROPOSAL_DESCRIPTION_PATH);
 
         Transaction[] memory txns = new Transaction[](2);
         txns[0] = Transaction({
@@ -910,12 +911,15 @@ contract OZGovernorIntegrationTest is Test {
             // Check for OZ ProposalCreated event
             if (logs[i].topics[0] == ozProposalCreatedSelector) {
                 foundOZEvent = true;
+                // forgefmt: disable-next-item
                 (
                     uint256 proposalId,
                     address proposer,
                     address[] memory targets,
-                    uint256[] memory values,, // signatures (always empty)
-                    bytes[] memory calldatas,, // voteStart
+                    uint256[] memory values,
+                    , // signatures
+                    bytes[] memory calldatas,
+                    , // voteStart
                     , // voteEnd
                     // description
                 ) = abi.decode(
@@ -1067,10 +1071,9 @@ contract OZGovernorIntegrationTest is Test {
         calldatas[0] = abi.encodeWithSelector(MockTarget.setValue.selector, 42);
 
         // Calculate expected proposal ID (same as OZ Governor)
-        string memory proposalDescription = harness.buildProposalDescription(GOV_DIRECT);
-        uint256 expectedProposalId = uint256(
-            keccak256(abi.encode(targets, values, calldatas, keccak256(bytes(proposalDescription))))
-        );
+        string memory proposalDescription = harness.buildProposalMetadata(GOV_DIRECT);
+        uint256 expectedProposalId =
+            uint256(keccak256(abi.encode(targets, values, calldatas, keccak256(bytes(proposalDescription)))));
 
         Transaction memory txn = Transaction({to: address(treasury), data: calldatas[0], value: 0});
 
@@ -1097,12 +1100,15 @@ contract OZGovernorIntegrationTest is Test {
             // Check for OZ ProposalCreated event
             if (logs[i].topics[0] == ozProposalCreatedSelector) {
                 foundOZEvent = true;
+                // forgefmt: disable-next-item
                 (
                     uint256 proposalId,
                     address proposer,
                     address[] memory ozTargets,
-                    uint256[] memory ozValues,, // signatures (always empty)
-                    bytes[] memory ozCalldatas,, // voteStart
+                    uint256[] memory ozValues,
+                    , // signatures
+                    bytes[] memory ozCalldatas,
+                    , // voteStart
                     , // voteEnd
                     // description
                 ) = abi.decode(
@@ -1170,12 +1176,15 @@ contract OZGovernorIntegrationTest is Test {
             // Check for OZ ProposalCreated event
             if (logs[i].topics[0] == ozProposalCreatedSelector) {
                 foundOZEvent = true;
+                // forgefmt: disable-next-item
                 (
                     uint256 proposalId,
                     address proposer,
                     address[] memory targets,
-                    uint256[] memory values,, // signatures (always empty)
-                    bytes[] memory calldatas,, // voteStart
+                    uint256[] memory values,
+                    , // signatures
+                    bytes[] memory calldatas,
+                    , // voteStart
                     , // voteEnd
                     // description
                 ) = abi.decode(
