@@ -7,8 +7,8 @@ import {Safe} from "safe-utils/Safe.sol";
 import {SimulatedTransaction, SenderTypes} from "../types.sol";
 import {ITrebEvents} from "../ITrebEvents.sol";
 import {Transaction} from "../types.sol";
-import {Safe as SafeContract} from "safe-smart-account/contracts/Safe.sol";
-import {Enum} from "safe-smart-account/contracts/common/Enum.sol";
+import {Safe as SafeContract} from "safe-smart-account/Safe.sol";
+import {Enum} from "safe-smart-account/common/Enum.sol";
 
 /**
  * @title GnosisSafe

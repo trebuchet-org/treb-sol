@@ -8,8 +8,8 @@ import {GnosisSafe} from "../src/internal/sender/GnosisSafeSender.sol";
 import {SenderTypes, Transaction, SimulatedTransaction} from "../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 import {SenderCoordinator} from "../src/internal/SenderCoordinator.sol";
-import {Safe} from "safe-smart-account/contracts/Safe.sol";
-import {SafeProxyFactory} from "safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
+import {Safe} from "safe-smart-account/Safe.sol";
+import {SafeProxyFactory} from "safe-smart-account/proxies/SafeProxyFactory.sol";
 import {ITrebEvents} from "../src/internal/ITrebEvents.sol";
 
 contract MockTarget {

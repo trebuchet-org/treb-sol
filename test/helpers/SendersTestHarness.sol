@@ -9,7 +9,7 @@ import {PrivateKey, HardwareWallet, InMemory} from "../../src/internal/sender/Pr
 import {GnosisSafe} from "../../src/internal/sender/GnosisSafeSender.sol";
 import {OZGovernor} from "../../src/internal/sender/OZGovernorSender.sol";
 import {Transaction, SimulatedTransaction, SenderTypes} from "../../src/internal/types.sol";
-import {MultiSendCallOnly} from "safe-smart-account/contracts/libraries/MultiSendCallOnly.sol";
+import {MultiSendCallOnly} from "safe-smart-account/libraries/MultiSendCallOnly.sol";
 import {Safe} from "safe-utils/Safe.sol";
 import {Deployer} from "../../src/internal/sender/Deployer.sol";
 import {SenderCoordinator} from "../../src/internal/SenderCoordinator.sol";
