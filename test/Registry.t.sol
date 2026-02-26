@@ -110,8 +110,7 @@ contract RegistryTest is Test {
         // ERC1967Proxy:Counter is only in the registry, not in the addressbook
         registry = new Registry("default", BASIC_REGISTRY, ADDRESSBOOK);
         assertEq(
-            registry.lookup("ERC1967Proxy:Counter", "staging"),
-            address(0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E)
+            registry.lookup("ERC1967Proxy:Counter", "staging"), address(0x999999cf1046e68e36E1aA2E0E07105eDDD1f08E)
         );
     }
 
