@@ -139,6 +139,7 @@ contract TestScript is ConfigurableTrebScript {
             "test",
             "sepolia",
             ".test-registry.json",
+            ".test-addressbook.json",
             false, // not dryrun
             _quiet // quiet mode
         )

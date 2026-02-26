@@ -29,6 +29,7 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
             "example", // Namespace
             "sepolia",
             "example-registry.json", // Registry file
+            "example-addressbook.json", // Addressbook file
             false, // Not dry run
             false // Not quiet mode
         )
