@@ -46,6 +46,7 @@ abstract contract TrebScript is ConfigurableTrebScript {
             vm.envOr("NAMESPACE", string("default")),
             vm.envString("NETWORK"),
             vm.envOr("REGISTRY_FILE", string(".treb/registry.json")),
+            vm.envOr("ADDRESSBOOK_FILE", string(".treb/addressbook.json")),
             vm.envOr("DRYRUN", false),
             vm.envOr("QUIET", false)
         )

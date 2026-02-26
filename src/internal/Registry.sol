@@ -53,6 +53,9 @@ contract Registry is Script {
     /// @notice The loaded registry JSON content
     string private registryJSON;
 
+    /// @notice The loaded addressbook JSON content
+    string private addressbookJSON;
+
     /// @notice The default namespace/environment for lookups
     string private namespace;
 
@@ -60,14 +63,14 @@ contract Registry is Script {
     string private chainId;
 
     /**
-     * @notice Initializes the registry with a namespace and registry file path
+     * @notice Initializes the registry with a namespace, registry file path, and addressbook file path
      * @param _namespace The default namespace to use for lookups (e.g., "default", "staging", "production")
      * @param _registryJSONFile Path to the registry JSON file (typically ".treb/registry.json")
-     * @dev If the registry file cannot be loaded, the contract will initialize with an empty registry
-     *      and lookups will return address(0). This allows deployment scripts to continue even if
-     *      the registry is not yet populated.
+     * @param _addressbookJSONFile Path to the addressbook JSON file (typically ".treb/addressbook.json")
+     * @dev If the registry or addressbook files cannot be loaded, the contract will initialize with
+     *      empty JSON and lookups for that source will return address(0).
      */
-    constructor(string memory _namespace, string memory _registryJSONFile) {
+    constructor(string memory _namespace, string memory _registryJSONFile, string memory _addressbookJSONFile) {
         chainId = vm.toString(block.chainid);
         namespace = _namespace;
         try vm.readFile(_registryJSONFile) returns (string memory _registryJSON) {
@@ -75,6 +78,12 @@ contract Registry is Script {
         } catch {
             console.log("Registry: failed to load registry from", _registryJSONFile);
             registryJSON = "{}";
+        }
+        try vm.readFile(_addressbookJSONFile) returns (string memory _addressbookJSON) {
+            addressbookJSON = _addressbookJSON;
+        } catch {
+            console.log("Registry: failed to load addressbook from", _addressbookJSONFile);
+            addressbookJSON = "{}";
         }
     }
 
@@ -148,11 +157,38 @@ contract Registry is Script {
         view
         returns (address)
     {
+        address registryResult = _lookupRegistry(_identifier, _env, _chainId);
+        address addressbookResult = _lookupAddressbook(_identifier, _chainId);
+
+        require(
+            registryResult == address(0) || addressbookResult == address(0),
+            string.concat("lookup: '", _identifier, "' found in both registry and addressbook")
+        );
+
+        if (registryResult != address(0)) {
+            return registryResult;
+        }
+        return addressbookResult;
+    }
+
+    function _lookupRegistry(string memory _identifier, string memory _env, string memory _chainId)
+        private
+        view
+        returns (address)
+    {
         string memory jsonPath = string.concat(".", _chainId, ".", _env, "[\"", _identifier, "\"]");
         try vm.parseJsonAddress(registryJSON, jsonPath) returns (address result) {
             return result;
         } catch {
-            console.log("Registry: lookup failed for", _chainId, _env, _identifier);
+            return address(0);
+        }
+    }
+
+    function _lookupAddressbook(string memory _identifier, string memory _chainId) private view returns (address) {
+        string memory jsonPath = string.concat(".", _chainId, "[\"", _identifier, "\"]");
+        try vm.parseJsonAddress(addressbookJSON, jsonPath) returns (address result) {
+            return result;
+        } catch {
             return address(0);
         }
     }
