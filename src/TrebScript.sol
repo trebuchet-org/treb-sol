@@ -26,6 +26,7 @@ import {Senders} from "./internal/sender/Senders.sol";
  *      - REGISTRY_FILE: Registry file path (default: ".treb/registry.json")
  *      - DRYRUN: Whether to execute in dry-run mode (default: false)
  *      - QUIET: Whether to suppress internal treb-cli parsing logs (default: false)
+ *      - TREB_FORK_MODE: Whether running against a local anvil fork via treb fork mode (default: false)
  */
 abstract contract TrebScript is ConfigurableTrebScript {
     /**
@@ -48,7 +49,8 @@ abstract contract TrebScript is ConfigurableTrebScript {
             vm.envOr("REGISTRY_FILE", string(".treb/registry.json")),
             vm.envOr("ADDRESSBOOK_FILE", string(".treb/addressbook.json")),
             vm.envOr("DRYRUN", false),
-            vm.envOr("QUIET", false)
+            vm.envOr("QUIET", false),
+            vm.envOr("TREB_FORK_MODE", false)
         )
     {}
 }

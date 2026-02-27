@@ -27,9 +27,12 @@ import {Senders} from "./internal/sender/Senders.sol";
  *          constructor() ConfigurableTrebScript(
  *              _getSenderConfigs(),     // Custom sender configuration
  *              "production",            // Namespace
+ *              "sepolia",               // Network
  *              "deployments.json",      // Registry file
+ *              "addressbook.json",      // Addressbook file
  *              false,                   // Not dry run
- *              false                    // Not quiet mode
+ *              false,                   // Not quiet mode
+ *              false                    // Not fork mode
  *          ) {}
  *
  *          function _getSenderConfigs() internal pure returns (Senders.SenderInitConfig[] memory) {
@@ -39,14 +42,19 @@ import {Senders} from "./internal/sender/Senders.sol";
  *      ```
  */
 abstract contract ConfigurableTrebScript is SenderCoordinator, Registry {
+    /// @notice Whether the script is running in fork mode (against a local anvil fork)
+    bool public isForkMode;
+
     /**
      * @notice Initializes the configurable deployment script with explicit parameters
      * @param senderInitConfigs Array of sender configurations defining available transaction senders
      * @param namespace Deployment namespace (e.g., "default", "staging", "production")
      * @param network Network name
      * @param registryFilename Path to the registry JSON file for deployment lookups
+     * @param addressbookFilename Path to the addressbook JSON file
      * @param dryrun Whether to run in dry-run mode (simulate without executing transactions)
      * @param quiet Whether to suppress internal treb-cli parsing logs (reduces trace pollution)
+     * @param _isForkMode Whether the script is running against a local anvil fork via treb fork mode
      * @dev This constructor provides complete control over all configuration parameters,
      *      making it suitable for use cases where environment variable configuration is not desired.
      */
@@ -57,9 +65,12 @@ abstract contract ConfigurableTrebScript is SenderCoordinator, Registry {
         string memory registryFilename,
         string memory addressbookFilename,
         bool dryrun,
-        bool quiet
+        bool quiet,
+        bool _isForkMode
     )
         Registry(namespace, registryFilename, addressbookFilename)
         SenderCoordinator(senderInitConfigs, namespace, network, dryrun, quiet)
-    {}
+    {
+        isForkMode = _isForkMode;
+    }
 }

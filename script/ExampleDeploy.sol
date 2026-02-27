@@ -31,7 +31,8 @@ contract ExampleDeploy is ConfigurableTrebScript, CreateXScript {
             "example-registry.json", // Registry file
             "example-addressbook.json", // Addressbook file
             false, // Not dry run
-            false // Not quiet mode
+            false, // Not quiet mode
+            false // Not fork mode
         )
     {}
 

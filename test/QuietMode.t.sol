@@ -141,7 +141,8 @@ contract TestScript is ConfigurableTrebScript {
             ".test-registry.json",
             ".test-addressbook.json",
             false, // not dryrun
-            _quiet // quiet mode
+            _quiet, // quiet mode
+            false // not fork mode
         )
     {}
 
