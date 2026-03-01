@@ -236,10 +236,7 @@ contract SendersTestHarness is SenderCoordinator {
 
     // ************* Gas Batch Testing Helpers ************* //
 
-    function queueSimulatedTransaction(
-        string memory _name,
-        SimulatedTransaction memory _tx
-    ) public {
+    function queueSimulatedTransaction(string memory _name, SimulatedTransaction memory _tx) public {
         GnosisSafe.Sender storage gnosisSafeSender = Senders.get(_name).gnosisSafe();
         gnosisSafeSender.txQueue.push(_tx);
     }

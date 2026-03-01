@@ -39,15 +39,7 @@ contract GasBatchSplittingTest is Test {
         owners[0] = vm.addr(0x54321);
 
         bytes memory initializer = abi.encodeWithSelector(
-            Safe.setup.selector,
-            owners,
-            1,
-            address(0),
-            "",
-            address(0),
-            address(0),
-            0,
-            payable(0)
+            Safe.setup.selector, owners, 1, address(0), "", address(0), address(0), 0, payable(0)
         );
 
         safeThreshold1 = Safe(payable(factory.createProxyWithNonce(address(safeMasterCopy), initializer, 1)));
@@ -89,9 +81,7 @@ contract GasBatchSplittingTest is Test {
             sender: address(safeThreshold1),
             returnData: "",
             transaction: Transaction({
-                to: address(target),
-                data: abi.encodeWithSelector(MockGasTarget.setValue.selector, txId),
-                value: 0
+                to: address(target), data: abi.encodeWithSelector(MockGasTarget.setValue.selector, txId), value: 0
             }),
             gasUsed: gasUsed
         });
@@ -101,9 +91,7 @@ contract GasBatchSplittingTest is Test {
 
     function test_gasUsedIsRecorded() public {
         Transaction memory txn = Transaction({
-            to: address(target),
-            data: abi.encodeWithSelector(MockGasTarget.setValue.selector, 42),
-            value: 0
+            to: address(target), data: abi.encodeWithSelector(MockGasTarget.setValue.selector, 42), value: 0
         });
 
         SimulatedTransaction memory simTx = harness.execute(SAFE_T1, txn);
@@ -114,9 +102,7 @@ contract GasBatchSplittingTest is Test {
         Transaction[] memory txns = new Transaction[](3);
         for (uint256 i = 0; i < 3; i++) {
             txns[i] = Transaction({
-                to: address(target),
-                data: abi.encodeWithSelector(MockGasTarget.setValue.selector, i + 1),
-                value: 0
+                to: address(target), data: abi.encodeWithSelector(MockGasTarget.setValue.selector, i + 1), value: 0
             });
         }
 
@@ -265,9 +251,7 @@ contract GasBatchSplittingTest is Test {
         Transaction[] memory txns = new Transaction[](5);
         for (uint256 i = 0; i < 5; i++) {
             txns[i] = Transaction({
-                to: address(target),
-                data: abi.encodeWithSelector(MockGasTarget.setValue.selector, i + 1),
-                value: 0
+                to: address(target), data: abi.encodeWithSelector(MockGasTarget.setValue.selector, i + 1), value: 0
             });
         }
 

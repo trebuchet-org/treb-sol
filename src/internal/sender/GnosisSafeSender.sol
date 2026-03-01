@@ -55,6 +55,9 @@ library GnosisSafe {
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
+    /// @dev Fixed gas overhead per batch for MultiSend encoding + Safe.execTransaction wrapper
+    uint256 private constant BATCH_OVERHEAD = 100_000;
+
     error SafeTransactionValueNotZero(Transaction transaction);
     error InvalidGnosisSafeConfig(string name);
 
@@ -111,9 +114,6 @@ library GnosisSafe {
     function queue(Sender storage _sender, SimulatedTransaction memory _tx) internal {
         _sender.txQueue.push(_tx);
     }
-
-    /// @dev Fixed gas overhead per batch for MultiSend encoding + Safe.execTransaction wrapper
-    uint256 private constant BATCH_OVERHEAD = 100_000;
 
     /**
      * @notice Broadcasts all queued transactions with gas-aware batch splitting
@@ -232,33 +232,6 @@ library GnosisSafe {
     }
 
     /**
-     * @notice Low-level Safe execTransaction call via vm.broadcast
-     * @dev Extracted to reduce stack depth in _executeDirectly
-     */
-    function _execSafeTransaction(
-        Sender storage _sender,
-        address to,
-        bytes memory data,
-        Enum.Operation operation,
-        bytes memory signature
-    ) private {
-        vm.broadcast(_sender.proposer().account);
-        bool success = SafeContract(payable(_sender.account)).execTransaction(
-            to,
-            0, // value
-            data,
-            operation,
-            0, // safeTxGas
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            payable(0), // refundReceiver
-            signature
-        );
-        require(success, "Safe transaction execution failed");
-    }
-
-    /**
      * @notice Checks if the Safe has threshold of 1
      * @param _sender The Safe sender
      * @return True if the Safe has threshold of 1
@@ -304,5 +277,33 @@ library GnosisSafe {
         assembly {
             _gnosisSafeSender.slot := _sender.slot
         }
+    }
+
+    /**
+     * @notice Low-level Safe execTransaction call via vm.broadcast
+     * @dev Extracted to reduce stack depth in _executeDirectly
+     */
+    function _execSafeTransaction(
+        Sender storage _sender,
+        address to,
+        bytes memory data,
+        Enum.Operation operation,
+        bytes memory signature
+    ) private {
+        vm.broadcast(_sender.proposer().account);
+        bool success = SafeContract(payable(_sender.account))
+            .execTransaction(
+                to,
+                0, // value
+                data,
+                operation,
+                0, // safeTxGas
+                0, // baseGas
+                0, // gasPrice
+                address(0), // gasToken
+                payable(0), // refundReceiver
+                signature
+            );
+        require(success, "Safe transaction execution failed");
     }
 }
