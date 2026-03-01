@@ -72,6 +72,7 @@ contract GasBatchSplittingTest is Test {
 
         harness = new SendersTestHarness(configs);
         vm.makePersistent(address(harness));
+        vm.makePersistent(address(target));
 
         vm.deal(vm.addr(0x54321), 10 ether);
         vm.selectFork(harness.getExecutionFork());
