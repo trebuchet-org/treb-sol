@@ -13,6 +13,7 @@ struct SimulatedTransaction {
     address sender;
     bytes returnData;
     Transaction transaction;
+    uint256 gasUsed;
 }
 
 library SenderTypes {

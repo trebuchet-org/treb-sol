@@ -40,16 +40,8 @@ contract SendersTestHarness is SenderCoordinator {
                 safeClient.instance().urls[block.chainid] = "https://localhost";
                 safeClient.instance().multiSendCallOnly[block.chainid] = multiSendCallOnly;
 
-                // Mock Safe contract calls
-                address safeAddress = sender.account;
-                vm.mockCall(safeAddress, abi.encodeWithSignature("nonce()"), abi.encode(uint256(0)));
-                vm.mockCall(
-                    safeAddress,
-                    abi.encodeWithSignature(
-                        "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)"
-                    ),
-                    abi.encode(bytes32(keccak256("mock-tx-hash")))
-                );
+                // Make Safe contract persistent across forks
+                vm.makePersistent(sender.account);
             }
         }
     }
@@ -240,6 +232,22 @@ contract SendersTestHarness is SenderCoordinator {
 
     function _derivedSalt(string memory _name, bytes32 _baseSalt) public view returns (bytes32) {
         return Senders.get(_name)._derivedSalt(_baseSalt);
+    }
+
+    // ************* Gas Batch Testing Helpers ************* //
+
+    function queueSimulatedTransaction(
+        string memory _name,
+        SimulatedTransaction memory _tx
+    ) public {
+        GnosisSafe.Sender storage gnosisSafeSender = Senders.get(_name).gnosisSafe();
+        gnosisSafeSender.txQueue.push(_tx);
+    }
+
+    function broadcastSafeSender(string memory _name) public {
+        vm.selectFork(Senders.registry().executionFork);
+        Senders.get(_name).gnosisSafe().broadcast();
+        vm.selectFork(Senders.registry().simulationFork);
     }
 
     // ************* Registry Helpers ************* //
