@@ -55,6 +55,9 @@ library GnosisSafe {
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
+    /// @dev Fixed gas overhead per batch for MultiSend encoding + Safe.execTransaction wrapper
+    uint256 private constant BATCH_OVERHEAD = 100_000;
+
     error SafeTransactionValueNotZero(Transaction transaction);
     error InvalidGnosisSafeConfig(string name);
 
@@ -113,11 +116,10 @@ library GnosisSafe {
     }
 
     /**
-     * @notice Broadcasts all queued transactions with optional dry-run mode
-     * @dev Collects all queued transactions into a batch proposal for the Safe.
-     *      Validates that transactions don't include ETH transfers (currently unsupported).
-     *      If the Safe has threshold 1 and we have a proposer, executes directly on-chain.
-     *      Otherwise, proposes via Safe API for UI review.
+     * @notice Broadcasts all queued transactions with gas-aware batch splitting
+     * @dev Splits queued transactions into multiple batches if their cumulative gas
+     *      would exceed 50% of the block gas limit. Each batch is broadcast separately
+     *      with sequential Safe nonces managed in-memory.
      * @param _sender The Safe sender
      */
     function broadcast(Sender storage _sender) internal {
@@ -125,103 +127,108 @@ library GnosisSafe {
             return;
         }
 
-        address[] memory targets = new address[](_sender.txQueue.length);
-        bytes[] memory datas = new bytes[](_sender.txQueue.length);
+        uint256 gasThreshold = block.gaslimit * 50 / 100;
+        uint256 nonce = SafeContract(payable(_sender.account)).nonce();
+
+        uint256 batchStart = 0;
+        uint256 batchGas = BATCH_OVERHEAD;
 
         for (uint256 i = 0; i < _sender.txQueue.length; i++) {
-            if (_sender.txQueue[i].transaction.value > 0) {
-                revert SafeTransactionValueNotZero(_sender.txQueue[i].transaction);
+            uint256 txGas = _sender.txQueue[i].gasUsed;
+
+            // If adding this tx would exceed threshold, broadcast current batch first
+            // (but only if current batch is non-empty)
+            if (batchGas + txGas > gasThreshold && i > batchStart) {
+                _broadcastBatch(_sender, batchStart, i, nonce);
+                nonce++;
+                batchStart = i;
+                batchGas = BATCH_OVERHEAD;
             }
-            targets[i] = _sender.txQueue[i].transaction.to;
-            datas[i] = _sender.txQueue[i].transaction.data;
+
+            batchGas += txGas;
         }
 
-        // Check if we can execute directly (threshold = 1)
-        if (isThresholdOne(_sender)) {
-            // Execute directly on-chain
-            _executeDirectly(_sender, targets, datas);
-        } else {
-            // Use Safe API for multi-sig flow
-            bytes32 safeTxHash = _sender.safe().proposeTransactions(targets, datas);
-            // Only emit event if not in quiet mode
-            if (!Senders.registry().quiet) {
-                bytes32[] memory transactionIds = new bytes32[](_sender.txQueue.length);
-                for (uint256 i = 0; i < _sender.txQueue.length; i++) {
-                    transactionIds[i] = _sender.txQueue[i].transactionId;
-                }
-                emit ITrebEvents.SafeTransactionQueued(
-                    safeTxHash, _sender.account, _sender.proposer().account, transactionIds
-                );
-            }
-        }
+        // Broadcast remaining batch
+        _broadcastBatch(_sender, batchStart, _sender.txQueue.length, nonce);
 
         delete _sender.txQueue;
     }
 
     /**
+     * @notice Broadcasts a slice of the transaction queue as a single Safe batch
+     * @dev Handles both threshold-1 (direct execution) and multi-sig (API proposal) paths.
+     *      Validates no value transfers and emits appropriate events per batch.
+     * @param _sender The Safe sender
+     * @param startIdx Start index (inclusive) in txQueue
+     * @param endIdx End index (exclusive) in txQueue
+     * @param nonce Safe nonce to use for this batch
+     */
+    function _broadcastBatch(Sender storage _sender, uint256 startIdx, uint256 endIdx, uint256 nonce) internal {
+        uint256 batchLen = endIdx - startIdx;
+        address[] memory targets = new address[](batchLen);
+        bytes[] memory datas = new bytes[](batchLen);
+        bytes32[] memory transactionIds = new bytes32[](batchLen);
+
+        for (uint256 i = 0; i < batchLen; i++) {
+            SimulatedTransaction storage stx = _sender.txQueue[startIdx + i];
+            if (stx.transaction.value > 0) {
+                revert SafeTransactionValueNotZero(stx.transaction);
+            }
+            targets[i] = stx.transaction.to;
+            datas[i] = stx.transaction.data;
+            transactionIds[i] = stx.transactionId;
+        }
+
+        if (isThresholdOne(_sender)) {
+            bytes32 safeTxHash = _executeDirectly(_sender, targets, datas, nonce);
+            if (!Senders.registry().quiet) {
+                emit ITrebEvents.SafeTransactionExecuted(
+                    safeTxHash, _sender.account, _sender.proposer().account, transactionIds
+                );
+            }
+        } else {
+            bytes32 safeTxHash = _sender.safe().proposeTransactions(targets, datas, nonce);
+            if (!Senders.registry().quiet) {
+                emit ITrebEvents.SafeTransactionQueued(
+                    safeTxHash, _sender.account, _sender.proposer().account, transactionIds
+                );
+            }
+        }
+    }
+
+    /**
      * @notice Executes transactions directly on the Safe when threshold is 1
-     * @dev Uses vm.broadcast to execute the Safe transaction on-chain
+     * @dev Uses vm.broadcast to execute the Safe transaction on-chain.
+     *      The nonce is managed by the caller to support sequential batches.
      * @param _sender The Safe sender
      * @param targets Array of target addresses for the transactions
      * @param datas Array of calldata for the transactions
+     * @param nonce Safe nonce to use for signing and hash computation
+     * @return safeTxHash The hash of the executed Safe transaction
      */
-    function _executeDirectly(Sender storage _sender, address[] memory targets, bytes[] memory datas) internal {
-        SafeContract safeInstance = SafeContract(payable(_sender.account));
-
-        // Get the transaction data based on whether we have single or multiple transactions
+    function _executeDirectly(Sender storage _sender, address[] memory targets, bytes[] memory datas, uint256 nonce)
+        internal
+        returns (bytes32 safeTxHash)
+    {
+        // Resolve to/data/operation based on single vs multi transaction
         address to;
-        uint256 value = 0;
         bytes memory data;
         Enum.Operation operation;
 
         if (targets.length == 1) {
-            // Single transaction
             to = targets[0];
             data = datas[0];
             operation = Enum.Operation.Call;
         } else {
-            // Multiple transactions - use MultiSend
             (to, data) = _sender.safe().getProposeTransactionsTargetAndData(targets, datas);
             operation = Enum.Operation.DelegateCall;
         }
 
-        // Get the transaction hash
-        uint256 nonce = safeInstance.nonce();
-        bytes32 safeTxHash =
-            safeInstance.getTransactionHash(to, value, data, operation, 0, 0, 0, address(0), address(0), nonce);
+        safeTxHash = _sender.safe().getSafeTxHash(to, 0, data, operation, nonce);
 
-        // Sign the transaction with the proposer
-        bytes memory signature = _sender.safe().sign(to, data, operation);
-
-        // Execute the transaction using vm.broadcast
-        // The proposer must be an owner of the Safe for this to work
-        address proposerAddress = _sender.proposer().account;
-
-        // Use vm.broadcast to execute as the proposer
-        vm.broadcast(proposerAddress);
-        bool success = safeInstance.execTransaction(
-            to,
-            value,
-            data,
-            operation,
-            0, // safeTxGas
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            payable(0), // refundReceiver
-            signature
-        );
-
-        require(success, "Safe transaction execution failed");
-
-        // Emit event for tracking
-        if (!Senders.registry().quiet) {
-            bytes32[] memory transactionIds = new bytes32[](_sender.txQueue.length);
-            for (uint256 i = 0; i < _sender.txQueue.length; i++) {
-                transactionIds[i] = _sender.txQueue[i].transactionId;
-            }
-            emit ITrebEvents.SafeTransactionExecuted(safeTxHash, _sender.account, proposerAddress, transactionIds);
-        }
+        // Sign with explicit nonce and execute
+        bytes memory signature = _sender.safe().sign(to, data, operation, nonce);
+        _execSafeTransaction(_sender, to, data, operation, signature);
     }
 
     /**
@@ -270,5 +277,33 @@ library GnosisSafe {
         assembly {
             _gnosisSafeSender.slot := _sender.slot
         }
+    }
+
+    /**
+     * @notice Low-level Safe execTransaction call via vm.broadcast
+     * @dev Extracted to reduce stack depth in _executeDirectly
+     */
+    function _execSafeTransaction(
+        Sender storage _sender,
+        address to,
+        bytes memory data,
+        Enum.Operation operation,
+        bytes memory signature
+    ) private {
+        vm.broadcast(_sender.proposer().account);
+        bool success = SafeContract(payable(_sender.account))
+            .execTransaction(
+                to,
+                0, // value
+                data,
+                operation,
+                0, // safeTxGas
+                0, // baseGas
+                0, // gasPrice
+                address(0), // gasToken
+                payable(0), // refundReceiver
+                signature
+            );
+        require(success, "Safe transaction execution failed");
     }
 }

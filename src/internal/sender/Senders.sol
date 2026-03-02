@@ -542,9 +542,13 @@ library Senders {
             // Generate unique transaction ID
             bytes32 transactionId = generateTransactionId();
 
+            uint256 gasBefore = gasleft();
+
             vm.prank(_sender.account);
             (bool success, bytes memory returnData) =
                 _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
+
+            uint256 gasUsed = gasBefore - gasleft();
 
             if (!success) {
                 // Bubble up the revert reason from the failed call
@@ -559,7 +563,8 @@ library Senders {
                 transactionId: transactionId,
                 senderId: _sender.id,
                 sender: _sender.account,
-                returnData: returnData
+                returnData: returnData,
+                gasUsed: gasUsed
             });
 
             // Only emit events if not in quiet mode
