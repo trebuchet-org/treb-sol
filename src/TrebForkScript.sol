@@ -13,12 +13,12 @@ interface ISafeOwnerManager {
 }
 
 /**
- * @title ForkTrebScript
+ * @title TrebForkScript
  * @notice TrebScript variant for local fork workflows that need impersonation and persistent state mutations.
  * @dev Extends the standard sender model with on-demand fork-prank senders and helpers that keep
  *      simulation fork state aligned with the underlying Anvil node used for broadcast persistence.
  */
-abstract contract ForkTrebScript is TrebScript {
+abstract contract TrebForkScript is TrebScript {
     using Senders for Senders.Registry;
     using Senders for Senders.Sender;
 
@@ -36,7 +36,7 @@ abstract contract ForkTrebScript is TrebScript {
      * @notice Converts a Safe multisig to a single-owner 1/1 configuration on both local forks.
      */
     function convertSafeToSingleOwner(address safe, address newOwner) internal {
-        require(newOwner != address(0) && newOwner != SENTINEL_OWNERS, "ForkTrebScript: invalid owner");
+        require(newOwner != address(0) && newOwner != SENTINEL_OWNERS, "TrebForkScript: invalid owner");
 
         address[] memory currentOwners = ISafeOwnerManager(safe).getOwners();
 

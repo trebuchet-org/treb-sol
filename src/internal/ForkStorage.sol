@@ -26,7 +26,7 @@ library ForkStorage {
             bytes32 storageKey = mappingSlot(sampleAccount, candidateSlot);
             bytes32 oldValue = vm.load(token, storageKey);
 
-            uint256 testValue = uint256(keccak256(abi.encode("ForkTrebScript.dealFork.probe", candidateSlot)));
+            uint256 testValue = uint256(keccak256(abi.encode("TrebForkScript.dealFork.probe", candidateSlot)));
             vm.store(token, storageKey, bytes32(testValue));
 
             if (IERC20Balanceable(token).balanceOf(sampleAccount) == testValue) {
@@ -45,7 +45,7 @@ library ForkStorage {
             bytes32 storageKey = bytes32(candidateSlot);
             bytes32 oldValue = vm.load(token, storageKey);
 
-            uint256 testValue = uint256(keccak256(abi.encode("ForkTrebScript.totalSupply.probe", candidateSlot)));
+            uint256 testValue = uint256(keccak256(abi.encode("TrebForkScript.totalSupply.probe", candidateSlot)));
             vm.store(token, storageKey, bytes32(testValue));
 
             if (IERC20SupplyBalanceable(token).totalSupply() == testValue) {

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {ForkTrebScript} from "../src/ForkTrebScript.sol";
+import {TrebForkScript} from "../src/TrebForkScript.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {Transaction, SimulatedTransaction, SenderTypes} from "../src/internal/types.sol";
 import {AnvilForkNode} from "./helpers/AnvilForkNode.sol";
 
-contract ForkTrebScriptBroadcastTarget {
+contract TrebForkScriptBroadcastTarget {
     uint256 public value;
 
     function setValue(uint256 newValue) external returns (uint256) {
@@ -16,7 +16,7 @@ contract ForkTrebScriptBroadcastTarget {
     }
 }
 
-contract ForkTrebScriptBroadcastHarness is ForkTrebScript {
+contract TrebForkScriptBroadcastHarness is TrebForkScript {
     using Senders for Senders.Sender;
 
     function executeAs(address account, Transaction memory txn) external returns (SimulatedTransaction memory) {
@@ -36,7 +36,7 @@ contract ForkTrebScriptBroadcastHarness is ForkTrebScript {
     }
 }
 
-contract ForkTrebScriptBroadcastTest is Test {
+contract TrebForkScriptBroadcastTest is Test {
     uint256 private constant PORT = 19545;
 
     function test_prankSender_broadcastsAgainstLiveAnvilFork() public {
@@ -68,18 +68,18 @@ contract ForkTrebScriptBroadcastTest is Test {
         vm.setEnv("QUIET", "true");
         vm.setEnv("TREB_FORK_MODE", "true");
 
-        ForkTrebScriptBroadcastHarness script = new ForkTrebScriptBroadcastHarness();
+        TrebForkScriptBroadcastHarness script = new TrebForkScriptBroadcastHarness();
 
         address prankAccount = makeAddr("fork-prank");
         address target = makeAddr("etched-target");
 
-        script.etchCode(target, type(ForkTrebScriptBroadcastTarget).runtimeCode);
+        script.etchCode(target, type(TrebForkScriptBroadcastTarget).runtimeCode);
         script.dealNative(prankAccount, 1 ether);
         script.executeAs(
             prankAccount,
             Transaction({
                 to: target,
-                data: abi.encodeCall(ForkTrebScriptBroadcastTarget.setValue, (42)),
+                data: abi.encodeCall(TrebForkScriptBroadcastTarget.setValue, (42)),
                 value: 0
             })
         );

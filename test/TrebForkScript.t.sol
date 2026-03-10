@@ -2,13 +2,13 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {ForkTrebScript} from "../src/ForkTrebScript.sol";
+import {TrebForkScript} from "../src/TrebForkScript.sol";
 import {Senders} from "../src/internal/sender/Senders.sol";
 import {Transaction, SimulatedTransaction, SenderTypes} from "../src/internal/types.sol";
 import {Safe} from "safe-smart-account/Safe.sol";
 import {SafeProxyFactory} from "safe-smart-account/proxies/SafeProxyFactory.sol";
 
-contract ForkTrebScriptTarget {
+contract TrebForkScriptTarget {
     uint256 public value;
 
     function setValue(uint256 newValue) external returns (uint256) {
@@ -17,17 +17,17 @@ contract ForkTrebScriptTarget {
     }
 }
 
-contract ForkTrebScriptTokenSlot0 {
+contract TrebForkScriptTokenSlot0 {
     mapping(address => uint256) public balanceOf;
     uint256 public totalSupply;
 }
 
-contract ForkTrebScriptTokenSlot1 {
+contract TrebForkScriptTokenSlot1 {
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
 }
 
-contract ForkTrebScriptHarness is ForkTrebScript {
+contract TrebForkScriptHarness is TrebForkScript {
     using Senders for Senders.Sender;
 
     function executeAs(address account, Transaction memory txn) external returns (SimulatedTransaction memory) {
@@ -63,13 +63,13 @@ contract ForkTrebScriptHarness is ForkTrebScript {
     }
 }
 
-contract ForkTrebScriptTest is Test {
-    ForkTrebScriptHarness internal script;
-    ForkTrebScriptTarget internal target;
+contract TrebForkScriptTest is Test {
+    TrebForkScriptHarness internal script;
+    TrebForkScriptTarget internal target;
     Safe internal safeMasterCopy;
     SafeProxyFactory internal safeFactory;
 
-    bytes32 constant salt = keccak256("ForkTrebScriptTest");
+    bytes32 constant salt = keccak256("TrebForkScriptTest");
 
     function setUp() public {
         Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
@@ -90,8 +90,8 @@ contract ForkTrebScriptTest is Test {
         vm.setEnv("QUIET", "true");
         vm.setEnv("TREB_FORK_MODE", "false");
 
-        script = new ForkTrebScriptHarness();
-        target = new ForkTrebScriptTarget();
+        script = new TrebForkScriptHarness();
+        target = new TrebForkScriptTarget();
         safeMasterCopy = new Safe{salt: salt}();
         safeFactory = new SafeProxyFactory{salt: salt}();
     }
@@ -167,14 +167,14 @@ contract ForkTrebScriptTest is Test {
     function test_convertSafeToSingleOwner_revert_zeroAddress() public {
         Safe safe = _deploySafe(_toArray(makeAddr("owner")), 1);
 
-        vm.expectRevert("ForkTrebScript: invalid owner");
+        vm.expectRevert("TrebForkScript: invalid owner");
         script.convertSafe(address(safe), address(0));
     }
 
     function test_convertSafeToSingleOwner_revert_sentinelAddress() public {
         Safe safe = _deploySafe(_toArray(makeAddr("owner")), 1);
 
-        vm.expectRevert("ForkTrebScript: invalid owner");
+        vm.expectRevert("TrebForkScript: invalid owner");
         script.convertSafe(address(safe), address(0x1));
     }
 
@@ -197,7 +197,7 @@ contract ForkTrebScriptTest is Test {
 
         assertEq(harnessA, harnessB);
 
-        ForkTrebScriptTarget(harnessA).setValue(77);
+        TrebForkScriptTarget(harnessA).setValue(77);
         assertEq(target.value(), 77);
     }
 
@@ -212,8 +212,8 @@ contract ForkTrebScriptTest is Test {
     function test_dealFork_setsERC20BalanceAcrossCommonLayouts() public {
         address recipient = makeAddr("recipient");
         address other = makeAddr("other");
-        ForkTrebScriptTokenSlot0 token0 = new ForkTrebScriptTokenSlot0();
-        ForkTrebScriptTokenSlot1 token1 = new ForkTrebScriptTokenSlot1();
+        TrebForkScriptTokenSlot0 token0 = new TrebForkScriptTokenSlot0();
+        TrebForkScriptTokenSlot1 token1 = new TrebForkScriptTokenSlot1();
 
         script.dealToken(address(token0), recipient, 123);
         script.dealToken(address(token0), other, 456);
@@ -227,7 +227,7 @@ contract ForkTrebScriptTest is Test {
     function test_dealFork_adjustsTotalSupplyWhenRequested() public {
         address recipient = makeAddr("recipient");
         address other = makeAddr("other");
-        ForkTrebScriptTokenSlot0 token = new ForkTrebScriptTokenSlot0();
+        TrebForkScriptTokenSlot0 token = new TrebForkScriptTokenSlot0();
 
         script.dealToken(address(token), recipient, 100, true);
         script.dealToken(address(token), other, 40, true);
