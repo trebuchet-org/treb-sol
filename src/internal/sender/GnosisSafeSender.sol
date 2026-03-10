@@ -96,11 +96,11 @@ library GnosisSafe {
             .initialize(
                 _sender.account,
                 Safe.Signer({
-                signer: _sender.proposer().account,
-                signerType: signerType,
-                derivationPath: derivationPath,
-                privateKey: privateKey
-            })
+                    signer: _sender.proposer().account,
+                    signerType: signerType,
+                    derivationPath: derivationPath,
+                    privateKey: privateKey
+                })
             );
     }
 
