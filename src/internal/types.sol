@@ -18,6 +18,7 @@ struct SimulatedTransaction {
 
 library SenderTypes {
     bytes8 internal constant Custom = bytes8(keccak256("custom"));
+    bytes8 internal constant ForkPrank = Custom | bytes8(keccak256("fork-prank"));
     bytes8 internal constant PrivateKey = bytes8(keccak256("private-key"));
     bytes8 internal constant InMemory = bytes8(keccak256("in-memory")) | PrivateKey;
     bytes8 internal constant Multisig = bytes8(keccak256("multisig"));
