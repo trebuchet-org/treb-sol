@@ -109,6 +109,7 @@ pragma solidity ^0.8.0;
  */
 import {Vm} from "forge-std/Vm.sol";
 import {PrivateKey, HardwareWallet, InMemory} from "./PrivateKeySender.sol";
+import {ForkPrank} from "./ForkPrankSender.sol";
 import {GnosisSafe} from "./GnosisSafeSender.sol";
 import {OZGovernor} from "./OZGovernorSender.sol";
 import {Harness} from "../Harness.sol";
@@ -121,6 +122,7 @@ library Senders {
     using Senders for Senders.Sender;
     using PrivateKey for PrivateKey.Sender;
     using HardwareWallet for HardwareWallet.Sender;
+    using ForkPrank for ForkPrank.Sender;
     using GnosisSafe for GnosisSafe.Sender;
     using InMemory for InMemory.Sender;
     using OZGovernor for OZGovernor.Sender;
@@ -387,6 +389,8 @@ library Senders {
             _sender.inMemory().initialize();
         } else if (_sender.isType(SenderTypes.HardwareWallet)) {
             _sender.hardwareWallet().initialize();
+        } else if (_sender.isType(SenderTypes.ForkPrank)) {
+            _sender.forkPrank().initialize();
         } else if (_sender.isType(SenderTypes.GnosisSafe)) {
             _sender.gnosisSafe().initialize();
         } else if (_sender.isType(SenderTypes.OZGovernor)) {
@@ -436,6 +440,15 @@ library Senders {
     }
 
     /**
+     * @notice Casts a sender to a fork-prank sender type
+     * @param _sender The sender to cast
+     * @return ForkPrank.Sender storage reference
+     */
+    function forkPrank(Sender storage _sender) internal view returns (ForkPrank.Sender storage) {
+        return ForkPrank.cast(_sender);
+    }
+
+    /**
      * @notice Casts a sender to a GnosisSafe sender type
      * @param _sender The sender to cast
      * @return GnosisSafe.Sender storage reference
@@ -477,6 +490,40 @@ library Senders {
             reg.senderHarness[_sender.id][_target] = _harness;
         }
         return _harness;
+    }
+
+    /**
+     * @notice Lazily registers or retrieves a fork-prank sender for an arbitrary account.
+     * @dev These senders are created on demand for local fork setup flows where any on-chain
+     *      account should be usable through the standard harness abstraction.
+     */
+    function ensureForkPrank(address _account) internal returns (Sender storage sender) {
+        return ensureForkPrank(registry(), _account);
+    }
+
+    /**
+     * @notice Lazily registers or retrieves a fork-prank sender for an arbitrary account.
+     * @param _registry The registry to register the sender in
+     * @param _account The account to impersonate through the sender pipeline
+     */
+    function ensureForkPrank(Registry storage _registry, address _account)
+        internal
+        returns (Sender storage sender)
+    {
+        bytes32 senderId = keccak256(abi.encodePacked("fork-prank:", _account));
+        sender = _registry.senders[senderId];
+        if (sender.account != address(0)) {
+            return sender;
+        }
+
+        sender.id = senderId;
+        sender.name = string.concat("fork-prank:", vm.toString(_account));
+        sender.account = _account;
+        sender.senderType = SenderTypes.ForkPrank;
+        sender.canBroadcast = true;
+        sender.config = "";
+        _registry.ids.push(senderId);
+        sender.initialize();
     }
 
     // ************* Transaction Execution ************* //
@@ -647,6 +694,8 @@ library Senders {
             if (sender.isType(SenderTypes.PrivateKey)) {
                 // Sync execution - broadcast immediately
                 sender.privateKey().broadcast(simulatedTx);
+            } else if (sender.isType(SenderTypes.ForkPrank)) {
+                sender.forkPrank().broadcast(simulatedTx);
             } else if (sender.isType(SenderTypes.GnosisSafe)) {
                 // Async execution - accumulate for batch
                 sender.gnosisSafe().queue(simulatedTx);
