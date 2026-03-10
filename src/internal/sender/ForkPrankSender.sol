@@ -20,7 +20,9 @@ library ForkPrank {
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
-    function initialize(Sender storage) internal {}
+    function initialize(Sender storage _sender) internal {
+        _sender.account;
+    }
 
     function broadcast(Sender storage _sender, SimulatedTransaction memory _tx) internal {
         vm.prank(_sender.account);

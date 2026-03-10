@@ -506,10 +506,7 @@ library Senders {
      * @param _registry The registry to register the sender in
      * @param _account The account to impersonate through the sender pipeline
      */
-    function ensureForkPrank(Registry storage _registry, address _account)
-        internal
-        returns (Sender storage sender)
-    {
+    function ensureForkPrank(Registry storage _registry, address _account) internal returns (Sender storage sender) {
         bytes32 senderId = keccak256(abi.encodePacked("fork-prank:", _account));
         sender = _registry.senders[senderId];
         if (sender.account != address(0)) {

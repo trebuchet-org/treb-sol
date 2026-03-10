@@ -42,11 +42,7 @@ contract TrebForkScriptBroadcastTest is Test {
     function test_prankSender_broadcastsAgainstLiveAnvilFork() public {
         string memory localRpcUrl = AnvilForkNode.start(
             AnvilForkNode.Config({
-                name: "fork-prank-broadcast",
-                forkUrlOrAlias: "sepolia",
-                port: PORT,
-                chainId: 31337,
-                forkBlockNumber: 0
+                name: "fork-prank-broadcast", forkUrlOrAlias: "sepolia", port: PORT, chainId: 31337, forkBlockNumber: 0
             })
         );
 
@@ -77,11 +73,7 @@ contract TrebForkScriptBroadcastTest is Test {
         script.dealNative(prankAccount, 1 ether);
         script.executeAs(
             prankAccount,
-            Transaction({
-                to: target,
-                data: abi.encodeCall(TrebForkScriptBroadcastTarget.setValue, (42)),
-                value: 0
-            })
+            Transaction({to: target, data: abi.encodeCall(TrebForkScriptBroadcastTarget.setValue, (42)), value: 0})
         );
 
         script.broadcastAll();

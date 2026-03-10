@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+// solhint-disable quotes
+// solhint-disable ordering
 
 import {Vm} from "forge-std/Vm.sol";
 
+/// @title ForkRpc
+/// @notice Small helper around Anvil JSON-RPC methods used by fork-mode scripts.
 library ForkRpc {
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
@@ -32,15 +36,11 @@ library ForkRpc {
     }
 
     function impersonateAccount(address account) internal {
-        _rpcOrRevert(
-            "anvil_impersonateAccount", string(abi.encodePacked('["', vm.toString(account), '"]'))
-        );
+        _rpcOrRevert("anvil_impersonateAccount", string(abi.encodePacked('["', vm.toString(account), '"]')));
     }
 
     function stopImpersonatingAccount(address account) internal {
-        _rpcOrRevert(
-            "anvil_stopImpersonatingAccount", string(abi.encodePacked('["', vm.toString(account), '"]'))
-        );
+        _rpcOrRevert("anvil_stopImpersonatingAccount", string(abi.encodePacked('["', vm.toString(account), '"]')));
     }
 
     function sendTransactionAs(address from, address to, bytes memory data, uint256 value)
@@ -76,13 +76,7 @@ library ForkRpc {
     {
         params = string(
             abi.encodePacked(
-                '[{"from":"',
-                vm.toString(from),
-                '","to":"',
-                vm.toString(to),
-                '","data":"',
-                vm.toString(data),
-                '"'
+                '[{"from":"', vm.toString(from), '","to":"', vm.toString(to), '","data":"', vm.toString(data), '"'
             )
         );
 

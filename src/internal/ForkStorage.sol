@@ -17,10 +17,6 @@ library ForkStorage {
     error ERC20BalanceSlotNotFound(address token);
     error ERC20TotalSupplySlotNotFound(address token);
 
-    function mappingSlot(address key, uint256 baseSlot) internal pure returns (bytes32) {
-        return keccak256(abi.encode(key, baseSlot));
-    }
-
     function detectBalanceSlot(Vm vm, address token, address sampleAccount) internal returns (uint256) {
         for (uint256 candidateSlot = 0; candidateSlot < MAX_BALANCE_SLOT_PROBE; candidateSlot++) {
             bytes32 storageKey = mappingSlot(sampleAccount, candidateSlot);
@@ -57,5 +53,9 @@ library ForkStorage {
         }
 
         revert ERC20TotalSupplySlotNotFound(token);
+    }
+
+    function mappingSlot(address key, uint256 baseSlot) internal pure returns (bytes32) {
+        return keccak256(abi.encode(key, baseSlot));
     }
 }
