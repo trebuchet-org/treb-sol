@@ -116,6 +116,19 @@ library GnosisSafe {
     }
 
     /**
+     * @notice Get gas threshold for batch transactions
+     * @dev Half block, apart from Monad where we have 30M per transaction limit
+     */
+    function gasThreshold() internal view returns (uint256) {
+        if (block.chainid == 143) {
+            // Monad per transaction limit is 30M
+            return 30e6;
+        } else {
+            return block.gaslimit / 2;
+        }
+    }
+
+    /**
      * @notice Broadcasts all queued transactions with gas-aware batch splitting
      * @dev Splits queued transactions into multiple batches if their cumulative gas
      *      would exceed 50% of the block gas limit. Each batch is broadcast separately
@@ -127,7 +140,7 @@ library GnosisSafe {
             return;
         }
 
-        uint256 gasThreshold = block.gaslimit * 50 / 100;
+        uint256 _gasThreshold = gasThreshold();
         uint256 nonce = SafeContract(payable(_sender.account)).nonce();
 
         uint256 batchStart = 0;
@@ -138,7 +151,7 @@ library GnosisSafe {
 
             // If adding this tx would exceed threshold, broadcast current batch first
             // (but only if current batch is non-empty)
-            if (batchGas + txGas > gasThreshold && i > batchStart) {
+            if (batchGas + txGas > _gasThreshold && i > batchStart) {
                 _broadcastBatch(_sender, batchStart, i, nonce);
                 nonce++;
                 batchStart = i;
