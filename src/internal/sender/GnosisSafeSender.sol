@@ -122,7 +122,7 @@ library GnosisSafe {
     function gasThreshold() internal view returns (uint256) {
         if (block.chainid == 143) {
             // Monad per transaction limit is 30M
-            return 30e6;
+            return 25e6;
         } else {
             return block.gaslimit / 2;
         }
