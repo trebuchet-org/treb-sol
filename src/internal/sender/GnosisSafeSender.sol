@@ -127,7 +127,7 @@ library GnosisSafe {
             return;
         }
 
-        uint256 gasThreshold = block.gaslimit * 50 / 100;
+        uint256 _gasThreshold = gasThreshold();
         uint256 nonce = SafeContract(payable(_sender.account)).nonce();
 
         uint256 batchStart = 0;
@@ -138,7 +138,7 @@ library GnosisSafe {
 
             // If adding this tx would exceed threshold, broadcast current batch first
             // (but only if current batch is non-empty)
-            if (batchGas + txGas > gasThreshold && i > batchStart) {
+            if (batchGas + txGas > _gasThreshold && i > batchStart) {
                 _broadcastBatch(_sender, batchStart, i, nonce);
                 nonce++;
                 batchStart = i;
@@ -229,6 +229,19 @@ library GnosisSafe {
         // Sign with explicit nonce and execute
         bytes memory signature = _sender.safe().sign(to, data, operation, nonce);
         _execSafeTransaction(_sender, to, data, operation, signature);
+    }
+
+    /**
+     * @notice Get gas threshold for batch transactions
+     * @dev Half the block gas limit, except on Monad (mainnet and testnet) where
+     *      there is a 25M per-transaction gas limit.
+     * @return Gas threshold in gas units
+     */
+    function gasThreshold() internal view returns (uint256) {
+        if (block.chainid == 143 || block.chainid == 10143) {
+            return 25_000_000;
+        }
+        return block.gaslimit / 2;
     }
 
     /**
