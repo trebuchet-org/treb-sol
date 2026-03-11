@@ -155,19 +155,6 @@ library GnosisSafe {
     }
 
     /**
-     * @notice Get gas threshold for batch transactions
-     * @dev Half the block gas limit, except on Monad (mainnet and testnet) where
-     *      there is a 25M per-transaction gas limit.
-     * @return Gas threshold in gas units
-     */
-    function gasThreshold() internal view returns (uint256) {
-        if (block.chainid == 143 || block.chainid == 10143) {
-            return 25_000_000;
-        }
-        return block.gaslimit / 2;
-    }
-
-    /**
      * @notice Broadcasts a slice of the transaction queue as a single Safe batch
      * @dev Handles both threshold-1 (direct execution) and multi-sig (API proposal) paths.
      *      Validates no value transfers and emits appropriate events per batch.
@@ -242,6 +229,19 @@ library GnosisSafe {
         // Sign with explicit nonce and execute
         bytes memory signature = _sender.safe().sign(to, data, operation, nonce);
         _execSafeTransaction(_sender, to, data, operation, signature);
+    }
+
+    /**
+     * @notice Get gas threshold for batch transactions
+     * @dev Half the block gas limit, except on Monad (mainnet and testnet) where
+     *      there is a 25M per-transaction gas limit.
+     * @return Gas threshold in gas units
+     */
+    function gasThreshold() internal view returns (uint256) {
+        if (block.chainid == 143 || block.chainid == 10143) {
+            return 25_000_000;
+        }
+        return block.gaslimit / 2;
     }
 
     /**
