@@ -36,7 +36,7 @@ abstract contract TrebScript is SenderCoordinator, Registry {
 
     constructor()
         SenderCoordinator(
-            abi.decode(vm.envBytes("SENDER_CONFIGS"), (Senders.SenderInitConfig[])),
+            vm.envBytes("SENDER_CONFIGS"),
             vm.envOr("NAMESPACE", string("default")),
             vm.envString("NETWORK"),
             vm.envOr("DRYRUN", false),

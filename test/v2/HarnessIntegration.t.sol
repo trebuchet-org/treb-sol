@@ -85,16 +85,12 @@ contract V2HarnessIntegrationTest is Test, CreateXScript {
         senderAddr = vm.addr(privateKey);
         vm.deal(senderAddr, 10 ether);
 
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
-        configs[0] = Senders.SenderInitConfig({
-            name: SENDER_NAME,
-            account: senderAddr,
-            senderType: SenderTypes.InMemory,
-            canBroadcast: true,
-            config: abi.encode(privateKey)
-        });
+        string[] memory names = new string[](1);
+        address[] memory accounts = new address[](1);
+        names[0] = SENDER_NAME;
+        accounts[0] = senderAddr;
 
-        harness = new SendersTestHarness(configs);
+        harness = new SendersTestHarness(names, accounts);
 
         // Deploy test contracts — v2 has no fork system so just deploy once
         vm.startPrank(senderAddr);

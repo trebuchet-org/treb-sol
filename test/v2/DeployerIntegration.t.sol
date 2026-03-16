@@ -27,16 +27,12 @@ contract V2DeployerIntegrationTest is Test, CreateXScript {
         address senderAddr = vm.addr(privateKey);
         vm.deal(senderAddr, 10 ether);
 
-        Senders.SenderInitConfig[] memory configs = new Senders.SenderInitConfig[](1);
-        configs[0] = Senders.SenderInitConfig({
-            name: DEPLOYER,
-            account: senderAddr,
-            senderType: SenderTypes.InMemory,
-            canBroadcast: true,
-            config: abi.encode(privateKey)
-        });
+        string[] memory names = new string[](1);
+        address[] memory accounts = new address[](1);
+        names[0] = DEPLOYER;
+        accounts[0] = senderAddr;
 
-        harness = new SendersTestHarness(configs);
+        harness = new SendersTestHarness(names, accounts);
     }
 
     function test_DeployCreate3WithEntropy() public {

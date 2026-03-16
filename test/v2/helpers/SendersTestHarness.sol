@@ -15,8 +15,8 @@ contract SendersTestHarness is SenderCoordinator {
     using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
-    constructor(Senders.SenderInitConfig[] memory _configs)
-        SenderCoordinator(_configs, "default", "sepolia", false, false)
+    constructor(string[] memory _names, address[] memory _accounts)
+        SenderCoordinator(abi.encode(_names, _accounts), "default", "sepolia", false, false)
     {}
 
     function execute(string memory _name, Transaction memory _transaction)
@@ -39,10 +39,6 @@ contract SendersTestHarness is SenderCoordinator {
 
     function getSenderAccount(string memory _name) public view returns (address) {
         return Senders.get(_name).account;
-    }
-
-    function isType(string memory _name, bytes8 _senderType) public view returns (bool) {
-        return Senders.get(_name).isType(_senderType);
     }
 
     // ── Deployer Methods ────────────────────────────────────────────────

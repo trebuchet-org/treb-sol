@@ -24,13 +24,15 @@ contract SenderCoordinator is Script, ITrebEvents {
     }
 
     constructor(
-        Senders.SenderInitConfig[] memory _senderInitConfigs,
+        bytes memory _senderConfigs,
         string memory _namespace,
         string memory _network,
         bool _dryrun,
         bool _quiet
     ) {
-        Senders.initialize(_senderInitConfigs, _namespace, _network, _quiet);
+        (string[] memory names, address[] memory accounts) =
+            abi.decode(_senderConfigs, (string[], address[]));
+        Senders.initialize(names, accounts, _namespace, _network, _quiet);
     }
 
     /// @notice Execute transactions through a specific sender (used by Deployer).

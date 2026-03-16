@@ -14,14 +14,6 @@ import {Transaction, SimulatedTransaction, SenderTypes} from "../../../internal/
 library Senders {
     using Senders for Sender;
 
-    struct SenderInitConfig {
-        string name;
-        address account;
-        bytes8 senderType;
-        bool canBroadcast;
-        bytes config;
-    }
-
     struct Registry {
         mapping(bytes32 => Sender) senders;
         mapping(bytes32 => mapping(address => address)) senderHarness;
@@ -37,20 +29,15 @@ library Senders {
         bytes32 id;
         string name;
         address account;
-        bytes8 senderType;
-        bool canBroadcast;
-        bytes config;
     }
 
     bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
-    error InvalidSenderType(string name, bytes8 senderType);
     error SenderNotInitialized(string name);
     error NoSenders();
     error RegistryAlreadyInitialized();
-    error CannotBroadcast(string name);
     error EmptyTransactionArray();
     error InvalidTargetAddress(uint256 index);
 
@@ -69,17 +56,19 @@ library Senders {
     // ── Registry Management ─────────────────────────────────────────────
 
     function initialize(
-        SenderInitConfig[] memory _configs,
+        string[] memory _names,
+        address[] memory _accounts,
         string memory _namespace,
         string memory _network,
         bool _quiet
     ) internal {
-        initialize(registry(), _configs, _namespace, _network, _quiet);
+        initialize(registry(), _names, _accounts, _namespace, _network, _quiet);
     }
 
     function initialize(
         Registry storage _registry,
-        SenderInitConfig[] memory _configs,
+        string[] memory _names,
+        address[] memory _accounts,
         string memory _namespace,
         string memory _network,
         bool _quiet
@@ -91,24 +80,20 @@ library Senders {
         _registry.initialized = true;
         _registry.quiet = _quiet;
 
-        if (_configs.length == 0) revert NoSenders();
+        if (_names.length == 0) revert NoSenders();
 
-        _registry.ids = new bytes32[](_configs.length);
+        _registry.ids = new bytes32[](_names.length);
         unchecked {
-            for (uint256 i; i < _configs.length; ++i) {
-                bytes32 senderId = keccak256(abi.encodePacked(_configs[i].name));
+            for (uint256 i; i < _names.length; ++i) {
+                bytes32 senderId = keccak256(abi.encodePacked(_names[i]));
                 _registry.senders[senderId] = Sender({
                     id: senderId,
-                    name: _configs[i].name,
-                    account: _configs[i].account,
-                    senderType: _configs[i].senderType,
-                    canBroadcast: _configs[i].canBroadcast,
-                    config: _configs[i].config
+                    name: _names[i],
+                    account: _accounts[i]
                 });
                 _registry.ids[i] = senderId;
             }
         }
-        // v2: no fork creation, no type-specific initialization
     }
 
     function get(string memory _name) internal view returns (Sender storage) {
@@ -127,10 +112,6 @@ library Senders {
 
     function get(Registry storage _registry, bytes32 _id) internal view returns (Sender storage) {
         return _registry.senders[_id];
-    }
-
-    function isType(Sender storage _sender, bytes8 _type) internal view returns (bool) {
-        return _sender.senderType & _type == _type;
     }
 
     /// @notice Gets or creates a harness proxy for a sender-target pair.
@@ -154,7 +135,6 @@ library Senders {
         internal
         returns (SimulatedTransaction[] memory simulatedTransactions)
     {
-        if (!_sender.canBroadcast) revert CannotBroadcast(_sender.name);
         if (_transactions.length == 0) revert EmptyTransactionArray();
 
         simulatedTransactions = new SimulatedTransaction[](_transactions.length);
