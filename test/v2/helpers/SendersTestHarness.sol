@@ -2,21 +2,21 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
-import {Sender} from "../../../src/v2/Sender.sol";
 import {Senders} from "../../../src/v2/internal/sender/Senders.sol";
 import {Deployer} from "../../../src/v2/internal/sender/Deployer.sol";
 import {SenderCoordinator} from "../../../src/v2/internal/SenderCoordinator.sol";
 
 /// @dev v2 test harness — simplified for UDVT-based Sender.
 contract SendersTestHarness is SenderCoordinator {
-    using Deployer for Sender;
+    using Senders for Senders.Sender;
+    using Deployer for Senders.Sender;
     using Deployer for Deployer.Deployment;
 
     constructor(string[] memory _names, address[] memory _accounts)
         SenderCoordinator(abi.encode(_names, _accounts), "default", "sepolia", false, false)
     {}
 
-    function get(string memory _name) public view returns (Sender) {
+    function get(string memory _name) public view returns (Senders.Sender) {
         return Senders.get(_name);
     }
 
@@ -24,7 +24,7 @@ contract SendersTestHarness is SenderCoordinator {
         return Senders.get(_name).addr();
     }
 
-    function getSenderName(Sender _sender) public view returns (string memory) {
+    function getSenderName(Senders.Sender _sender) public view returns (string memory) {
         return Senders.name(_sender);
     }
 

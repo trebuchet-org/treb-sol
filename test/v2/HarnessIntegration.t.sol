@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
-import {Sender} from "../../src/v2/Sender.sol";
 import {Senders} from "../../src/v2/internal/sender/Senders.sol";
 import {SenderCoordinator} from "../../src/v2/internal/SenderCoordinator.sol";
 import {Harness} from "../../src/v2/internal/Harness.sol";

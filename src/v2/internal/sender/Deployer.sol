@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
-import {Sender} from "../../Sender.sol";
 import {Senders} from "./Senders.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {ICreateX} from "createx-forge/script/ICreateX.sol";
@@ -14,7 +13,8 @@ import {ITrebEvents} from "../../../internal/ITrebEvents.sol";
 ///      No intermediate Transaction/execute() layer — forge captures the
 ///      broadcast and Rust routes by sender address after execution.
 library Deployer {
-    using Deployer for Sender;
+    using Senders for Senders.Sender;
+    using Deployer for Senders.Sender;
     using Deployer for Deployment;
 
     enum CreateStrategy {
@@ -23,7 +23,7 @@ library Deployer {
     }
 
     struct Deployment {
-        Sender sender;
+        Senders.Sender sender;
         CreateStrategy strategy;
         bytes bytecode;
         string label;
@@ -59,9 +59,9 @@ library Deployer {
 
     // ── Deployment Builder ──────────────────────────────────────────────
 
-    function _deploy(Sender s, bytes memory bytecode) internal returns (Deployment storage deployment) {
+    function _deploy(Senders.Sender s, bytes memory bytecode) internal returns (Deployment storage deployment) {
         bytes32 deploymentSlot =
-            keccak256(abi.encode(Sender.unwrap(s), bytecode, Senders.registry().transactionCounter));
+            keccak256(abi.encode(Senders.Sender.unwrap(s), bytecode, Senders.registry().transactionCounter));
         assembly {
             deployment.slot := deploymentSlot
         }
@@ -178,7 +178,7 @@ library Deployer {
 
     // ── CREATE3 ─────────────────────────────────────────────────────────
 
-    function create3(Sender s, string memory _entropy, bytes memory bytecode)
+    function create3(Senders.Sender s, string memory _entropy, bytes memory bytecode)
         internal
         returns (Deployment storage deployment)
     {
@@ -188,7 +188,7 @@ library Deployer {
         deployment.strategy = CreateStrategy.CREATE3;
     }
 
-    function create3(Sender s, string memory _artifact) internal returns (Deployment storage deployment) {
+    function create3(Senders.Sender s, string memory _artifact) internal returns (Deployment storage deployment) {
         try vm.getCode(_artifact) returns (bytes memory code) {
             deployment = _deploy(s, code);
             deployment.artifact = _artifact;
@@ -211,7 +211,7 @@ library Deployer {
 
     // ── CREATE2 ─────────────────────────────────────────────────────────
 
-    function create2(Sender s, string memory _entropy, bytes memory bytecode)
+    function create2(Senders.Sender s, string memory _entropy, bytes memory bytecode)
         internal
         returns (Deployment storage deployment)
     {
@@ -221,7 +221,7 @@ library Deployer {
         deployment.strategy = CreateStrategy.CREATE2;
     }
 
-    function create2(Sender s, string memory _artifact) internal returns (Deployment storage deployment) {
+    function create2(Senders.Sender s, string memory _artifact) internal returns (Deployment storage deployment) {
         try vm.getCode(_artifact) returns (bytes memory code) {
             deployment = _deploy(s, code);
             deployment.artifact = _artifact;
@@ -244,13 +244,13 @@ library Deployer {
 
     // ── Salt Helpers ────────────────────────────────────────────────────
 
-    function _salt(Sender s, string memory _entropy) internal pure returns (bytes32) {
+    function _salt(Senders.Sender s, string memory _entropy) internal pure returns (bytes32) {
         bytes11 entropy = bytes11(keccak256(bytes(_entropy)));
-        return bytes32(abi.encodePacked(Sender.unwrap(s), hex"00", entropy));
+        return bytes32(abi.encodePacked(Senders.Sender.unwrap(s), hex"00", entropy));
     }
 
-    function _derivedSalt(Sender s, bytes32 salt) internal view returns (bytes32 derivedSalt) {
-        address deployer = Sender.unwrap(s);
+    function _derivedSalt(Senders.Sender s, bytes32 salt) internal view returns (bytes32 derivedSalt) {
+        address deployer = Senders.Sender.unwrap(s);
         bytes1 saltFlag = salt[20];
         address saltAddress = address(bytes20(salt));
 

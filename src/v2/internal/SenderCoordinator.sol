@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
-import {Sender} from "../Sender.sol";
 import {Senders} from "./sender/Senders.sol";
 
 /// @title SenderCoordinator (v2)
@@ -33,7 +32,7 @@ contract SenderCoordinator is Script {
     }
 
     /// @notice Retrieves a sender by name.
-    function sender(string memory _name) internal view returns (Sender) {
+    function sender(string memory _name) internal view returns (Senders.Sender) {
         return Senders.get(_name);
     }
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {CommonBase} from "forge-std/Base.sol";
-import {Sender} from "../Sender.sol";
+import {Senders} from "./sender/Senders.sol";
 
 /// @title Harness (v2)
 /// @notice Proxy contract for sender-scoped contract interactions.
@@ -12,10 +12,12 @@ import {Sender} from "../Sender.sol";
 ///      calls and view/pure staticcalls transparently.
 ///      The harness must be marked with vm.allowCheatcodes() at creation time.
 contract Harness is CommonBase {
-    address private _target;
-    Sender private _sender;
+    using Senders for Senders.Sender;
 
-    constructor(address target_, Sender sender_, string memory senderName_) {
+    address private _target;
+    Senders.Sender private _sender;
+
+    constructor(address target_, Senders.Sender sender_, string memory senderName_) {
         _target = target_;
         _sender = sender_;
         vm.label(address(this), string.concat("Harness[", senderName_, "]"));

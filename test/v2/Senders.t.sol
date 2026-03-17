@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {Sender} from "../../src/v2/Sender.sol";
 import {Senders} from "../../src/v2/internal/sender/Senders.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
@@ -13,6 +12,8 @@ contract SendersRegistryTestHarness {
 }
 
 contract V2SendersTest is Test {
+    using Senders for Senders.Sender;
+
     SendersTestHarness harness;
 
     function initialize(string[] memory _names, address[] memory _accounts) internal {
@@ -32,7 +33,7 @@ contract V2SendersTest is Test {
         accounts[0] = address(0x1234);
         initialize(names, accounts);
 
-        Sender s = harness.get("sender1");
+        Senders.Sender s = harness.get("sender1");
         assertEq(s.addr(), address(0x1234));
         assertEq(harness.getSenderName(s), "sender1");
     }

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
-import {Sender} from "../../Sender.sol";
 import {Harness} from "../Harness.sol";
 
 /// @title Senders (v2)
@@ -11,7 +10,14 @@ import {Harness} from "../Harness.sol";
 ///      contract in the inheritance tree shares one registry without constructor
 ///      plumbing. The Sender UDVT carries only the address; names are kept in
 ///      a side-mapping for labelling / diagnostics.
+///
+///      The UDVT is defined inside this library so that existing code referencing
+///      `Senders.Sender` continues to compile unchanged. Broadcast helpers
+///      (addr, broadcast, startBroadcast, stopBroadcast) are library functions
+///      available via `using Senders for Senders.Sender`.
 library Senders {
+    type Sender is address;
+
     struct Registry {
         mapping(bytes32 => Sender) senders;
         mapping(bytes32 => string) names;
@@ -42,6 +48,28 @@ library Senders {
         Registry storage _registry = registry();
         _registry.transactionCounter++;
         return bytes32(_registry.transactionCounter);
+    }
+
+    // ── Sender UDVT Methods ─────────────────────────────────────────────
+
+    /// @notice Unwrap to a plain address.
+    function addr(Sender s) internal pure returns (address) {
+        return Sender.unwrap(s);
+    }
+
+    /// @notice Broadcast the next transaction from this sender.
+    function broadcast(Sender s) internal {
+        vm.broadcast(Sender.unwrap(s));
+    }
+
+    /// @notice Start a broadcast scope — all subsequent calls are from this sender.
+    function startBroadcast(Sender s) internal {
+        vm.startBroadcast(Sender.unwrap(s));
+    }
+
+    /// @notice Stop the active broadcast scope.
+    function stopBroadcast(Sender) internal {
+        vm.stopBroadcast();
     }
 
     // ── Registry Management ─────────────────────────────────────────────
