@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
+import {Sender} from "../../src/v2/Sender.sol";
 import {Senders} from "../../src/v2/internal/sender/Senders.sol";
 import {Deployer} from "../../src/v2/internal/sender/Deployer.sol";
-import {SenderTypes, Transaction} from "../../src/internal/types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 

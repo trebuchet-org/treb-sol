@@ -2,20 +2,19 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
+import {Sender} from "../../Sender.sol";
 import {Senders} from "./Senders.sol";
-import {Transaction, SimulatedTransaction} from "../../../internal/types.sol";
 import {CREATEX_ADDRESS} from "createx-forge/script/CreateX.d.sol";
 import {ICreateX} from "createx-forge/script/ICreateX.sol";
 import {ITrebEvents} from "../../../internal/ITrebEvents.sol";
 
 /// @title Deployer (v2)
-/// @notice Same builder API as v1 — create3/create2/setLabel/deploy/predict.
-/// @dev Internally identical to v1 Deployer. The only difference is it imports
-///      the v2 Senders library (which uses vm.broadcast instead of vm.prank).
-///      ContractDeployed events are still emitted for Rust-side deployment tracking.
+/// @notice Builder API for deterministic CREATE2/CREATE3 deployments via CreateX.
+/// @dev Each deploy() call does vm.broadcast(sender) + direct CreateX call.
+///      No intermediate Transaction/execute() layer — forge captures the
+///      broadcast and Rust routes by sender address after execution.
 library Deployer {
-    using Senders for Senders.Sender;
-    using Deployer for Senders.Sender;
+    using Deployer for Sender;
     using Deployer for Deployment;
 
     enum CreateStrategy {
@@ -24,7 +23,7 @@ library Deployer {
     }
 
     struct Deployment {
-        Senders.Sender sender;
+        Sender sender;
         CreateStrategy strategy;
         bytes bytecode;
         string label;
@@ -60,22 +59,19 @@ library Deployer {
 
     // ── Deployment Builder ──────────────────────────────────────────────
 
-    function _deploy(Senders.Sender storage sender, bytes memory bytecode)
-        internal
-        returns (Deployment storage deployment)
-    {
-        bytes32 deploymentSlot = keccak256(abi.encode(sender.account, bytecode, Senders.registry().transactionCounter));
+    function _deploy(Sender s, bytes memory bytecode) internal returns (Deployment storage deployment) {
+        bytes32 deploymentSlot =
+            keccak256(abi.encode(Sender.unwrap(s), bytecode, Senders.registry().transactionCounter));
         assembly {
             deployment.slot := deploymentSlot
         }
-        delete deployment.sender;
         delete deployment.strategy;
         delete deployment.bytecode;
         delete deployment.label;
         delete deployment.entropy;
         delete deployment.artifact;
 
-        deployment.sender = sender;
+        deployment.sender = s;
         deployment.bytecode = bytecode;
     }
 
@@ -100,7 +96,7 @@ library Deployer {
         verify(deployment)
         returns (address)
     {
-        bytes32 salt = deployment.sender._salt(deployment.entropy);
+        bytes32 salt = _salt(deployment.sender, deployment.entropy);
         address predictedAddress = deployment.predict(_constructorArgs);
         bytes memory initCode = abi.encodePacked(deployment.bytecode, _constructorArgs);
 
@@ -122,10 +118,17 @@ library Deployer {
             return predictedAddress;
         }
 
-        // Execute deployment via CreateX
-        Transaction memory createTx = _createDeploymentTransaction(deployment.strategy, salt, initCode);
-        SimulatedTransaction memory result = deployment.sender.execute(createTx);
-        address deployedAddress = abi.decode(result.returnData, (address));
+        // Deploy via CreateX with vm.broadcast
+        bytes32 transactionId = Senders.generateTransactionId();
+        deployment.sender.broadcast();
+        address deployedAddress;
+        if (deployment.strategy == CreateStrategy.CREATE3) {
+            deployedAddress = CREATEX.deployCreate3(salt, initCode);
+        } else if (deployment.strategy == CreateStrategy.CREATE2) {
+            deployedAddress = CREATEX.deployCreate2(salt, initCode);
+        } else {
+            revert InvalidCreateStrategy(deployment.strategy);
+        }
 
         if (deployedAddress != predictedAddress) {
             revert PredictedAddressMismatch(predictedAddress, deployedAddress);
@@ -133,33 +136,20 @@ library Deployer {
 
         // Emit ContractDeployed for Rust-side deployment tracking
         if (!Senders.registry().quiet) {
-            _emitDeploymentEvent(
-                deployment, result.transactionId, deployedAddress, salt, keccak256(initCode), _constructorArgs
-            );
+            ITrebEvents.DeploymentDetails memory details = ITrebEvents.DeploymentDetails({
+                artifact: deployment.artifact,
+                label: deployment.label,
+                entropy: deployment.entropy,
+                salt: salt,
+                bytecodeHash: keccak256(deployment.bytecode),
+                initCodeHash: keccak256(initCode),
+                constructorArgs: _constructorArgs,
+                createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
+            });
+            emit ITrebEvents.ContractDeployed(deployment.sender.addr(), deployedAddress, transactionId, details);
         }
 
         return deployedAddress;
-    }
-
-    function _emitDeploymentEvent(
-        Deployment storage deployment,
-        bytes32 transactionId,
-        address deployedAddress,
-        bytes32 salt,
-        bytes32 initCodeHash,
-        bytes memory _constructorArgs
-    ) internal {
-        ITrebEvents.DeploymentDetails memory details = ITrebEvents.DeploymentDetails({
-            artifact: deployment.artifact,
-            label: deployment.label,
-            entropy: deployment.entropy,
-            salt: salt,
-            bytecodeHash: keccak256(deployment.bytecode),
-            initCodeHash: initCodeHash,
-            constructorArgs: _constructorArgs,
-            createStrategy: deployment.strategy == CreateStrategy.CREATE3 ? "CREATE3" : "CREATE2"
-        });
-        emit ITrebEvents.ContractDeployed(deployment.sender.account, deployedAddress, transactionId, details);
     }
 
     // ── Prediction ──────────────────────────────────────────────────────
@@ -173,8 +163,8 @@ library Deployer {
         verify(deployment)
         returns (address)
     {
-        bytes32 salt = deployment.sender._salt(deployment.entropy);
-        salt = deployment.sender._derivedSalt(salt);
+        bytes32 salt = _salt(deployment.sender, deployment.entropy);
+        salt = _derivedSalt(deployment.sender, salt);
 
         if (deployment.strategy == CreateStrategy.CREATE3) {
             return CREATEX.computeCreate3Address(salt);
@@ -188,22 +178,19 @@ library Deployer {
 
     // ── CREATE3 ─────────────────────────────────────────────────────────
 
-    function create3(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode)
+    function create3(Sender s, string memory _entropy, bytes memory bytecode)
         internal
         returns (Deployment storage deployment)
     {
-        deployment = sender._deploy(bytecode);
+        deployment = _deploy(s, bytecode);
         deployment.artifact = "<user-provided-bytecode>";
         deployment.entropy = _entropy;
         deployment.strategy = CreateStrategy.CREATE3;
     }
 
-    function create3(Senders.Sender storage sender, string memory _artifact)
-        internal
-        returns (Deployment storage deployment)
-    {
+    function create3(Sender s, string memory _artifact) internal returns (Deployment storage deployment) {
         try vm.getCode(_artifact) returns (bytes memory code) {
-            deployment = sender._deploy(code);
+            deployment = _deploy(s, code);
             deployment.artifact = _artifact;
             deployment.strategy = CreateStrategy.CREATE3;
         } catch Error(string memory reason) {
@@ -224,22 +211,19 @@ library Deployer {
 
     // ── CREATE2 ─────────────────────────────────────────────────────────
 
-    function create2(Senders.Sender storage sender, string memory _entropy, bytes memory bytecode)
+    function create2(Sender s, string memory _entropy, bytes memory bytecode)
         internal
         returns (Deployment storage deployment)
     {
-        deployment = sender._deploy(bytecode);
+        deployment = _deploy(s, bytecode);
         deployment.artifact = "<user-provided-bytecode>";
         deployment.entropy = _entropy;
         deployment.strategy = CreateStrategy.CREATE2;
     }
 
-    function create2(Senders.Sender storage sender, string memory _artifact)
-        internal
-        returns (Deployment storage deployment)
-    {
+    function create2(Sender s, string memory _artifact) internal returns (Deployment storage deployment) {
         try vm.getCode(_artifact) returns (bytes memory code) {
-            deployment = sender._deploy(code);
+            deployment = _deploy(s, code);
             deployment.artifact = _artifact;
             deployment.strategy = CreateStrategy.CREATE2;
         } catch Error(string memory reason) {
@@ -260,13 +244,13 @@ library Deployer {
 
     // ── Salt Helpers ────────────────────────────────────────────────────
 
-    function _salt(Senders.Sender storage sender, string memory _entropy) internal view returns (bytes32) {
+    function _salt(Sender s, string memory _entropy) internal pure returns (bytes32) {
         bytes11 entropy = bytes11(keccak256(bytes(_entropy)));
-        return bytes32(abi.encodePacked(sender.account, hex"00", entropy));
+        return bytes32(abi.encodePacked(Sender.unwrap(s), hex"00", entropy));
     }
 
-    function _derivedSalt(Senders.Sender storage sender, bytes32 salt) internal view returns (bytes32 derivedSalt) {
-        address deployer = sender.account;
+    function _derivedSalt(Sender s, bytes32 salt) internal view returns (bytes32 derivedSalt) {
+        address deployer = Sender.unwrap(s);
         bytes1 saltFlag = salt[20];
         address saltAddress = address(bytes20(salt));
 
@@ -276,28 +260,6 @@ library Deployer {
             derivedSalt = keccak256(abi.encode(deployer, block.chainid, salt));
         } else {
             derivedSalt = keccak256(abi.encode(salt));
-        }
-    }
-
-    function _createDeploymentTransaction(CreateStrategy strategy, bytes32 salt, bytes memory initCode)
-        internal
-        pure
-        returns (Transaction memory)
-    {
-        if (strategy == CreateStrategy.CREATE3) {
-            return Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate3(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else if (strategy == CreateStrategy.CREATE2) {
-            return Transaction({
-                to: CREATEX_ADDRESS,
-                data: abi.encodeWithSignature("deployCreate2(bytes32,bytes)", salt, initCode),
-                value: 0
-            });
-        } else {
-            revert InvalidCreateStrategy(strategy);
         }
     }
 }

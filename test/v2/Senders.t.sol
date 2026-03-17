@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
+import {Sender} from "../../src/v2/Sender.sol";
 import {Senders} from "../../src/v2/internal/sender/Senders.sol";
-import {SenderTypes, Transaction} from "../../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
 contract SendersRegistryTestHarness {
@@ -32,9 +32,9 @@ contract V2SendersTest is Test {
         accounts[0] = address(0x1234);
         initialize(names, accounts);
 
-        Senders.Sender memory s = harness.get("sender1");
-        assertEq(s.name, "sender1");
-        assertEq(s.account, address(0x1234));
+        Sender s = harness.get("sender1");
+        assertEq(s.addr(), address(0x1234));
+        assertEq(harness.getSenderName(s), "sender1");
     }
 
     function test_initializeMultipleSenders() public {
@@ -45,9 +45,9 @@ contract V2SendersTest is Test {
         names[2] = "governor";  accounts[2] = address(0x3);
         initialize(names, accounts);
 
-        assertEq(harness.getSenderAccount("deployer"), address(0x1));
-        assertEq(harness.getSenderAccount("safe"), address(0x2));
-        assertEq(harness.getSenderAccount("governor"), address(0x3));
+        assertEq(harness.getSenderAddress("deployer"), address(0x1));
+        assertEq(harness.getSenderAddress("safe"), address(0x2));
+        assertEq(harness.getSenderAddress("governor"), address(0x3));
     }
 
     function test_RevertWhen_getSenderNotInitialized() public {

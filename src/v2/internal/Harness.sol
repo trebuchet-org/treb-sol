@@ -1,61 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Senders} from "./sender/Senders.sol";
-import {SenderCoordinator} from "./SenderCoordinator.sol";
 import {CommonBase} from "forge-std/Base.sol";
-import {Transaction, SimulatedTransaction} from "../../internal/types.sol";
+import {Sender} from "../Sender.sol";
 
 /// @title Harness (v2)
-/// @notice Proxy contract for sender-isolated execution context.
-/// @dev Same API as v1 Harness. Intercepts calls and routes them through
-///      the SenderCoordinator for proper sender-scoped execution.
-///      In v2 the underlying execute() uses vm.broadcast() instead of vm.prank().
+/// @notice Proxy contract for sender-scoped contract interactions.
+/// @dev Intercepts all calls to the target and wraps them in
+///      vm.startBroadcast(sender) / vm.stopBroadcast().  Using startBroadcast
+///      (rather than single-shot broadcast) lets forge handle both state-changing
+///      calls and view/pure staticcalls transparently.
+///      The harness must be marked with vm.allowCheatcodes() at creation time.
 contract Harness is CommonBase {
-    using Senders for Senders.Sender;
+    address private _target;
+    Sender private _sender;
 
-    bytes32 public lastTransactionId;
-    address private target;
-    bytes32 private senderId;
-    SenderCoordinator private senderCoordinator;
-
-    constructor(address _target, string memory _sender, bytes32 _senderId) {
-        target = _target;
-        senderId = _senderId;
-        senderCoordinator = SenderCoordinator(msg.sender);
-        vm.label(address(this), string.concat("Harness[", _sender, "]"));
+    constructor(address target_, Sender sender_, string memory senderName_) {
+        _target = target_;
+        _sender = sender_;
+        vm.label(address(this), string.concat("Harness[", senderName_, "]"));
     }
 
     receive() external payable {}
 
-    /// @dev Fallback intercepts all calls. State-changing calls go through
-    ///      senderCoordinator.execute(); view/pure calls fall back to staticcall.
     fallback(bytes calldata) external payable returns (bytes memory) {
-        Transaction memory transaction = Transaction({to: target, value: msg.value, data: msg.data});
-
-        try senderCoordinator.execute(senderId, transaction) returns (SimulatedTransaction memory simulatedTx) {
-            bytes memory returnData = simulatedTx.returnData;
-            lastTransactionId = simulatedTx.transactionId;
+        _sender.startBroadcast();
+        (bool success, bytes memory returnData) = _target.call{value: msg.value}(msg.data);
+        _sender.stopBroadcast();
+        if (!success) {
             assembly {
-                return(add(returnData, 0x20), mload(returnData))
+                revert(add(returnData, 0x20), mload(returnData))
             }
-        } catch (bytes memory errorData) {
-            if (errorData.length > 0) {
-                assembly {
-                    revert(add(errorData, 0x20), mload(errorData))
-                }
-            }
-
-            (bool success, bytes memory returnData) = target.staticcall(msg.data);
-            if (success) {
-                assembly {
-                    return(add(returnData, 0x20), mload(returnData))
-                }
-            } else {
-                assembly {
-                    revert(add(returnData, 0x20), mload(returnData))
-                }
-            }
+        }
+        assembly {
+            return(add(returnData, 0x20), mload(returnData))
         }
     }
 }

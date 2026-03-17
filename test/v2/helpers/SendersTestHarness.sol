@@ -2,43 +2,30 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
+import {Sender} from "../../../src/v2/Sender.sol";
 import {Senders} from "../../../src/v2/internal/sender/Senders.sol";
-import {Transaction, SimulatedTransaction, SenderTypes} from "../../../src/internal/types.sol";
 import {Deployer} from "../../../src/v2/internal/sender/Deployer.sol";
 import {SenderCoordinator} from "../../../src/v2/internal/SenderCoordinator.sol";
 
-/// @dev v2 test harness — simplified since v2 has no type-specific senders,
-///      no fork management, and no global queue broadcast.
+/// @dev v2 test harness — simplified for UDVT-based Sender.
 contract SendersTestHarness is SenderCoordinator {
-    using Senders for Senders.Sender;
-    using Senders for Senders.Registry;
-    using Deployer for Senders.Sender;
+    using Deployer for Sender;
     using Deployer for Deployer.Deployment;
 
     constructor(string[] memory _names, address[] memory _accounts)
         SenderCoordinator(abi.encode(_names, _accounts), "default", "sepolia", false, false)
     {}
 
-    function execute(string memory _name, Transaction memory _transaction)
-        public
-        returns (SimulatedTransaction memory)
-    {
-        return Senders.get(_name).execute(_transaction);
-    }
-
-    function execute(string memory _name, Transaction[] memory _transactions)
-        public
-        returns (SimulatedTransaction[] memory)
-    {
-        return Senders.get(_name).execute(_transactions);
-    }
-
-    function get(string memory _name) public view returns (Senders.Sender memory) {
+    function get(string memory _name) public view returns (Sender) {
         return Senders.get(_name);
     }
 
-    function getSenderAccount(string memory _name) public view returns (address) {
-        return Senders.get(_name).account;
+    function getSenderAddress(string memory _name) public view returns (address) {
+        return Senders.get(_name).addr();
+    }
+
+    function getSenderName(Sender _sender) public view returns (string memory) {
+        return Senders.name(_sender);
     }
 
     // ── Deployer Methods ────────────────────────────────────────────────
@@ -117,11 +104,11 @@ contract SendersTestHarness is SenderCoordinator {
     }
 
     function _salt(string memory _name, string memory _entropy) public view returns (bytes32) {
-        return Senders.get(_name)._salt(_entropy);
+        return Deployer._salt(Senders.get(_name), _entropy);
     }
 
     function _derivedSalt(string memory _name, bytes32 _baseSalt) public view returns (bytes32) {
-        return Senders.get(_name)._derivedSalt(_baseSalt);
+        return Deployer._derivedSalt(Senders.get(_name), _baseSalt);
     }
 
     // ── Registry Helpers ────────────────────────────────────────────────
@@ -137,6 +124,6 @@ contract SendersTestHarness is SenderCoordinator {
     // ── Harness Helpers ─────────────────────────────────────────────────
 
     function getHarness(string memory _name, address _target) public returns (address) {
-        return Senders.get(_name).harness(_target);
+        return Senders.harness(Senders.get(_name), _target);
     }
 }

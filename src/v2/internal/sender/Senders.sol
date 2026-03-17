@@ -2,33 +2,26 @@
 pragma solidity ^0.8.0;
 
 import {Vm} from "forge-std/Vm.sol";
+import {Sender} from "../../Sender.sol";
 import {Harness} from "../Harness.sol";
-import {ITrebEvents} from "../../../internal/ITrebEvents.sol";
-import {Transaction, SimulatedTransaction, SenderTypes} from "../../../internal/types.sol";
 
 /// @title Senders (v2)
-/// @notice Simplified sender registry — uses vm.broadcast() instead of vm.prank() + global queue.
-/// @dev In v2, Rust routes transactions by sender type after execution. The Solidity side only needs
-///      to track sender names/addresses and call vm.broadcast() for each transaction. No more
-///      two-fork system, global transaction queue, or type-specific broadcast logic.
+/// @notice Sender registry — maps names to Sender (UDVT over address).
+/// @dev Stores sender name/address pairs at a fixed storage slot so every
+///      contract in the inheritance tree shares one registry without constructor
+///      plumbing. The Sender UDVT carries only the address; names are kept in
+///      a side-mapping for labelling / diagnostics.
 library Senders {
-    using Senders for Sender;
-
     struct Registry {
         mapping(bytes32 => Sender) senders;
-        mapping(bytes32 => mapping(address => address)) senderHarness;
+        mapping(bytes32 => string) names;
+        mapping(bytes32 => address) harnesses;
         bytes32[] ids;
         string namespace;
         string network;
         bool quiet;
         bool initialized;
         uint256 transactionCounter;
-    }
-
-    struct Sender {
-        bytes32 id;
-        string name;
-        address account;
     }
 
     bytes32 private constant REGISTRY_STORAGE_SLOT = 0xec6e4b146920a90a3174833331c3e69622ec7d9a352328df6e7b536886008f0e;
@@ -38,8 +31,6 @@ library Senders {
     error SenderNotInitialized(string name);
     error NoSenders();
     error RegistryAlreadyInitialized();
-    error EmptyTransactionArray();
-    error InvalidTargetAddress(uint256 index);
 
     function registry() internal pure returns (Registry storage _registry) {
         assembly {
@@ -62,17 +53,7 @@ library Senders {
         string memory _network,
         bool _quiet
     ) internal {
-        initialize(registry(), _names, _accounts, _namespace, _network, _quiet);
-    }
-
-    function initialize(
-        Registry storage _registry,
-        string[] memory _names,
-        address[] memory _accounts,
-        string memory _namespace,
-        string memory _network,
-        bool _quiet
-    ) internal {
+        Registry storage _registry = registry();
         if (_registry.initialized) revert RegistryAlreadyInitialized();
 
         _registry.namespace = _namespace;
@@ -86,94 +67,52 @@ library Senders {
         unchecked {
             for (uint256 i; i < _names.length; ++i) {
                 bytes32 senderId = keccak256(abi.encodePacked(_names[i]));
-                _registry.senders[senderId] = Sender({
-                    id: senderId,
-                    name: _names[i],
-                    account: _accounts[i]
-                });
+                _registry.senders[senderId] = Sender.wrap(_accounts[i]);
+                _registry.names[senderId] = _names[i];
                 _registry.ids[i] = senderId;
             }
         }
     }
 
-    function get(string memory _name) internal view returns (Sender storage) {
-        return get(registry(), _name);
-    }
+    // ── Lookup ──────────────────────────────────────────────────────────
 
-    function get(Registry storage _registry, string memory _name) internal view returns (Sender storage) {
-        Sender storage _sender = _registry.senders[keccak256(abi.encodePacked(_name))];
-        if (_sender.account == address(0)) revert SenderNotInitialized(_name);
+    function get(string memory _name) internal view returns (Sender) {
+        Registry storage _registry = registry();
+        bytes32 id = keccak256(abi.encodePacked(_name));
+        Sender _sender = _registry.senders[id];
+        if (Sender.unwrap(_sender) == address(0)) revert SenderNotInitialized(_name);
         return _sender;
     }
 
-    function get(bytes32 _id) internal view returns (Sender storage) {
+    function get(bytes32 _id) internal view returns (Sender) {
         return registry().senders[_id];
     }
 
-    function get(Registry storage _registry, bytes32 _id) internal view returns (Sender storage) {
-        return _registry.senders[_id];
+    function name(Sender _sender) internal view returns (string memory) {
+        Registry storage _registry = registry();
+        for (uint256 i; i < _registry.ids.length; ++i) {
+            if (Sender.unwrap(_registry.senders[_registry.ids[i]]) == Sender.unwrap(_sender)) {
+                return _registry.names[_registry.ids[i]];
+            }
+        }
+        return "";
     }
+
+    // ── Harness ─────────────────────────────────────────────────────────
 
     /// @notice Gets or creates a harness proxy for a sender-target pair.
-    function harness(Sender storage _sender, address _target) internal returns (address) {
+    /// @dev The harness is allowed to call vm cheatcodes so it can broadcast
+    ///      transactions from the sender's address.
+    function harness(Sender _sender, address _target) internal returns (address) {
         Registry storage reg = registry();
-        address _harness = reg.senderHarness[_sender.id][_target];
+        bytes32 key = keccak256(abi.encodePacked(Sender.unwrap(_sender), _target));
+        address _harness = reg.harnesses[key];
         if (_harness == address(0)) {
-            _harness = address(new Harness(_target, _sender.name, _sender.id));
-            reg.senderHarness[_sender.id][_target] = _harness;
+            string memory senderName = name(_sender);
+            _harness = address(new Harness(_target, _sender, senderName));
+            vm.allowCheatcodes(_harness);
+            reg.harnesses[key] = _harness;
         }
         return _harness;
-    }
-
-    // ── Transaction Execution (v2: vm.broadcast) ────────────────────────
-
-    /// @notice Execute transactions through a sender using vm.broadcast().
-    /// @dev In v2, transactions are broadcast directly via forge's vm.broadcast() cheatcode.
-    ///      Forge captures these in BroadcastableTransactions with the `from` address set to
-    ///      the sender's account. Rust routes them after execution.
-    function execute(Sender storage _sender, Transaction[] memory _transactions)
-        internal
-        returns (SimulatedTransaction[] memory simulatedTransactions)
-    {
-        if (_transactions.length == 0) revert EmptyTransactionArray();
-
-        simulatedTransactions = new SimulatedTransaction[](_transactions.length);
-
-        for (uint256 i = 0; i < _transactions.length; i++) {
-            if (_transactions[i].to == address(0)) revert InvalidTargetAddress(i);
-
-            bytes32 transactionId = generateTransactionId();
-
-            // v2: use vm.broadcast instead of vm.prank + global queue
-            vm.broadcast(_sender.account);
-            (bool success, bytes memory returnData) =
-                _transactions[i].to.call{value: _transactions[i].value}(_transactions[i].data);
-
-            if (!success) {
-                assembly {
-                    let dataSize := mload(returnData)
-                    revert(add(returnData, 0x20), dataSize)
-                }
-            }
-
-            simulatedTransactions[i] = SimulatedTransaction({
-                transaction: _transactions[i],
-                transactionId: transactionId,
-                senderId: _sender.id,
-                sender: _sender.account,
-                returnData: returnData,
-                gasUsed: 0 // not tracked in v2 — forge captures this
-            });
-        }
-    }
-
-    /// @notice Execute a single transaction through a sender.
-    function execute(Sender storage _sender, Transaction memory _transaction)
-        internal
-        returns (SimulatedTransaction memory)
-    {
-        Transaction[] memory transactions = new Transaction[](1);
-        transactions[0] = _transaction;
-        return execute(_sender, transactions)[0];
     }
 }

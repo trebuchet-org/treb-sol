@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {CreateXScript} from "createx-forge/script/CreateXScript.sol";
+import {Sender} from "../../src/v2/Sender.sol";
 import {Senders} from "../../src/v2/internal/sender/Senders.sol";
 import {SenderCoordinator} from "../../src/v2/internal/SenderCoordinator.sol";
 import {Harness} from "../../src/v2/internal/Harness.sol";
-import {SenderTypes, Transaction, SimulatedTransaction} from "../../src/internal/types.sol";
 import {SendersTestHarness} from "./helpers/SendersTestHarness.sol";
 
 contract OwnableContract {
@@ -71,8 +71,6 @@ contract Counter {
 }
 
 contract V2HarnessIntegrationTest is Test, CreateXScript {
-    using Senders for Senders.Sender;
-
     SendersTestHarness harness;
     OwnableContract ownable;
     Counter counter;
@@ -92,7 +90,7 @@ contract V2HarnessIntegrationTest is Test, CreateXScript {
 
         harness = new SendersTestHarness(names, accounts);
 
-        // Deploy test contracts — v2 has no fork system so just deploy once
+        // Deploy test contracts owned by senderAddr
         vm.startPrank(senderAddr);
         ownable = new OwnableContract();
         counter = new Counter();
@@ -137,7 +135,7 @@ contract V2HarnessIntegrationTest is Test, CreateXScript {
         assertEq(counter.number(), 200);
     }
 
-    function test_StaticCallDetection() public {
+    function test_ViewCallThroughHarness() public {
         address harnessAddr = harness.getHarness(SENDER_NAME, address(counter));
         Counter(harnessAddr).setNumber(50);
 
@@ -167,19 +165,6 @@ contract V2HarnessIntegrationTest is Test, CreateXScript {
         vm.expectEmit(true, true, true, true);
         emit Counter.CountChanged(777);
         Counter(harnessAddr).setNumber(777);
-    }
-
-    function test_DirectExecuteThroughSenderCoordinator() public {
-        bytes32 senderId = keccak256(abi.encodePacked(SENDER_NAME));
-        Transaction memory txn = Transaction({
-            to: address(counter),
-            data: abi.encodeWithSelector(Counter.setNumber.selector, 333),
-            value: 0
-        });
-
-        SimulatedTransaction memory result = harness.execute(senderId, txn);
-        assertEq(counter.number(), 333);
-        assertEq(result.returnData.length, 0);
     }
 
     function test_RevertWithDataPropagation() public {

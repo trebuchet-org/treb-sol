@@ -2,19 +2,16 @@
 pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
+import {Sender} from "../Sender.sol";
 import {Senders} from "./sender/Senders.sol";
-import {Transaction, SimulatedTransaction} from "../../internal/types.sol";
-import {ITrebEvents} from "../../internal/ITrebEvents.sol";
 
 /// @title SenderCoordinator (v2)
-/// @notice Same API as v1 — provides sender() and broadcast modifier.
-/// @dev In v2, the broadcast modifier is a no-op because Rust handles
-///      transaction routing after execution. Scripts still use the modifier
-///      for API compatibility but it doesn't process a global queue.
-contract SenderCoordinator is Script, ITrebEvents {
-    using Senders for Senders.Registry;
-    using Senders for Senders.Sender;
-
+/// @notice Initializes senders from encoded config and provides sender() lookup.
+/// @dev In v2, there is no execute() — the Sender UDVT carries broadcast methods
+///      directly (sender.broadcast(), sender.startBroadcast()), and the Deployer
+///      library calls vm.broadcast before each CreateX deployment. The Harness
+///      also broadcasts directly instead of delegating back here.
+contract SenderCoordinator is Script {
     error SenderNotFound(string id);
 
     /// @notice Modifier for API compatibility. In v2 this is a no-op — Rust
@@ -35,26 +32,8 @@ contract SenderCoordinator is Script, ITrebEvents {
         Senders.initialize(names, accounts, _namespace, _network, _quiet);
     }
 
-    /// @notice Execute transactions through a specific sender (used by Deployer).
-    function execute(bytes32 _senderId, Transaction[] memory _transactions)
-        external
-        returns (SimulatedTransaction[] memory)
-    {
-        Senders.Sender storage _sender = Senders.registry().get(_senderId);
-        return _sender.execute(_transactions);
-    }
-
-    /// @notice Execute a single transaction through a specific sender.
-    function execute(bytes32 _senderId, Transaction memory _transaction)
-        external
-        returns (SimulatedTransaction memory)
-    {
-        Senders.Sender storage _sender = Senders.registry().get(_senderId);
-        return _sender.execute(_transaction);
-    }
-
     /// @notice Retrieves a sender by name.
-    function sender(string memory _name) internal view returns (Senders.Sender storage) {
-        return Senders.registry().get(_name);
+    function sender(string memory _name) internal view returns (Sender) {
+        return Senders.get(_name);
     }
 }
