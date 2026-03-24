@@ -165,6 +165,11 @@ library OZGovernor {
 
         string memory description = _sender.buildProposalMetadata();
 
+        // Emit metadata event for treb CLI to capture title/description
+        if (!Senders.registry().quiet) {
+            emit ITrebEvents.GovernorBroadcast(_sender.governor, _sender.title, _sender.description);
+        }
+
         // Prepare proposal arrays
         address[] memory targets = new address[](_sender.txQueue.length);
         uint256[] memory values = new uint256[](_sender.txQueue.length);

@@ -86,4 +86,14 @@ interface ITrebEvents {
     event GovernorProposalCreated(
         uint256 indexed proposalId, address indexed governor, address indexed proposer, bytes32[] transactionIds
     );
+
+    /**
+     * @notice Emitted before Governor.propose() to capture proposal metadata.
+     * @dev Title and description are not included in the on-chain propose() call's
+     *      indexed event, so this event lets treb extract them from script logs.
+     * @param governor Address of the Governor contract
+     * @param title Short proposal title
+     * @param description Full proposal description (may be markdown)
+     */
+    event GovernorBroadcast(address indexed governor, string title, string description);
 }
