@@ -48,8 +48,8 @@ abstract contract TrebScript is SenderCoordinator, Registry {
         )
         Registry(
             vm.envOr("NAMESPACE", string("default")),
-            vm.envOr("REGISTRY_FILE", string(".treb/registry.json")),
-            vm.envOr("ADDRESSBOOK_FILE", string(".treb/addressbook.json"))
+            vm.envOr("REGISTRY_FILE", string("deployments/registry.json")),
+            vm.envOr("ADDRESSBOOK_FILE", string("deployments/addressbook.json"))
         )
     {
         isForkMode = vm.envOr("TREB_FORK_MODE", false);

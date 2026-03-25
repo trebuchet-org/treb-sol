@@ -37,7 +37,7 @@ abstract contract TrebScript is ConfigurableTrebScript {
      *      Environment variables read:
      *      - SENDER_CONFIGS: ABI-encoded sender configurations for multi-sig/hardware wallet support
      *      - NAMESPACE: Deployment namespace (default: "default")
-     *      - REGISTRY_FILE: Registry file path (default: ".treb/registry.json")
+     *      - REGISTRY_FILE: Registry file path (default: "deployments/registry.json")
      *      - DRYRUN: Whether to execute in dry-run mode (default: false)
      *      - QUIET: Whether to suppress internal treb-cli parsing logs (default: false)
      */
@@ -46,8 +46,8 @@ abstract contract TrebScript is ConfigurableTrebScript {
             abi.decode(vm.envBytes("SENDER_CONFIGS"), (Senders.SenderInitConfig[])),
             vm.envOr("NAMESPACE", string("default")),
             vm.envString("NETWORK"),
-            vm.envOr("REGISTRY_FILE", string(".treb/registry.json")),
-            vm.envOr("ADDRESSBOOK_FILE", string(".treb/addressbook.json")),
+            vm.envOr("REGISTRY_FILE", string("deployments/registry.json")),
+            vm.envOr("ADDRESSBOOK_FILE", string("deployments/addressbook.json")),
             vm.envOr("DRYRUN", false),
             vm.envOr("QUIET", false),
             vm.envOr("TREB_FORK_MODE", false)
