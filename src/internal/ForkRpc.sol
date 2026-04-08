@@ -102,6 +102,6 @@ library ForkRpc {
             return (false, bytes(""));
         }
 
-        return (true, abi.decode(raw, (bytes)));
+        return (true, raw);
     }
 }
